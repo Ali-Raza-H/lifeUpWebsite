@@ -4,7 +4,7 @@ import logging
 import os
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, session, redirect, url_for
 
 from database import init_app
 from utils import ValidationError
@@ -25,11 +25,14 @@ BASE_DIR = Path(__file__).resolve().parent
 def create_app(test_config: dict | None = None) -> Flask:
     app = Flask(__name__)
     app.config.from_mapping(
-        SECRET_KEY=os.environ.get("SECRET_KEY", "change-this-secret"),
+        SECRET_KEY=os.environ.get("SECRET_KEY", "lifeweb-secure-session-key-998811"),
         DATABASE=str(BASE_DIR / os.environ.get("LIFEUP_DATABASE", "lifeup.db")),
         MAX_CONTENT_LENGTH=1024 * 1024,
         JSON_SORT_KEYS=False,
         APP_VERSION=os.environ.get("APP_VERSION", "1.0.0"),
+        # Security Credentials
+        AUTH_USERNAME=os.environ.get("AUTH_USERNAME", "admin"),
+        AUTH_PASSWORD=os.environ.get("AUTH_PASSWORD", "2008Ali2008uk##"),
     )
 
     if test_config:
@@ -43,6 +46,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     _register_template_helpers(app)
     _register_error_handlers(app)
     _register_response_hooks(app)
+    _register_auth_hooks(app)
 
     return app
 
@@ -60,6 +64,30 @@ def _register_blueprints(app: Flask) -> None:
 
 
 def _register_routes(app: Flask) -> None:
+    @app.route("/login", methods=["GET", "POST"])
+    def login():
+        if session.get("logged_in"):
+            return redirect(url_for("dashboard"))
+            
+        error = None
+        if request.method == "POST":
+            username = request.form.get("username")
+            password = request.form.get("password")
+            
+            if username == app.config["AUTH_USERNAME"] and password == app.config["AUTH_PASSWORD"]:
+                session["logged_in"] = True
+                session.permanent = True
+                return redirect(url_for("dashboard"))
+            else:
+                error = "Invalid credentials. Access denied."
+                
+        return render_template("login.html", error=error)
+
+    @app.route("/logout")
+    def logout():
+        session.pop("logged_in", None)
+        return redirect(url_for("login"))
+
     @app.route("/")
     def dashboard():
         return render_template("dashboard.html")
@@ -160,6 +188,17 @@ def _register_response_hooks(app: Flask) -> None:
         else:
             response.headers["Cache-Control"] = "no-store"
         return response
+
+
+def _register_auth_hooks(app: Flask) -> None:
+    @app.before_request
+    def require_login():
+        # Exempt routes from login
+        exempt_routes = ["login", "static"]
+        if request.endpoint not in exempt_routes and not session.get("logged_in"):
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "Unauthorized access. Authentication required."}), 401
+            return redirect(url_for("login"))
 
 
 app = create_app()
