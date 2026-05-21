@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics{% endblock %}
+{% block page_title %}System Analytics{% endblock %}
+
+{% block content %}
+<div class="bento-grid">
+    <div class="card" style="grid-column: span 4;">
+        <span class="card-title"><i class="ph ph-check-square"></i> Completed Tasks</span>
+        <div class="stat-value" id="completed-tasks" style="margin-top: auto;">-</div>
+    </div>
+    <div class="card" style="grid-column: span 4;">
+        <span class="card-title"><i class="ph ph-calendar-check"></i> Active Protocols</span>
+        <div class="stat-value" id="active-habits" style="margin-top: auto;">-</div>
+    </div>
+    <div class="card" style="grid-column: span 4;">
+        <span class="card-title"><i class="ph ph-chart-line-up"></i> Consistency Rate</span>
+        <div class="stat-value" id="consistency-rate" style="margin-top: auto;">-</div>
+    </div>
+
+    <div class="card" style="grid-column: span 6; height: 320px;">
+        <div class="card-header">
+            <span class="card-title"><i class="ph ph-trend-up"></i> Execution Velocity</span>
+        </div>
+        <div class="chart-container" style="height: 220px;">
+            <canvas id="velocityChart"></canvas>
+        </div>
+    </div>
+    
+    <div class="card" style="grid-column: span 6; height: 320px;">
+        <div class="card-header">
+            <span class="card-title"><i class="ph ph-hexagon"></i> Trait Distribution</span>
+        </div>
+        <div class="chart-container" style="height: 220px; display: flex; justify-content: center;">
+            <canvas id="traitChart"></canvas>
+        </div>
+    </div>
+    
+    <div class="card" style="grid-column: span 12; background: transparent; border: none; padding: 0;">
+        <div class="card-header" style="padding-bottom: var(--space-2);">
+            <span class="card-title"><i class="ph ph-calendar-blank"></i> Monthly Protocol Report</span>
+        </div>
+        <div class="compact-list" id="monthly-report-list" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4);">
+            <!-- Populated via JS -->
+            <div class="compact-item" style="grid-column: span 2;"><span class="item-desc">Loading report...</span></div>
+        </div>
+    </div>
+
+    <div class="card" style="grid-column: span 12;">
+        <div class="calendar-toolbar" style="margin-bottom: var(--space-4);">
+            <button id="analytics-prev-month" class="btn" type="button"><i class="ph ph-caret-left"></i> Previous</button>
+            <div id="analytics-month-label" class="calendar-month-label">Loading month...</div>
+            <button id="analytics-next-month" class="btn" type="button">Next <i class="ph ph-caret-right"></i></button>
+        </div>
+        <div id="analytics-habit-calendar" class="bento-grid">
+            <div class="compact-item" style="grid-column: span 12;"><span class="item-desc">Loading calendar report...</span></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/analytics.js', v=asset_version('js/analytics.js')) }}"></script>
+{% endblock %}

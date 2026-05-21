@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LifeOS | {% block title %}{% endblock %}</title>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css', v=asset_version('css/base.css')) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css', v=asset_version('css/components.css')) }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <i class="ph-fill ph-cpu"></i>
+            <h2>LifeOS</h2>
+        </div>
+        <ul class="nav-links">
+            <li><a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}"><i class="ph ph-squares-four"></i> <span>Dashboard</span></a></li>
+            <li><a href="{{ url_for('habits') }}" class="nav-link {% if request.endpoint == 'habits' %}active{% endif %}"><i class="ph ph-calendar-check"></i> <span>Habits</span></a></li>
+            <li><a href="{{ url_for('tasks') }}" class="nav-link {% if request.endpoint == 'tasks' %}active{% endif %}"><i class="ph ph-list-checks"></i> <span>Tasks</span></a></li>
+            <li><a href="{{ url_for('projects') }}" class="nav-link {% if request.endpoint == 'projects' %}active{% endif %}"><i class="ph ph-kanban"></i> <span>Projects</span></a></li>
+            <li><a href="{{ url_for('goals') }}" class="nav-link {% if request.endpoint == 'goals' %}active{% endif %}"><i class="ph ph-target"></i> <span>Goals</span></a></li>
+            <li><a href="{{ url_for('analytics') }}" class="nav-link {% if request.endpoint == 'analytics' %}active{% endif %}"><i class="ph ph-chart-bar"></i> <span>Analytics</span></a></li>
+            <li><a href="{{ url_for('journal') }}" class="nav-link {% if request.endpoint == 'journal' %}active{% endif %}"><i class="ph ph-book-open"></i> <span>Journal</span></a></li>
+            <li><a href="{{ url_for('calendar') }}" class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}"><i class="ph ph-calendar-blank"></i> <span>Calendar</span></a></li>
+            <li><a href="{{ url_for('profile') }}" class="nav-link {% if request.endpoint == 'profile' %}active{% endif %}"><i class="ph ph-fingerprint"></i> <span>Profile</span></a></li>
+            <li style="margin-top: auto;"><a href="{{ url_for('settings') }}" class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}"><i class="ph ph-gear"></i> <span>Settings</span></a></li>
+        </ul>
+    </aside>
+    
+    <main class="main-wrapper">
+        <div class="top-bar">
+            <div><i class="ph-fill ph-circle" style="color: var(--accent-green); font-size: 8px; margin-right: 6px;"></i> SYSTEM OPTIMAL</div>
+            <div id="os-clock">00:00:00</div>
+        </div>
+        <div id="app-alert-region" class="app-alert-region" aria-live="polite"></div>
+
+        <div class="content-scroll">
+            <div class="content-container">
+                <header class="page-header">
+                    <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
+                    <div class="header-actions">
+                        {% block header_actions %}{% endblock %}
+                    </div>
+                </header>
+                
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </main>
+
+    <script src="{{ url_for('static', filename='js/api.js', v=asset_version('js/api.js') ) }}"></script>
+    <script src="{{ url_for('static', filename='js/core.js', v=asset_version('js/core.js') ) }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

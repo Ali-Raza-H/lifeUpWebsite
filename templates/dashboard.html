@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}<span id="greeting" style="font-weight: 500;">System Overview</span>{% endblock %}
+
+{% block content %}
+<div class="bento-grid">
+    <!-- Stat Cards -->
+    <div class="card" style="grid-column: span 4;">
+        <span class="card-title"><i class="ph ph-check-square"></i> Active Tasks</span>
+        <div class="stat-value" id="active-tasks-count" style="margin-top: auto;">-</div>
+    </div>
+    <div class="card" style="grid-column: span 4;">
+        <span class="card-title"><i class="ph ph-kanban"></i> Projects</span>
+        <div class="stat-value" id="active-projects-count" style="margin-top: auto;">-</div>
+    </div>
+    <div class="card" style="grid-column: span 4;">
+        <span class="card-title"><i class="ph ph-fire"></i> Habit Streak</span>
+        <div class="stat-value" id="habit-consistency" style="margin-top: auto;">Optimal</div>
+    </div>
+
+    <!-- Graph Card -->
+    <div class="card" style="grid-column: span 8; height: 260px;">
+        <div class="card-header">
+            <span class="card-title"><i class="ph ph-trend-up"></i> Activity Overview</span>
+        </div>
+        <div class="chart-container">
+            <canvas id="activityChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Quick Habits -->
+    <div class="card" style="grid-column: span 4; height: 260px; padding: 0; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="card-header" style="padding: var(--space-5) var(--space-5) var(--space-4); margin: 0; border-bottom: 1px solid var(--border-subtle); background: var(--bg-panel); z-index: 10;">
+            <span class="card-title"><i class="ph ph-calendar-check"></i> Daily Habits</span>
+            <a href="{{ url_for('habits') }}" class="btn btn-icon"><i class="ph ph-arrow-right"></i></a>
+        </div>
+        <div style="flex: 1; overflow-y: auto; padding: var(--space-4) var(--space-5) var(--space-5);">
+            <div class="compact-list" id="daily-habits-list">
+                <div class="compact-item"><span class="item-desc">Loading...</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Tasks -->
+    <div class="card" style="grid-column: span 12;">
+        <div class="card-header">
+            <span class="card-title"><i class="ph ph-lightning"></i> Priority Execution</span>
+            <a href="{{ url_for('tasks') }}" class="btn btn-icon"><i class="ph ph-arrow-right"></i></a>
+        </div>
+        <div class="bento-grid" id="priority-tasks-list" style="grid-template-columns: repeat(3, 1fr); gap: var(--space-3);">
+            <!-- Populated via JS -->
+            <div class="compact-item" style="grid-column: span 3;"><span class="item-desc">Loading...</span></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js', v=asset_version('js/dashboard.js')) }}"></script>
+{% endblock %}

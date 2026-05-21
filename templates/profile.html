@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Profile{% endblock %}
+{% block page_title %}Core Identity Architecture{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="bento-grid">
+    <div class="card" style="grid-column: span 5; height: 380px;">
+        <div class="card-header">
+            <span class="card-title"><i class="ph ph-hexagon"></i> Psychometric Topology</span>
+        </div>
+        <div class="chart-container" style="height: 280px; display: flex; justify-content: center;">
+            <canvas id="profileChart"></canvas>
+        </div>
+    </div>
+    
+    <div class="card" style="grid-column: span 7; background: transparent; border: none; padding: 0;">
+        <div class="card-header" style="padding-bottom: var(--space-2);">
+            <span class="card-title"><i class="ph ph-scales"></i> Core Operating Principles</span>
+        </div>
+        <div class="compact-list" id="beliefs-list" style="margin-bottom: var(--space-6);">
+            <!-- Populated via JS -->
+        </div>
+        
+        <div class="card-header" style="padding-bottom: var(--space-2);">
+            <span class="card-title"><i class="ph ph-dna"></i> System Traits</span>
+        </div>
+        <div class="compact-list" id="traits-list">
+            <!-- Populated via JS -->
+        </div>
+    </div>
+
+    <div class="card" style="grid-column: span 12;">
+        <div class="card-header">
+            <span class="card-title"><i class="ph ph-chart-polar"></i> Skill Field Charts</span>
+        </div>
+        <div class="item-desc" style="margin-bottom: var(--space-4);">Skill editing lives in Settings. This page is the overview.</div>
+        <div class="bento-grid" id="skill-radar-grid">
+            <div class="compact-item" style="grid-column: span 12;"><span class="item-desc">Loading skill charts...</span></div>
+        </div>
+    </div>
+
+    <div class="card" style="grid-column: span 12;">
+        <div class="card-header">
+            <span class="card-title"><i class="ph ph-code"></i> Technical Skill Inventory</span>
+        </div>
+        <div class="bento-grid" id="skills-grid">
+            <div class="compact-item" style="grid-column: span 12;"><span class="item-desc">Loading skills...</span></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/profile.js', v=asset_version('js/profile.js')) }}"></script>
+{% endblock %}

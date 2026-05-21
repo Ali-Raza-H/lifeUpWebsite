@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Tasks{% endblock %}
+{% block page_title %}Tasks{% endblock %}
+
+{% block header_actions %}
+<button class="btn btn-primary" onclick="TaskUI.openCreateModal()"><i class="ph ph-plus"></i> New Task</button>
+{% endblock %}
+
+{% block content %}
+<!-- Kanban Style Layout -->
+<div class="bento-grid">
+    <!-- Pending Column -->
+    <div class="card" style="grid-column: span 6; background: transparent; border: none; padding: 0;">
+        <div class="card-header" style="padding-bottom: var(--space-2);">
+            <span class="card-title"><i class="ph ph-circle"></i> Pending Execution</span>
+        </div>
+        <div class="compact-list" id="tasks-pending">
+            <!-- Populated via JS -->
+        </div>
+    </div>
+    
+    <!-- Completed Column -->
+    <div class="card" style="grid-column: span 6; background: transparent; border: none; padding: 0; opacity: 0.7;">
+        <div class="card-header" style="padding-bottom: var(--space-2);">
+            <span class="card-title"><i class="ph-fill ph-check-circle"></i> Completed</span>
+        </div>
+        <div class="compact-list" id="tasks-completed">
+            <!-- Populated via JS -->
+        </div>
+    </div>
+</div>
+
+<div id="task-modal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="card-header">
+            <h3 class="card-title">Create Task</h3>
+            <button class="btn btn-icon" onclick="TaskUI.closeModal()"><i class="ph ph-x"></i></button>
+        </div>
+        <form id="task-form" onsubmit="TaskUI.submitTask(event)">
+            <div class="form-group">
+                <label class="form-label">Title</label>
+                <input type="text" id="task-title" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea id="task-desc" class="form-control" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Priority</label>
+                <select id="task-priority" class="form-control">
+                    <option value="1">Highest</option>
+                    <option value="2">High</option>
+                    <option value="3" selected>Normal</option>
+                    <option value="4">Low</option>
+                </select>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap: var(--space-2);">
+                <button type="button" class="btn" onclick="TaskUI.closeModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Task</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/tasks.js', v=asset_version('js/tasks.js')) }}"></script>
+{% endblock %}

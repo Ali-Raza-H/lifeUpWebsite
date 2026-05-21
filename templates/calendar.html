@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Calendar{% endblock %}
+{% block page_title %}Weekly Calendar{% endblock %}
+
+{% block header_actions %}
+<button class="btn btn-primary" onclick="CalendarUI.openEventModal()"><i class="ph ph-plus"></i> New Event</button>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom: var(--space-4);">
+    <div class="calendar-toolbar">
+        <button id="calendar-prev-week" class="btn" type="button"><i class="ph ph-caret-left"></i> Previous</button>
+        <div id="calendar-week-label" class="calendar-month-label">Loading week...</div>
+        <div style="display:flex; gap: var(--space-2);">
+            <button id="calendar-this-week" class="btn" type="button">This Week</button>
+            <button id="calendar-next-week" class="btn" type="button">Next <i class="ph ph-caret-right"></i></button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div id="calendar-week-view">
+        <div class="compact-item"><span class="item-desc">Loading weekly schedule...</span></div>
+    </div>
+</div>
+
+<div id="calendar-event-modal" class="modal-overlay">
+    <div class="modal-content" style="width: 520px;">
+        <div class="card-header">
+            <h3 class="card-title" id="calendar-modal-title">New Event</h3>
+            <button class="btn btn-icon" onclick="CalendarUI.closeEventModal()"><i class="ph ph-x"></i></button>
+        </div>
+        <form id="calendar-event-form" onsubmit="CalendarUI.submitEvent(event)">
+            <input type="hidden" id="calendar-event-id">
+            <div class="form-group">
+                <label class="form-label">Title</label>
+                <input type="text" id="calendar-event-title" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Category</label>
+                <input type="text" id="calendar-event-category" class="form-control" placeholder="Study, Work, Personal">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Location</label>
+                <input type="text" id="calendar-event-location" class="form-control">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Start</label>
+                <input type="datetime-local" id="calendar-event-start" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">End</label>
+                <input type="datetime-local" id="calendar-event-end" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea id="calendar-event-description" class="form-control" rows="4"></textarea>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap: var(--space-2);">
+                <button type="button" class="btn" id="calendar-delete-btn" onclick="CalendarUI.deleteCurrentEvent()" style="display:none;">Delete</button>
+                <div style="display:flex; gap: var(--space-2); margin-left:auto;">
+                    <button type="button" class="btn" onclick="CalendarUI.closeEventModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Event</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/calendar.js', v=asset_version('js/calendar.js')) }}"></script>
+{% endblock %}

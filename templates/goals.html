@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Goals{% endblock %}
+{% block page_title %}Trajectories{% endblock %}
+
+{% block header_actions %}
+<button class="btn btn-primary" onclick="GoalUI.openCreateModal()"><i class="ph ph-plus"></i> Define Trajectory</button>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <span class="card-title"><i class="ph ph-target"></i> Goal Manager</span>
+        <span class="item-desc">Create, edit, pause, complete, or archive goals.</span>
+    </div>
+    <div id="goals-grid">
+        <div class="compact-item"><span class="item-desc">Loading goals...</span></div>
+    </div>
+</div>
+
+<div id="goal-modal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="card-header">
+            <h3 class="card-title" id="goal-modal-title">Define Directive</h3>
+            <button class="btn btn-icon" onclick="GoalUI.closeModal()"><i class="ph ph-x"></i></button>
+        </div>
+        <form id="goal-form" onsubmit="GoalUI.submitGoal(event)">
+            <input type="hidden" id="goal-id">
+            <div class="form-group">
+                <label class="form-label">Title</label>
+                <input type="text" id="goal-title" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Type</label>
+                <select id="goal-type" class="form-control">
+                    <option value="short-term">Short-Term</option>
+                    <option value="long-term">Long-Term</option>
+                    <option value="identity">Identity</option>
+                    <option value="skill">Skill Mastery</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Target Date</label>
+                <input type="date" id="goal-date" class="form-control">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Status</label>
+                <select id="goal-status" class="form-control">
+                    <option value="active">Active</option>
+                    <option value="paused">Paused</option>
+                    <option value="completed">Completed</option>
+                    <option value="archived">Archived</option>
+                </select>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap: var(--space-2);">
+                <button type="button" class="btn" id="goal-delete-btn" onclick="GoalUI.deleteCurrentGoal()" style="display:none;">Delete</button>
+                <div style="display:flex; gap: var(--space-2); margin-left:auto;">
+                    <button type="button" class="btn" onclick="GoalUI.closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Goal</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/goals.js', v=asset_version('js/goals.js')) }}"></script>
+{% endblock %}

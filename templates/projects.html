@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Projects{% endblock %}
+{% block page_title %}Architectures{% endblock %}
+
+{% block header_actions %}
+<button class="btn btn-primary" onclick="ProjectUI.openCreateModal()"><i class="ph ph-plus"></i> Initialize Project</button>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <span class="card-title"><i class="ph ph-kanban"></i> Project Manager</span>
+        <span class="item-desc">Edit scope, status, deadlines, and track execution.</span>
+    </div>
+    <div id="projects-grid">
+        <div class="compact-item"><span class="item-desc">Loading projects...</span></div>
+    </div>
+</div>
+
+<div id="project-modal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="card-header">
+            <h3 class="card-title" id="project-modal-title">New Architecture</h3>
+            <button class="btn btn-icon" onclick="ProjectUI.closeModal()"><i class="ph ph-x"></i></button>
+        </div>
+        <form id="project-form" onsubmit="ProjectUI.submitProject(event)">
+            <input type="hidden" id="project-id">
+            <div class="form-group">
+                <label class="form-label">Name</label>
+                <input type="text" id="project-name" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea id="project-desc" class="form-control" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Deadline (Optional)</label>
+                <input type="date" id="project-deadline" class="form-control">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Status</label>
+                <select id="project-status" class="form-control">
+                    <option value="active">Active</option>
+                    <option value="paused">Paused</option>
+                    <option value="completed">Completed</option>
+                    <option value="archived">Archived</option>
+                </select>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap: var(--space-2);">
+                <button type="button" class="btn" id="project-delete-btn" onclick="ProjectUI.deleteCurrentProject()" style="display:none;">Delete</button>
+                <div style="display:flex; gap: var(--space-2); margin-left:auto;">
+                    <button type="button" class="btn" onclick="ProjectUI.closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Project</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/projects.js', v=asset_version('js/projects.js')) }}"></script>
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Habits{% endblock %}
+{% block page_title %}Protocols{% endblock %}
+
+{% block header_actions %}
+<button class="btn btn-primary" onclick="HabitUI.openCreateModal()"><i class="ph ph-plus"></i> New Protocol</button>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom: var(--space-4);">
+    <div class="calendar-toolbar">
+        <button id="habits-prev-month" class="btn" type="button"><i class="ph ph-caret-left"></i> Previous</button>
+        <div id="habits-month-label" class="calendar-month-label">Loading month...</div>
+        <button id="habits-next-month" class="btn" type="button">Next <i class="ph ph-caret-right"></i></button>
+    </div>
+</div>
+
+<div class="bento-grid" style="margin-bottom: var(--space-4);">
+    <div class="card" style="grid-column: span 12;">
+        <div class="card-header">
+            <span class="card-title"><i class="ph ph-table"></i> Monthly Habit Matrix</span>
+            <span class="item-desc">One row per habit, one column per day.</span>
+        </div>
+        <div id="habits-matrix">
+            <div class="compact-item"><span class="item-desc">Loading habits...</span></div>
+        </div>
+    </div>
+</div>
+
+<div id="habit-modal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="card-header">
+            <h3 class="card-title" id="habit-modal-title">Define Protocol</h3>
+            <button class="btn btn-icon" onclick="HabitUI.closeModal()"><i class="ph ph-x"></i></button>
+        </div>
+        <form id="habit-form" onsubmit="HabitUI.submitHabit(event)">
+            <input type="hidden" id="habit-id">
+            <div class="form-group">
+                <label class="form-label">Name</label>
+                <input type="text" id="habit-name" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Category</label>
+                <input type="text" id="habit-category" class="form-control" placeholder="health, study, coding">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Frequency</label>
+                <select id="habit-frequency" class="form-control">
+                    <option value="daily" selected>Daily</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Target Streak</label>
+                <input type="number" id="habit-target-streak" class="form-control" min="0" value="0">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea id="habit-description" class="form-control" rows="3"></textarea>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap: var(--space-2);">
+                <button type="button" class="btn" id="habit-delete-btn" onclick="HabitUI.deleteCurrentHabit()" style="display:none;">Delete</button>
+                <div style="display:flex; gap: var(--space-2); margin-left:auto;">
+                    <button type="button" class="btn" onclick="HabitUI.closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Habit</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/habits.js', v=asset_version('js/habits.js')) }}"></script>
+{% endblock %}
