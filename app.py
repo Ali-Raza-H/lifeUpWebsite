@@ -120,6 +120,10 @@ def _register_routes(app: Flask) -> None:
     def calendar():
         return render_template("calendar.html")
 
+    @app.route("/mindset")
+    def mindset():
+        return render_template("mindset.html")
+
     @app.route("/profile")
     def profile():
         return render_template("profile.html")

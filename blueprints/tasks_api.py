@@ -18,7 +18,7 @@ from utils import (
 
 bp = Blueprint("tasks_api", __name__, url_prefix="/api/tasks")
 
-TASK_STATUSES = {"pending", "in_progress", "completed"}
+TASK_STATUSES = {"pending", "in_progress", "on_hold", "completed"}
 
 
 @bp.route("/", methods=["GET"])

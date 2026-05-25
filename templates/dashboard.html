@@ -4,6 +4,14 @@
 {% block page_title %}<span id="greeting" style="font-weight: 500;">System Overview</span>{% endblock %}
 
 {% block content %}
+<!-- Date & Time View -->
+<div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: var(--space-5);">
+    <div>
+        <h2 id="current-time" style="font-size: 2.5rem; margin: 0; font-weight: bold; font-variant-numeric: tabular-nums;">--:--:--</h2>
+        <p id="current-date" style="color: var(--text-secondary); margin: 0; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.05em;">Loading date...</p>
+    </div>
+</div>
+
 <div class="bento-grid">
     <!-- Stat Cards -->
     <div class="card" style="grid-column: span 4;">
@@ -11,26 +19,36 @@
         <div class="stat-value" id="active-tasks-count" style="margin-top: auto;">-</div>
     </div>
     <div class="card" style="grid-column: span 4;">
-        <span class="card-title"><i class="ph ph-kanban"></i> Projects</span>
+        <span class="card-title"><i class="ph ph-kanban"></i> Active Projects</span>
         <div class="stat-value" id="active-projects-count" style="margin-top: auto;">-</div>
     </div>
     <div class="card" style="grid-column: span 4;">
-        <span class="card-title"><i class="ph ph-fire"></i> Habit Streak</span>
-        <div class="stat-value" id="habit-consistency" style="margin-top: auto;">Optimal</div>
+        <span class="card-title"><i class="ph ph-fire"></i> System Consistency</span>
+        <div class="stat-value" id="habit-consistency" style="margin-top: auto;">-</div>
     </div>
 
-    <!-- Graph Card -->
-    <div class="card" style="grid-column: span 8; height: 260px;">
+    <!-- Habit Graph (Monthly) -->
+    <div class="card" style="grid-column: span 6; height: 260px;">
         <div class="card-header">
-            <span class="card-title"><i class="ph ph-trend-up"></i> Activity Overview</span>
+            <span class="card-title"><i class="ph ph-chart-bar"></i> Habit Progress (Monthly)</span>
         </div>
         <div class="chart-container">
-            <canvas id="activityChart"></canvas>
+            <canvas id="habitChart"></canvas>
         </div>
     </div>
 
-    <!-- Quick Habits -->
-    <div class="card" style="grid-column: span 4; height: 260px; padding: 0; display: flex; flex-direction: column; overflow: hidden;">
+    <!-- Task Graph (Velocity) -->
+    <div class="card" style="grid-column: span 6; height: 260px;">
+        <div class="card-header">
+            <span class="card-title"><i class="ph ph-trend-up"></i> Task Progress</span>
+        </div>
+        <div class="chart-container">
+            <canvas id="taskChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Daily Habits -->
+    <div class="card" style="grid-column: span 6; height: 350px; padding: 0; display: flex; flex-direction: column; overflow: hidden;">
         <div class="card-header" style="padding: var(--space-5) var(--space-5) var(--space-4); margin: 0; border-bottom: 1px solid var(--border-subtle); background: var(--bg-panel); z-index: 10;">
             <span class="card-title"><i class="ph ph-calendar-check"></i> Daily Habits</span>
             <a href="{{ url_for('habits') }}" class="btn btn-icon"><i class="ph ph-arrow-right"></i></a>
@@ -42,14 +60,26 @@
         </div>
     </div>
 
-    <!-- Quick Tasks -->
+    <!-- Current Projects -->
+    <div class="card" style="grid-column: span 6; height: 350px; padding: 0; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="card-header" style="padding: var(--space-5) var(--space-5) var(--space-4); margin: 0; border-bottom: 1px solid var(--border-subtle); background: var(--bg-panel); z-index: 10;">
+            <span class="card-title"><i class="ph ph-kanban"></i> Current Projects</span>
+            <a href="{{ url_for('projects') }}" class="btn btn-icon"><i class="ph ph-arrow-right"></i></a>
+        </div>
+        <div style="flex: 1; overflow-y: auto; padding: var(--space-4) var(--space-5) var(--space-5);">
+            <div class="compact-list" id="current-projects-list">
+                <div class="compact-item"><span class="item-desc">Loading...</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task List -->
     <div class="card" style="grid-column: span 12;">
         <div class="card-header">
-            <span class="card-title"><i class="ph ph-lightning"></i> Priority Execution</span>
+            <span class="card-title"><i class="ph ph-list-checks"></i> Priority Task Execution</span>
             <a href="{{ url_for('tasks') }}" class="btn btn-icon"><i class="ph ph-arrow-right"></i></a>
         </div>
         <div class="bento-grid" id="priority-tasks-list" style="grid-template-columns: repeat(3, 1fr); gap: var(--space-3);">
-            <!-- Populated via JS -->
             <div class="compact-item" style="grid-column: span 3;"><span class="item-desc">Loading...</span></div>
         </div>
     </div>

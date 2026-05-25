@@ -25,6 +25,7 @@
             <li><a href="{{ url_for('analytics') }}" class="nav-link {% if request.endpoint == 'analytics' %}active{% endif %}"><i class="ph ph-chart-bar"></i> <span>Analytics</span></a></li>
             <li><a href="{{ url_for('journal') }}" class="nav-link {% if request.endpoint == 'journal' %}active{% endif %}"><i class="ph ph-book-open"></i> <span>Journal</span></a></li>
             <li><a href="{{ url_for('calendar') }}" class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}"><i class="ph ph-calendar-blank"></i> <span>Calendar</span></a></li>
+            <li><a href="{{ url_for('mindset') }}" class="nav-link {% if request.endpoint == 'mindset' %}active{% endif %}"><i class="ph ph-brain"></i> <span>Mindset</span></a></li>
             <li><a href="{{ url_for('profile') }}" class="nav-link {% if request.endpoint == 'profile' %}active{% endif %}"><i class="ph ph-fingerprint"></i> <span>Profile</span></a></li>
             <li><a href="{{ url_for('logout') }}" class="nav-link"><i class="ph ph-sign-out"></i> <span>Logout</span></a></li>
             <li style="margin-top: auto;"><a href="{{ url_for('settings') }}" class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}"><i class="ph ph-gear"></i> <span>Settings</span></a></li>
