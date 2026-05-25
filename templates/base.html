@@ -6,6 +6,9 @@
     <title>LifeOS | {% block title %}{% endblock %}</title>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css', v=asset_version('css/base.css')) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css', v=asset_version('css/components.css')) }}">
     {% block head %}{% endblock %}
@@ -24,6 +27,7 @@
             <li><a href="{{ url_for('goals') }}" class="nav-link {% if request.endpoint == 'goals' %}active{% endif %}"><i class="ph ph-target"></i> <span>Goals</span></a></li>
             <li><a href="{{ url_for('analytics') }}" class="nav-link {% if request.endpoint == 'analytics' %}active{% endif %}"><i class="ph ph-chart-bar"></i> <span>Analytics</span></a></li>
             <li><a href="{{ url_for('journal') }}" class="nav-link {% if request.endpoint == 'journal' %}active{% endif %}"><i class="ph ph-book-open"></i> <span>Journal</span></a></li>
+            <li><a href="{{ url_for('notes') }}" class="nav-link {% if request.endpoint == 'notes' %}active{% endif %}"><i class="ph ph-notepad"></i> <span>Notes</span></a></li>
             <li><a href="{{ url_for('calendar') }}" class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}"><i class="ph ph-calendar-blank"></i> <span>Calendar</span></a></li>
             <li><a href="{{ url_for('mindset') }}" class="nav-link {% if request.endpoint == 'mindset' %}active{% endif %}"><i class="ph ph-brain"></i> <span>Mindset</span></a></li>
             <li><a href="{{ url_for('profile') }}" class="nav-link {% if request.endpoint == 'profile' %}active{% endif %}"><i class="ph ph-fingerprint"></i> <span>Profile</span></a></li>

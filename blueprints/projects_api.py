@@ -7,6 +7,7 @@ from services import fetch_project_metrics
 from utils import (
     get_optional_choice,
     get_optional_date,
+    get_optional_int,
     get_optional_string,
     get_required_string,
     iso_now,
@@ -16,12 +17,33 @@ from utils import (
 
 bp = Blueprint("projects_api", __name__, url_prefix="/api/projects")
 
-PROJECT_STATUSES = {"active", "paused", "completed", "archived"}
+PROJECT_STATUSES = {"planning", "active", "paused", "completed", "archived"}
 
 
 @bp.route("/", methods=["GET"])
 def get_projects():
     return jsonify(fetch_project_metrics())
+
+@bp.route("/<int:project_id>", methods=["GET"])
+def get_project(project_id: int):
+    project = query_db("SELECT * FROM projects WHERE id = ?", [project_id], one=True)
+    if not project:
+        return jsonify({"error": "Project not found."}), 404
+    
+    project_dict = row_to_dict(project)
+    
+    # Fetch linked habits
+    habits = query_db(
+        """
+        SELECT h.* FROM habits h
+        JOIN project_habits ph ON h.id = ph.habit_id
+        WHERE ph.project_id = ?
+        """,
+        [project_id]
+    )
+    project_dict["habits"] = [row_to_dict(h) for h in habits]
+    
+    return jsonify(project_dict)
 
 
 @bp.route("/", methods=["POST"])
@@ -29,16 +51,18 @@ def create_project():
     payload = require_object(request.get_json(silent=True))
     name = get_required_string(payload, "name", max_length=140)
     description = get_optional_string(payload, "description", max_length=2000, default="") or ""
+    notes = get_optional_string(payload, "notes", max_length=10000, default="") or ""
+    goal_id = get_optional_int(payload, "goal_id", minimum=1)
     deadline = get_optional_date(payload, "deadline")
-    status = get_optional_choice(payload, "status", allowed=PROJECT_STATUSES, default="active") or "active"
+    status = get_optional_choice(payload, "status", allowed=PROJECT_STATUSES, default="planning") or "planning"
     completed_at = iso_now() if status == "completed" else None
 
     project_id = execute_db(
         """
-        INSERT INTO projects (name, description, status, deadline, completed_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO projects (name, description, notes, goal_id, status, deadline, completed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (name, description, status, deadline, completed_at),
+        (name, description, notes, goal_id, status, deadline, completed_at),
     )
     project = query_db("SELECT * FROM projects WHERE id = ?", [project_id], one=True)
     return jsonify({"project": row_to_dict(project), "message": "Project created."}), 201
@@ -59,6 +83,12 @@ def update_project(project_id: int):
         if "description" in payload
         else current_project["description"]
     )
+    notes = (
+        get_optional_string(payload, "notes", max_length=10000, default=current_project["notes"])
+        if "notes" in payload
+        else current_project["notes"]
+    )
+    goal_id = get_optional_int(payload, "goal_id", default=current_project["goal_id"], minimum=1)
     deadline = get_optional_date(payload, "deadline") if "deadline" in payload else current_project["deadline"]
     status = (
         get_optional_choice(payload, "status", allowed=PROJECT_STATUSES, default=current_project["status"])
@@ -74,10 +104,10 @@ def update_project(project_id: int):
     execute_db(
         """
         UPDATE projects
-        SET name = ?, description = ?, status = ?, deadline = ?, completed_at = ?
+        SET name = ?, description = ?, notes = ?, goal_id = ?, status = ?, deadline = ?, completed_at = ?
         WHERE id = ?
         """,
-        (name, description, status, deadline, completed_at, project_id),
+        (name, description, notes, goal_id, status, deadline, completed_at, project_id),
     )
     updated = query_db("SELECT * FROM projects WHERE id = ?", [project_id], one=True)
     return jsonify({"project": row_to_dict(updated), "message": "Project updated."})
@@ -91,3 +121,29 @@ def delete_project(project_id: int):
 
     execute_db("DELETE FROM projects WHERE id = ?", [project_id])
     return jsonify({"message": "Project deleted."})
+
+@bp.route("/<int:project_id>/habits", methods=["POST"])
+def link_habit(project_id: int):
+    payload = require_object(request.get_json(silent=True))
+    habit_id = get_optional_int(payload, "habit_id", minimum=1)
+    
+    if not habit_id:
+        return jsonify({"error": "habit_id is required."}), 400
+        
+    try:
+        execute_db(
+            "INSERT INTO project_habits (project_id, habit_id) VALUES (?, ?)",
+            (project_id, habit_id)
+        )
+    except Exception:
+        pass # Ignore duplicates
+        
+    return jsonify({"message": "Habit linked to project."})
+
+@bp.route("/<int:project_id>/habits/<int:habit_id>", methods=["DELETE"])
+def unlink_habit(project_id: int, habit_id: int):
+    execute_db(
+        "DELETE FROM project_habits WHERE project_id = ? AND habit_id = ?",
+        (project_id, habit_id)
+    )
+    return jsonify({"message": "Habit unlinked from project."})

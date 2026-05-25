@@ -35,7 +35,7 @@ const CoreUI = {
         element.innerHTML = `<div class="compact-item"${spanStyle}><span class="item-desc">${this.escapeHtml(message)}</span></div>`;
     },
 
-    showError(message) {
+    showError(message, isSuccess = false) {
         const region = document.getElementById('app-alert-region');
         if (!region) {
             alert(message);
@@ -43,7 +43,7 @@ const CoreUI = {
         }
 
         const alertEl = document.createElement('div');
-        alertEl.className = 'app-alert';
+        alertEl.className = isSuccess ? 'app-alert app-alert-success' : 'app-alert';
         alertEl.textContent = message;
         region.innerHTML = '';
         region.appendChild(alertEl);

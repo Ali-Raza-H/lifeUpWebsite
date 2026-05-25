@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}Mindset Profile{% endblock %}
+{% block page_title %}Psychometric Profile{% endblock %}
+
+{% block head %}
+<style>
+    .mindset-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 1.5rem;
+    }
+    
+    .mindset-card {
+        background: var(--surface-light);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .mindset-card h2 {
+        color: var(--accent-blue);
+        font-size: 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0;
+    }
+
+    .mindset-card h3 {
+        color: var(--text-muted);
+        font-size: 1rem;
+        margin-top: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .mindset-card p {
+        margin: 0;
+        line-height: 1.5;
+        color: var(--text-color);
+    }
+
+    .mindset-card ul {
+        list-style: none;
+        padding-left: 0;
+        margin: 0;
+    }
+
+    .mindset-card ul li {
+        margin-bottom: 0.5rem;
+        padding-left: 1.5rem;
+        position: relative;
+        line-height: 1.5;
+        color: var(--text-color);
+    }
+
+    .mindset-card ul li::before {
+        content: "▹";
+        position: absolute;
+        left: 0;
+        color: var(--accent-green);
+    }
+    
+    .mindset-header {
+        grid-column: 1 / -1;
+        background: var(--surface-light);
+        border: 1px solid var(--border-color);
+        border-left: 4px solid var(--accent-purple);
+        padding: 1.5rem;
+        border-radius: var(--radius-md);
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .mindset-header h2 {
+        margin: 0;
+    }
+    
+    .mindset-header .subtitle {
+        color: var(--text-muted);
+        font-family: var(--font-mono);
+        font-size: 0.9rem;
+    }
+    
+    .trait-bar {
+        height: 6px;
+        background: var(--bg-color);
+        border-radius: 3px;
+        overflow: hidden;
+        margin-top: 4px;
+        margin-bottom: 12px;
+    }
+    
+    .trait-fill {
+        height: 100%;
+        background: var(--accent-purple);
+        border-radius: 3px;
+    }
+
+    .trait-fill.high { background: var(--accent-green); }
+    .trait-fill.medium { background: var(--accent-yellow); }
+    .trait-fill.low { background: var(--accent-red); }
+
+    .quote-box {
+        font-style: italic;
+        color: var(--text-muted);
+        border-left: 2px solid var(--border-color);
+        padding-left: 1rem;
+        margin: 1rem 0;
+        font-family: var(--font-serif, serif);
+        line-height: 1.5;
+    }
+    
+    .alert-box {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid var(--accent-red);
+        border-radius: var(--radius-sm);
+        padding: 1rem;
+        color: var(--accent-red);
+        margin-top: 1rem;
+        line-height: 1.5;
+    }
+
+    .success-box {
+        background: rgba(34, 197, 94, 0.1);
+        border: 1px solid var(--accent-green);
+        border-radius: var(--radius-sm);
+        padding: 1rem;
+        color: var(--accent-green);
+        margin-top: 1rem;
+        line-height: 1.5;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mindset-container">
+    <div class="mindset-header">
+        <h2 style="color: var(--text-light);">SUBJECT: ALI RAZA</h2>
+        <div class="subtitle">STATUS: ACTIVE // AGE: 18 // ROLE: THE ATONEMENT-DRIVEN ARCHITECT</div>
+        <p style="margin-top: 0.5rem; color: var(--text-muted);">"The protagonist's sacrifice of humanity for eternal stability is the question Ali is asking himself: Is what I'm trading worth what I'm building?"</p>
+    </div>
+
+    <!-- Cognitive Abilities -->
+    <div class="mindset-card">
+        <h2><i class="ph ph-brain"></i> Cognitive Abilities</h2>
+        <p><strong>General Intelligence Assessment:</strong> Exceptionally High Verbal-Logical Intelligence; High Spatial-Creative Intelligence.</p>
+        
+        <h3>Strengths</h3>
+        <ul>
+            <li><strong>Systems Architecture Thinking:</strong> Views everything as debuggable code.</li>
+            <li><strong>Abstract Reasoning:</strong> Constructs multi-layered philosophical frameworks.</li>
+            <li><strong>Transfer Learning:</strong> Applies SE principles to diverse fields.</li>
+            <li><strong>Meta-Cognition:</strong> Exceptional self-awareness of cognitive patterns.</li>
+        </ul>
+        
+        <h3>Constraints</h3>
+        <ul>
+            <li><strong>Execution Gap:</strong> Perfectionism-induced paralysis ("far too lazy").</li>
+            <li><strong>Time Perception Distortion:</strong> 80-year lifespan viewed as insufficient.</li>
+        </ul>
+    </div>
+
+    <!-- Personality Assessment -->
+    <div class="mindset-card">
+        <h2><i class="ph ph-chart-polar"></i> Big Five Framework</h2>
+        
+        <div style="margin-top: 0.5rem;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--text-color);">
+                <span>Openness to Experience</span>
+                <span style="color: var(--accent-green);">99%</span>
+            </div>
+            <div class="trait-bar"><div class="trait-fill high" style="width: 99%;"></div></div>
+            
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--text-color);">
+                <span>Conscientiousness (Achievement)</span>
+                <span style="color: var(--accent-green);">95%</span>
+            </div>
+            <div class="trait-bar"><div class="trait-fill high" style="width: 95%;"></div></div>
+
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--text-color);">
+                <span>Extraversion</span>
+                <span style="color: var(--accent-red);">20%</span>
+            </div>
+            <div class="trait-bar"><div class="trait-fill low" style="width: 20%;"></div></div>
+            
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--text-color);">
+                <span>Agreeableness</span>
+                <span style="color: var(--accent-yellow);">40%</span>
+            </div>
+            <div class="trait-bar"><div class="trait-fill medium" style="width: 40%;"></div></div>
+            
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--text-color);">
+                <span>Neuroticism</span>
+                <span style="color: var(--accent-yellow);">50%</span>
+            </div>
+            <div class="trait-bar"><div class="trait-fill medium" style="width: 50%;"></div></div>
+        </div>
+        
+        <div class="quote-box">
+            "I find joy and bliss in loneliness... Relying on anyone else will always end bad for me."
+        </div>
+    </div>
+
+    <!-- Motivational Architecture -->
+    <div class="mindset-card">
+        <h2><i class="ph ph-fire"></i> Motivational Architecture</h2>
+        <ol style="padding-left: 1.5rem; color: var(--text-color); margin: 0; line-height: 1.5;">
+            <li style="margin-bottom: 0.5rem;"><strong>Atonement:</strong> "Atonement for not living up to my potential." Every project is penance for wasted years.</li>
+            <li style="margin-bottom: 0.5rem;"><strong>Curiosity:</strong> Pure fascination with learning drives exploration. Not competitive comparison.</li>
+            <li style="margin-bottom: 0.5rem;"><strong>Autonomy:</strong> Money = freedom from reliance on broken systems/people.</li>
+            <li style="margin-bottom: 0.5rem;"><strong>Legacy:</strong> "I want my name to leave a permanent mark on history." Objective validation of transcendence.</li>
+        </ol>
+    </div>
+
+    <!-- Core Philosophical Frameworks -->
+    <div class="mindset-card">
+        <h2><i class="ph ph-scales"></i> Philosophical Frameworks</h2>
+        <ul>
+            <li><strong>Uncompromising Perfectionism:</strong> Engine of transcendence; creates activation energy barrier.</li>
+            <li><strong>Absolute Self-Reliance:</strong> Complete control; deep foundational knowledge; capped by individual bandwidth.</li>
+            <li><strong>Supreme Meritocracy:</strong> "A fair tyrant is better than democracy." Hyper-efficient, but single point of failure.</li>
+            <li><strong>Law of Equivalent Exchange:</strong> Universe demands equal sacrifice for every achievement.</li>
+            <li><strong>Systemic Disdain:</strong> Modern society is "atrophy-inducing machine"; reverence for original builders.</li>
+        </ul>
+    </div>
+
+    <!-- Cognitive Distortions & Blind Spots -->
+    <div class="mindset-card">
+        <h2><i class="ph ph-warning"></i> Cognitive Blind Spots</h2>
+        <div class="alert-box">
+            <strong>The Potential Shadow</strong><br>
+            Every achievement compared not to past self but to idealized ceiling self - ensures permanent dissatisfaction. Atonement becomes an infinite treadmill.
+        </div>
+        <div class="alert-box" style="margin-top: 0.5rem;">
+            <strong>The Collaboration Ceiling</strong><br>
+            Respects foundations laid by collectives, but refuses to join collectives. Creates a hard ceiling on achievable impact; one mind cannot outpace exponential collective scaling.
+        </div>
+        <div class="alert-box" style="margin-top: 0.5rem;">
+            <strong>The Successor Illusion</strong><br>
+            Assumes HE would be fair tyrant, hasn't stress-tested: "What if my fairness is optimized cruelty?"
+        </div>
+    </div>
+
+    <!-- Recommendations -->
+    <div class="mindset-card">
+        <h2><i class="ph ph-check-circle"></i> Strategic Recommendations</h2>
+        <ul>
+            <li><strong>Satisficing Rule:</strong> Define "Version 1.0" completion criteria BEFORE starting. Ship once met.</li>
+            <li><strong>Strategic Collaboration:</strong> Identify areas where delegating to "B+ players" frees time for A+ work.</li>
+            <li><strong>Atonement Deadline:</strong> Set age 25 milestone. Reframe as: optimize from 25 forward, not atone backward.</li>
+            <li><strong>Publish the Novel:</strong> Imperfect published book > perfect unwritten book. Publish prologue, gauge response.</li>
+            <li><strong>Document the System:</strong> Create "Ali's Principles" handbook - forces clarity, builds legacy.</li>
+            <li><strong>Scheduled Solitude Audit:</strong> Monthly: "Am I choosing solitude or defaulting to it?"</li>
+        </ul>
+        <div class="success-box">
+            <strong>Prognosis:</strong> Exceptional individual achievement likely. Apex of humanity unlikely without evolving collaboration model. Satisfaction unlikely regardless of achievement level due to infinite atonement drive.
+        </div>
+    </div>
+</div>
+{% endblock %}

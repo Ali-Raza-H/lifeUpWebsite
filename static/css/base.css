@@ -210,11 +210,8 @@ a:hover {
     background: var(--border-focus);
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
     body {
-        height: auto;
-        min-height: 100vh;
-        overflow: auto;
         flex-direction: column;
     }
 
@@ -222,8 +219,8 @@ a:hover {
         width: 100%;
         border-right: none;
         border-bottom: 1px solid var(--border-subtle);
-        padding: var(--space-3);
-        align-items: stretch;
+        padding: var(--space-2) var(--space-3);
+        flex-direction: column;
     }
 
     .sidebar:hover {
@@ -234,18 +231,21 @@ a:hover {
     .sidebar:hover .sidebar-header h2,
     .nav-link span,
     .sidebar:hover .nav-link span {
-        opacity: 1;
+        display: none; /* Keep it icon-only on mobile to save space */
     }
 
     .nav-links {
         flex-direction: row;
         overflow-x: auto;
-        padding: 0;
+        padding: 8px 0;
+        gap: 8px;
+        -webkit-overflow-scrolling: touch;
     }
 
     .nav-link {
         flex: 0 0 auto;
-        padding: var(--space-2) var(--space-3);
+        padding: var(--space-2);
+        justify-content: center;
     }
 
     .main-wrapper {

@@ -14,6 +14,8 @@ import blueprints.calendar_api as calendar_api
 import blueprints.goals_api as goals_api
 import blueprints.habits_api as habits_api
 import blueprints.journal_api as journal_api
+import blueprints.notes_api as notes_api
+import blueprints.project_notes_api as project_notes_api
 import blueprints.profile_api as profile_api
 import blueprints.projects_api as projects_api
 import blueprints.settings_api as settings_api
@@ -60,6 +62,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(calendar_api.bp)
     app.register_blueprint(profile_api.bp)
     app.register_blueprint(journal_api.bp)
+    app.register_blueprint(project_notes_api.bp)
     app.register_blueprint(settings_api.bp)
 
 
@@ -104,6 +107,10 @@ def _register_routes(app: Flask) -> None:
     def projects():
         return render_template("projects.html")
 
+    @app.route("/projects/<int:project_id>/notebook")
+    def project_notebook(project_id):
+        return render_template("project_notebook.html", project_id=project_id)
+
     @app.route("/goals")
     def goals():
         return render_template("goals.html")
@@ -111,6 +118,10 @@ def _register_routes(app: Flask) -> None:
     @app.route("/analytics")
     def analytics():
         return render_template("analytics.html")
+
+    @app.route("/notes")
+    def notes():
+        return render_template("notes.html")
 
     @app.route("/journal")
     def journal():

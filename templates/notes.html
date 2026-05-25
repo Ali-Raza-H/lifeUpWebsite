@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Notes{% endblock %}
+{% block page_title %}Knowledge Base{% endblock %}
+
+{% block header_actions %}
+<button class="btn btn-primary" onclick="NotesUI.createNewNote()"><i class="ph ph-plus"></i> New Note</button>
+{% endblock %}
+
+{% block content %}
+<div class="bento-grid" style="grid-template-columns: 300px 1fr; height: calc(100vh - 180px);">
+    <!-- Notes List -->
+    <div class="card" style="display: flex; flex-direction: column; overflow: hidden; padding: 0;">
+        <div class="card-header" style="padding: var(--space-3); border-bottom: 1px solid var(--border-subtle);">
+            <span class="card-title">All Notes</span>
+        </div>
+        <div id="notes-list" class="compact-list" style="flex: 1; overflow-y: auto; padding: var(--space-2);">
+            <div class="item-desc" style="padding: var(--space-2);">Loading notes...</div>
+        </div>
+    </div>
+    
+    <!-- Note Editor -->
+    <div class="card" id="note-editor-container" style="display: flex; flex-direction: column; padding: var(--space-4); display: none;">
+        <input type="hidden" id="current-note-id">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3);">
+            <input type="text" id="note-title" class="form-control" style="font-size: 20px; font-weight: 600; background: transparent; border: none; padding: 0; outline: none; box-shadow: none;" placeholder="Note Title...">
+            <div style="display: flex; gap: var(--space-2);">
+                <button class="btn btn-icon" onclick="NotesUI.deleteCurrentNote()" title="Delete Note"><i class="ph ph-trash" style="color: var(--text-error);"></i></button>
+                <button class="btn btn-primary" onclick="NotesUI.saveNote()">Save</button>
+            </div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column;">
+            <textarea id="note-content" style="display: none;"></textarea>
+        </div>
+    </div>
+    
+    <!-- Empty State -->
+    <div class="card" id="note-empty-state" style="display: flex; flex-direction: column; justify-content: center; align-items: center; padding: var(--space-4); color: var(--text-secondary);">
+        <i class="ph ph-notepad" style="font-size: 48px; margin-bottom: var(--space-3); opacity: 0.5;"></i>
+        <p>Select a note or create a new one.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    /* Customize EasyMDE to fit the dark theme */
+    .editor-toolbar {
+        border: 1px solid var(--border-subtle);
+        border-bottom: none;
+        border-radius: var(--radius-md) var(--radius-md) 0 0;
+        background: var(--bg-surface);
+        opacity: 1;
+    }
+    .editor-toolbar > button {
+        color: var(--text-primary) !important;
+    }
+    .editor-toolbar > button:hover, .editor-toolbar > button.active {
+        background: var(--bg-surface-hover);
+        border-color: transparent;
+    }
+    .CodeMirror {
+        border: 1px solid var(--border-subtle);
+        border-radius: 0 0 var(--radius-md) var(--radius-md);
+        background: var(--bg-panel);
+        color: var(--text-primary);
+        font-family: var(--font-mono);
+        font-size: 13px;
+    }
+    .editor-preview {
+        background: var(--bg-base);
+        color: var(--text-primary);
+    }
+    .editor-preview a {
+        color: var(--primary);
+        text-decoration: underline;
+    }
+</style>
+<script src="{{ url_for('static', filename='js/notes.js', v=asset_version('js/notes.js')) }}"></script>
+{% endblock %}

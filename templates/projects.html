@@ -4,61 +4,163 @@
 {% block page_title %}Architectures{% endblock %}
 
 {% block header_actions %}
+<button class="btn" id="view-toggle-btn" onclick="ProjectUI.toggleView()"><i class="ph ph-calendar"></i> Timeline View</button>
 <button class="btn btn-primary" onclick="ProjectUI.openCreateModal()"><i class="ph ph-plus"></i> Initialize Project</button>
 {% endblock %}
 
 {% block content %}
-<div class="card">
-    <div class="card-header">
-        <span class="card-title"><i class="ph ph-kanban"></i> Project Manager</span>
-        <span class="item-desc">Edit scope, status, deadlines, and track execution.</span>
+<!-- Kanban View -->
+<div id="projects-kanban" style="display: grid; grid-template-columns: repeat(4, minmax(280px, 1fr)); gap: var(--space-4); align-items: start; overflow-x: auto; padding-bottom: var(--space-4);">
+    <!-- Planning Column -->
+    <div class="card" style="background: transparent; border: none; padding: 0; min-width: 280px;">
+        <div class="card-header" style="padding-bottom: var(--space-2);">
+            <span class="card-title"><i class="ph ph-lightbulb"></i> Planning</span>
+        </div>
+        <div class="compact-list" id="projects-planning"></div>
     </div>
-    <div id="projects-grid">
-        <div class="compact-item"><span class="item-desc">Loading projects...</span></div>
+    
+    <!-- Active Column -->
+    <div class="card" style="background: transparent; border: none; padding: 0; min-width: 280px;">
+        <div class="card-header" style="padding-bottom: var(--space-2);">
+            <span class="card-title"><i class="ph ph-play"></i> Active</span>
+        </div>
+        <div class="compact-list" id="projects-active"></div>
+    </div>
+
+    <!-- Paused Column -->
+    <div class="card" style="background: transparent; border: none; padding: 0; min-width: 280px;">
+        <div class="card-header" style="padding-bottom: var(--space-2);">
+            <span class="card-title"><i class="ph ph-pause"></i> Paused</span>
+        </div>
+        <div class="compact-list" id="projects-paused"></div>
+    </div>
+
+    <!-- Completed Column -->
+    <div class="card" style="background: transparent; border: none; padding: 0; opacity: 0.7; min-width: 280px;">
+        <div class="card-header" style="padding-bottom: var(--space-2);">
+            <span class="card-title"><i class="ph-fill ph-check-circle"></i> Completed</span>
+        </div>
+        <div class="compact-list" id="projects-completed"></div>
     </div>
 </div>
 
-<div id="project-modal" class="modal-overlay">
-    <div class="modal-content">
-        <div class="card-header">
-            <h3 class="card-title" id="project-modal-title">New Architecture</h3>
-            <button class="btn btn-icon" onclick="ProjectUI.closeModal()"><i class="ph ph-x"></i></button>
-        </div>
-        <form id="project-form" onsubmit="ProjectUI.submitProject(event)">
-            <input type="hidden" id="project-id">
-            <div class="form-group">
-                <label class="form-label">Name</label>
-                <input type="text" id="project-name" class="form-control" required>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Description</label>
-                <textarea id="project-desc" class="form-control" rows="3"></textarea>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Deadline (Optional)</label>
-                <input type="date" id="project-deadline" class="form-control">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Status</label>
-                <select id="project-status" class="form-control">
-                    <option value="active">Active</option>
-                    <option value="paused">Paused</option>
-                    <option value="completed">Completed</option>
-                    <option value="archived">Archived</option>
-                </select>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; gap: var(--space-2);">
-                <button type="button" class="btn" id="project-delete-btn" onclick="ProjectUI.deleteCurrentProject()" style="display:none;">Delete</button>
-                <div style="display:flex; gap: var(--space-2); margin-left:auto;">
-                    <button type="button" class="btn" onclick="ProjectUI.closeModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Project</button>
+<!-- Timeline View -->
+<div id="projects-timeline" class="card" style="display: none;">
+    <div class="card-header">
+        <span class="card-title"><i class="ph ph-calendar"></i> Project Timeline</span>
+        <span class="item-desc">Gantt visualization of deadlines and active periods.</span>
+    </div>
+    <div id="timeline-container" style="overflow-x: auto; padding: 10px 0;">
+        <!-- Rendered via JS -->
+    </div>
+</div>
+
+<!-- Project Dashboard Modal -->
+<div id="project-modal" class="modal-overlay" style="align-items: flex-start; padding-top: 5vh; overflow-y: auto;">
+    <div class="modal-content" style="max-width: 1000px; margin-bottom: 5vh; display: flex; flex-direction: column;">
+        <div class="card-header" style="flex-direction: column; align-items: stretch; gap: var(--space-3); padding-bottom: 0; border-bottom: 1px solid var(--border-subtle); margin-bottom: var(--space-4);">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom: var(--space-3);">
+                <h3 class="card-title" id="project-modal-title">Project Dashboard</h3>
+                <div style="display:flex; gap: 8px;">
+                    <a href="#" id="btn-open-notebook" class="btn" style="display:none;"><i class="ph ph-notebook"></i> Open Notebook</a>
+                    <button class="btn btn-icon" onclick="ProjectUI.closeModal()"><i class="ph ph-x"></i></button>
                 </div>
             </div>
+        </div>
+        
+        <form id="project-form" style="display: flex; flex-direction: column; flex: 1;">
+            <input type="hidden" id="project-id">
+            
+            <div id="tab-overview" class="bento-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-4);">
+                <!-- Details Section -->
+                <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Name</label>
+                        <input type="text" id="project-name" class="form-control" required>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Description</label>
+                        <textarea id="project-desc" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2);">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Deadline</label>
+                            <input type="date" id="project-deadline" class="form-control">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Status</label>
+                            <select id="project-status" class="form-control">
+                                <option value="planning">Planning</option>
+                                <option value="active">Active</option>
+                                <option value="paused">Paused</option>
+                                <option value="completed">Completed</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Linked Goal</label>
+                        <select id="project-goal" class="form-control">
+                            <option value="">-- No Goal --</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Integrations Section -->
+                <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                    <!-- Project Tasks -->
+                    <div class="card" style="padding: var(--space-3); border: 1px solid var(--border-subtle); box-shadow: none; margin: 0;">
+                        <div class="card-header" style="padding-bottom: 8px;">
+                            <span class="card-title" style="font-size: 14px;">Tasks</span>
+                        </div>
+                        <div id="project-tasks-list" class="compact-list" style="max-height: 150px; overflow-y: auto;">
+                            <div class="item-desc">Save the project to manage tasks.</div>
+                        </div>
+                        <div id="project-task-add" style="display: none; margin-top: 8px;">
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="new-task-title" class="form-control" placeholder="Quick add task..." style="flex: 1; padding: 4px 8px; font-size: 12px;">
+                                <button type="button" class="btn btn-primary" onclick="ProjectUI.quickAddTask()" style="padding: 4px 8px; font-size: 12px;"><i class="ph ph-plus"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Project Habits -->
+                    <div class="card" style="padding: var(--space-3); border: 1px solid var(--border-subtle); box-shadow: none; margin: 0;">
+                        <div class="card-header" style="padding-bottom: 8px;">
+                            <span class="card-title" style="font-size: 14px;">Linked Habits</span>
+                        </div>
+                        <div id="project-habits-list" class="compact-list" style="max-height: 100px; overflow-y: auto;">
+                            <div class="item-desc">Save the project to manage habits.</div>
+                        </div>
+                        <div id="project-habit-add" style="display: none; margin-top: 8px;">
+                            <div style="display: flex; gap: 8px;">
+                                <select id="available-habits" class="form-control" style="flex: 1; padding: 4px 8px; font-size: 12px;">
+                                </select>
+                                <button type="button" class="btn" onclick="ProjectUI.linkHabit()" style="padding: 4px 8px; font-size: 12px;">Link</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
         </form>
+        
+        <div style="display:flex; justify-content:space-between; align-items:center; gap: var(--space-2); margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--border-subtle);">
+            <button type="button" class="btn" id="project-delete-btn" onclick="ProjectUI.deleteCurrentProject()" style="display:none; color: var(--text-error);">Delete Project</button>
+            <div style="display:flex; gap: var(--space-2); margin-left:auto;">
+                <button type="button" class="btn" onclick="ProjectUI.closeModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="ProjectUI.submitProject(event)">Save Project</button>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
+<style>
+    /* Ensure modal content scroll nicely */
+    .modal-overlay {
+        padding: 20px;
+    }
+</style>
 <script src="{{ url_for('static', filename='js/projects.js', v=asset_version('js/projects.js')) }}"></script>
 {% endblock %}

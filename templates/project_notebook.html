@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}Project Notebook{% endblock %}
+{% block page_title %}<span id="notebook-page-title">Loading Project...</span>{% endblock %}
+
+{% block header_actions %}
+<a href="{{ url_for('projects') }}" class="btn"><i class="ph ph-arrow-left"></i> Back to Projects</a>
+<button class="btn btn-primary" onclick="NotebookUI.createNewNote()"><i class="ph ph-plus"></i> New Note</button>
+{% endblock %}
+
+{% block content %}
+<div class="notebook-container">
+    <aside class="notebook-sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-title">Notes</div>
+            <div class="sidebar-search">
+                <input type="text" id="notes-search" placeholder="Search notes..." oninput="NotebookUI.filterNotes()">
+            </div>
+        </div>
+        <div id="notes-list" class="notes-list">
+            <!-- Notes will be injected here -->
+        </div>
+    </aside>
+    
+    <main class="notebook-editor-area">
+        <div id="editor-container" style="display: none; height: 100%; flex-direction: column;">
+            <div class="editor-header">
+                <input type="text" id="note-title-input" class="note-title-input" placeholder="Note Title...">
+                <div class="editor-actions">
+                    <span id="save-status" class="save-status"></span>
+                    <button class="btn btn-sm btn-danger" onclick="NotebookUI.deleteCurrentNote()"><i class="ph ph-trash"></i> Delete</button>
+                </div>
+            </div>
+            <div class="editor-wrapper" style="flex: 1; overflow: hidden;">
+                <textarea id="project-notes-editor"></textarea>
+            </div>
+        </div>
+        <div id="notebook-empty-state" class="empty-state-container">
+            <div class="empty-state">
+                <i class="ph ph-book-open"></i>
+                <h3>No Note Selected</h3>
+                <p>Select a note from the sidebar or create a new one to get started.</p>
+                <button class="btn btn-primary" onclick="NotebookUI.createNewNote()">Create First Note</button>
+            </div>
+        </div>
+    </main>
+</div>
+
+<style>
+    .notebook-container {
+        display: flex;
+        height: calc(100vh - 160px);
+        gap: var(--space-4);
+        overflow: hidden;
+    }
+
+    .notebook-sidebar {
+        width: 300px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
+        display: flex;
+        flex-direction: column;
+        transition: all 0.2s ease;
+    }
+
+    .sidebar-header {
+        padding: var(--space-4);
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .sidebar-title {
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: var(--space-3);
+    }
+
+    .sidebar-search input {
+        width: 100%;
+        padding: 8px 12px;
+        font-size: 13px;
+        background: var(--bg-panel);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-sm);
+        color: var(--text-primary);
+        outline: none;
+        transition: border-color 0.2s;
+    }
+
+    .sidebar-search input:focus {
+        border-color: var(--primary);
+    }
+
+    .notes-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: var(--space-2);
+    }
+
+    .note-item {
+        padding: 10px 12px;
+        margin-bottom: 4px;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        border: 1px solid transparent;
+    }
+
+    .note-item:hover {
+        background: var(--bg-surface-hover);
+    }
+
+    .note-item.active {
+        background: var(--bg-surface-hover);
+        border-color: var(--border-focus);
+    }
+
+    .note-item .note-title {
+        font-weight: 500;
+        font-size: 14px;
+        color: var(--text-primary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .note-item .note-meta {
+        font-size: 11px;
+        color: var(--text-muted);
+    }
+
+    .notebook-editor-area {
+        flex: 1;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+    }
+
+    .editor-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: var(--space-4);
+        border-bottom: 1px solid var(--border-subtle);
+        background: var(--bg-surface);
+        gap: var(--space-4);
+    }
+
+    .note-title-input {
+        flex: 1;
+        background: transparent;
+        border: none;
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+        outline: none;
+    }
+
+    .editor-actions {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+    }
+
+    .save-status {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-style: italic;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .save-status.visible {
+        opacity: 1;
+    }
+
+    .editor-wrapper {
+        position: relative;
+    }
+
+    .empty-state-container {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-secondary);
+    }
+
+    .empty-state {
+        text-align: center;
+        max-width: 300px;
+    }
+
+    .empty-state i {
+        font-size: 48px;
+        margin-bottom: var(--space-4);
+        opacity: 0.5;
+    }
+
+    .empty-state h3 {
+        margin-bottom: var(--space-2);
+        color: var(--text-primary);
+    }
+
+    .empty-state p {
+        font-size: 14px;
+        margin-bottom: var(--space-4);
+        line-height: 1.5;
+    }
+
+    /* EasyMDE Overrides */
+    .editor-toolbar {
+        background-color: var(--bg-surface) !important;
+        border: none !important;
+        border-bottom: 1px solid var(--border-subtle) !important;
+        padding: 8px 12px !important;
+        border-radius: 0 !important;
+    }
+    .editor-toolbar > button {
+        color: var(--text-secondary) !important;
+        border: 1px solid transparent !important;
+        transition: all 0.2s ease !important;
+    }
+    .editor-toolbar > button:hover, .editor-toolbar > button.active {
+        background-color: var(--bg-surface-hover) !important;
+        color: var(--text-primary) !important;
+        border-color: var(--border-focus) !important;
+    }
+    .editor-toolbar i.separator {
+        border-right: 1px solid var(--border-subtle) !important;
+    }
+    .CodeMirror {
+        background-color: var(--bg-panel) !important;
+        color: var(--text-primary) !important;
+        border: none !important;
+        border-radius: 0 !important;
+        font-family: var(--font-mono) !important;
+        font-size: 14px !important;
+        line-height: 1.6 !important;
+        height: 100% !important;
+    }
+    .editor-preview, .editor-preview-side {
+        background-color: var(--bg-base) !important;
+        color: var(--text-primary) !important;
+        padding: var(--space-5) !important;
+        border-left: 1px solid var(--border-subtle) !important;
+    }
+    .editor-preview h1, .editor-preview h2, .editor-preview h3, .editor-preview-side h1, .editor-preview-side h2, .editor-preview-side h3 {
+        color: var(--text-primary) !important;
+        border-bottom: 1px solid var(--border-subtle);
+        padding-bottom: 8px;
+        margin-bottom: 16px;
+    }
+    .editor-preview a, .editor-preview-side a {
+        color: var(--primary) !important;
+        text-decoration: none !important;
+    }
+    .editor-preview a:hover, .editor-preview-side a:hover {
+        text-decoration: underline !important;
+    }
+    .editor-statusbar {
+        padding: 8px 12px !important;
+        color: var(--text-secondary) !important;
+        font-family: var(--font-mono) !important;
+        font-size: 11px !important;
+        border-top: 1px solid var(--border-subtle) !important;
+        background: var(--bg-surface) !important;
+    }
+</style>
+
+<script>
+    const PROJECT_ID = {{ project_id }};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css"></script>
+<script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="{{ url_for('static', filename='js/project_notebook.js', v=asset_version('js/project_notebook.js')) }}"></script>
+{% endblock %}
