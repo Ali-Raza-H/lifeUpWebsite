@@ -69,16 +69,14 @@ const HabitUI = {
                 .join('');
 
             return `
-                <div class="habit-row">
-                    <div class="habit-meta">
-                        <button class="btn btn-icon" onclick="HabitUI.openCreateModal(${habit.id})" title="Edit Habit"><i class="ph ph-pencil-simple"></i></button>
-                        <div class="habit-meta-main">
-                            <div class="item-title">${CoreUI.escapeHtml(habit.name)}</div>
-                            <div class="item-desc">${CoreUI.escapeHtml(habit.category || 'general')} • streak ${habit.current_streak} • ${habit.month_completion_rate}%</div>
-                        </div>
+                <div class="habit-meta">
+                    <button class="btn btn-icon" onclick="HabitUI.openCreateModal(${habit.id})" title="Edit Habit"><i class="ph ph-pencil-simple"></i></button>
+                    <div class="habit-meta-main">
+                        <div class="item-title">${CoreUI.escapeHtml(habit.name)}</div>
+                        <div class="item-desc">${CoreUI.escapeHtml(habit.category || 'general')} • streak ${habit.current_streak} • ${habit.month_completion_rate}%</div>
                     </div>
-                    <div class="habit-days" ${dayCountStyle}>${dayCells}</div>
                 </div>
+                <div class="habit-days" ${dayCountStyle}>${dayCells}</div>
             `;
         }).join('');
 

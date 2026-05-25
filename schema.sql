@@ -51,10 +51,12 @@ CREATE TABLE IF NOT EXISTS tasks (
     description TEXT,
     priority INTEGER DEFAULT 3, -- 1: Highest, 2: High, 3: Normal, 4: Low
     due_date DATETIME,
-    status TEXT DEFAULT 'pending', -- pending, in_progress, completed
+    estimated_minutes INTEGER,
+    status TEXT DEFAULT 'pending', -- pending, in_progress, on_hold, completed
     project_id INTEGER,
     goal_id INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME
 );
 
 CREATE TABLE IF NOT EXISTS projects (

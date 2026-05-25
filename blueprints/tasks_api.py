@@ -6,7 +6,7 @@ from database import execute_db, query_db
 from utils import (
     ValidationError,
     get_optional_choice,
-    get_optional_date,
+    get_optional_datetime,
     get_optional_int,
     get_optional_string,
     get_required_string,
@@ -77,7 +77,8 @@ def create_task():
     title = get_required_string(payload, "title", max_length=140)
     description = get_optional_string(payload, "description", max_length=2000, default="") or ""
     priority = get_optional_int(payload, "priority", default=3, minimum=1, maximum=4) or 3
-    due_date = get_optional_date(payload, "due_date")
+    due_date = get_optional_datetime(payload, "due_date")
+    estimated_minutes = get_optional_int(payload, "estimated_minutes", minimum=1)
     status = get_optional_choice(payload, "status", allowed=TASK_STATUSES, default="pending") or "pending"
     project_id = get_optional_int(payload, "project_id", minimum=1)
     goal_id = get_optional_int(payload, "goal_id", minimum=1)
@@ -85,10 +86,10 @@ def create_task():
 
     task_id = execute_db(
         """
-        INSERT INTO tasks (title, description, priority, due_date, status, project_id, goal_id, completed_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO tasks (title, description, priority, due_date, estimated_minutes, status, project_id, goal_id, completed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (title, description, priority, due_date, status, project_id, goal_id, completed_at),
+        (title, description, priority, due_date, estimated_minutes, status, project_id, goal_id, completed_at),
     )
     task = query_db("SELECT * FROM tasks WHERE id = ?", [task_id], one=True)
     return jsonify({"task": row_to_dict(task), "message": "Task created."}), 201
@@ -111,7 +112,8 @@ def update_task(task_id: int):
     )
     priority = get_optional_int(payload, "priority", default=current_task["priority"], minimum=1, maximum=4)
     status = get_optional_choice(payload, "status", allowed=TASK_STATUSES, default=current_task["status"]) or current_task["status"]
-    due_date = get_optional_date(payload, "due_date") if "due_date" in payload else current_task["due_date"]
+    due_date = get_optional_datetime(payload, "due_date") if "due_date" in payload else current_task["due_date"]
+    estimated_minutes = get_optional_int(payload, "estimated_minutes", default=current_task.get("estimated_minutes"), minimum=1) if "estimated_minutes" in payload else current_task.get("estimated_minutes")
     project_id = get_optional_int(payload, "project_id", default=current_task["project_id"], minimum=1)
     goal_id = get_optional_int(payload, "goal_id", default=current_task["goal_id"], minimum=1)
 
@@ -124,10 +126,10 @@ def update_task(task_id: int):
     execute_db(
         """
         UPDATE tasks
-        SET title = ?, description = ?, priority = ?, status = ?, due_date = ?, project_id = ?, goal_id = ?, completed_at = ?
+        SET title = ?, description = ?, priority = ?, status = ?, due_date = ?, estimated_minutes = ?, project_id = ?, goal_id = ?, completed_at = ?
         WHERE id = ?
         """,
-        (title, description, priority, status, due_date, project_id, goal_id, completed_at, task_id),
+        (title, description, priority, status, due_date, estimated_minutes, project_id, goal_id, completed_at, task_id),
     )
     updated_task = query_db("SELECT * FROM tasks WHERE id = ?", [task_id], one=True)
     return jsonify({"task": row_to_dict(updated_task), "message": "Task updated."})

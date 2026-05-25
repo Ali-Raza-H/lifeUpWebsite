@@ -130,8 +130,16 @@ def _expected_periods(
     return active_days
 
 
-def _month_target_days(month_start: date, month_end: date, created_at: str | None) -> int:
+def _month_target_days(
+    month_start: date,
+    month_end: date,
+    created_at: str | None,
+    earliest_log_date: date | None = None,
+) -> int:
     created_date = _coerce_date(created_at) or month_start
+    if earliest_log_date and earliest_log_date < created_date:
+        created_date = earliest_log_date
+
     today = date.today()
     track_start = max(created_date, month_start)
     track_end = min(month_end, today)
@@ -205,7 +213,6 @@ def _build_calendar_cells(
     created_at: str | None,
 ) -> list[dict]:
     cells: list[dict] = []
-    created_date = _coerce_date(created_at) or month_start
     today = date.today()
 
     leading_blanks = month_start.weekday()
@@ -216,7 +223,7 @@ def _build_calendar_cells(
     while cursor <= month_end:
         date_key = cursor.isoformat()
         is_future = cursor > today
-        is_trackable = created_date <= cursor <= today
+        is_trackable = cursor <= today
         cells.append(
             {
                 "is_padding": False,
@@ -302,7 +309,15 @@ def build_habit_calendar_payload(month_value: str | None = None) -> dict:
             if parsed_date is not None
         }
 
-        target_days = _month_target_days(month_start, month_end, habit.get("created_at"))
+        valid_log_dates = [
+            parsed_date
+            for log in logs
+            for parsed_date in [_coerce_date(log["log_date"])]
+            if parsed_date is not None
+        ]
+        earliest_log_date = min(valid_log_dates) if valid_log_dates else None
+
+        target_days = _month_target_days(month_start, month_end, habit.get("created_at"), earliest_log_date)
         completed_days = sum(
             1
             for current_date, status in log_map.items()
