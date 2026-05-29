@@ -89,20 +89,56 @@ CREATE TABLE IF NOT EXISTS project_notes (
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS project_milestones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    due_date DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS goals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     type TEXT, -- short-term, long-term, identity, skill
+    notes TEXT,
     target_date DATETIME,
     status TEXT DEFAULT 'active',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS goal_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    goal_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS goal_milestones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    goal_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    due_date DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME,
+    FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS journal_entries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT DEFAULT '',
     content TEXT NOT NULL,
+    tags TEXT DEFAULT '',
     mood_score INTEGER, -- 1 to 10
-    entry_date DATETIME DEFAULT CURRENT_TIMESTAMP
+    entry_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS calendar_events (
@@ -111,8 +147,12 @@ CREATE TABLE IF NOT EXISTS calendar_events (
     description TEXT,
     category TEXT,
     location TEXT,
+    project_id INTEGER,
+    goal_id INTEGER,
     start_at DATETIME NOT NULL,
     end_at DATETIME NOT NULL,
+    recurrence TEXT DEFAULT 'none',
+    recurrence_until DATE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -120,6 +160,8 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 CREATE TABLE IF NOT EXISTS notes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
+    tags TEXT DEFAULT '',
+    is_pinned INTEGER NOT NULL DEFAULT 0,
     content TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -132,6 +174,65 @@ CREATE TABLE IF NOT EXISTS analytics_cache (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS health_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    log_date DATE NOT NULL,
+    sleep_hours REAL,
+    weight_kg REAL,
+    exercise_minutes INTEGER,
+    energy_score INTEGER,
+    symptoms TEXT,
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS finance_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_date DATE NOT NULL,
+    type TEXT NOT NULL,
+    category TEXT,
+    amount REAL NOT NULL,
+    description TEXT,
+    is_recurring INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS contacts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    relation TEXT,
+    priority TEXT DEFAULT 'normal',
+    last_contacted DATE,
+    next_follow_up DATE,
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS life_reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    period_type TEXT NOT NULL,
+    period_start DATE NOT NULL,
+    score INTEGER,
+    wins TEXT,
+    challenges TEXT,
+    next_focus TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(period_type, period_start)
+);
+
+CREATE TABLE IF NOT EXISTS attachments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_habit_logs_habit_date ON habit_logs(habit_id, log_date DESC);
 CREATE INDEX IF NOT EXISTS idx_habit_logs_date_status ON habit_logs(log_date DESC, status);
 CREATE INDEX IF NOT EXISTS idx_tasks_status_due_date ON tasks(status, due_date);
@@ -139,7 +240,15 @@ CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_goal_id ON tasks(goal_id);
 CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
 CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status);
+CREATE INDEX IF NOT EXISTS idx_goal_links_goal_id ON goal_links(goal_id);
+CREATE INDEX IF NOT EXISTS idx_goal_milestones_goal_id ON goal_milestones(goal_id);
 CREATE INDEX IF NOT EXISTS idx_beliefs_display_order ON beliefs(display_order, id);
 CREATE INDEX IF NOT EXISTS idx_skills_category_order ON skills(category, display_order, id);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_start_at ON calendar_events(start_at);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_end_at ON calendar_events(end_at);
+CREATE INDEX IF NOT EXISTS idx_project_milestones_project_id ON project_milestones(project_id);
+CREATE INDEX IF NOT EXISTS idx_health_logs_date ON health_logs(log_date DESC);
+CREATE INDEX IF NOT EXISTS idx_finance_entries_date ON finance_entries(entry_date DESC);
+CREATE INDEX IF NOT EXISTS idx_contacts_follow_up ON contacts(next_follow_up);
+CREATE INDEX IF NOT EXISTS idx_life_reviews_period ON life_reviews(period_type, period_start DESC);
+CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, entity_id);

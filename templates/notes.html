@@ -1,79 +1,109 @@
 {% extends "base.html" %}
 
 {% block title %}Notes{% endblock %}
-{% block page_title %}Knowledge Base{% endblock %}
+{% block page_title %}Notes{% endblock %}
 
 {% block header_actions %}
-<button class="btn btn-primary" onclick="NotesUI.createNewNote()"><i class="ph ph-plus"></i> New Note</button>
+<button class="btn btn-primary" type="button" onclick="NotesUI.createNewNote()"><i class="ph ph-plus"></i> New Note</button>
 {% endblock %}
 
 {% block content %}
-<div class="bento-grid" style="grid-template-columns: 300px 1fr; height: calc(100vh - 180px);">
-    <!-- Notes List -->
-    <div class="card" style="display: flex; flex-direction: column; overflow: hidden; padding: 0;">
-        <div class="card-header" style="padding: var(--space-3); border-bottom: 1px solid var(--border-subtle);">
-            <span class="card-title">All Notes</span>
+<div class="section-grid-sidebar notes-workspace full-height-panel">
+    <aside class="card panel-chrome note-sidebar-card">
+        <div class="card-header note-sidebar-header panel-body">
+            <span class="card-title"><i class="ph ph-notepad"></i> Library</span>
+            <span class="item-desc" id="notes-results-count">0 notes</span>
         </div>
-        <div id="notes-list" class="compact-list" style="flex: 1; overflow-y: auto; padding: var(--space-2);">
-            <div class="item-desc" style="padding: var(--space-2);">Loading notes...</div>
-        </div>
-    </div>
-    
-    <!-- Note Editor -->
-    <div class="card" id="note-editor-container" style="display: flex; flex-direction: column; padding: var(--space-4); display: none;">
-        <input type="hidden" id="current-note-id">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3);">
-            <input type="text" id="note-title" class="form-control" style="font-size: 20px; font-weight: 600; background: transparent; border: none; padding: 0; outline: none; box-shadow: none;" placeholder="Note Title...">
-            <div style="display: flex; gap: var(--space-2);">
-                <button class="btn btn-icon" onclick="NotesUI.deleteCurrentNote()" title="Delete Note"><i class="ph ph-trash" style="color: var(--text-error);"></i></button>
-                <button class="btn btn-primary" onclick="NotesUI.saveNote()">Save</button>
+        <div class="panel-body page-stack">
+            <input type="text" id="notes-search" class="form-control" placeholder="Search title, content, or tags">
+            <div class="section-toolbar">
+                <label class="item-desc section-toolbar-actions">
+                    <input type="checkbox" id="notes-pinned-only">
+                    Pinned only
+                </label>
             </div>
         </div>
-        <div style="flex: 1; display: flex; flex-direction: column;">
-            <textarea id="note-content" style="display: none;"></textarea>
+        <div id="notes-list" class="compact-list note-list panel-body panel-scroll">
+            <div class="compact-item"><span class="item-desc">Loading notes...</span></div>
         </div>
-    </div>
+    </aside>
     
-    <!-- Empty State -->
-    <div class="card" id="note-empty-state" style="display: flex; flex-direction: column; justify-content: center; align-items: center; padding: var(--space-4); color: var(--text-secondary);">
-        <i class="ph ph-notepad" style="font-size: 48px; margin-bottom: var(--space-3); opacity: 0.5;"></i>
+    <section class="card note-editor-card" id="note-editor-container">
+        <input type="hidden" id="current-note-id">
+        <div class="note-editor-header">
+            <label class="sr-only" for="note-title">Note title</label>
+            <input type="text" id="note-title" class="note-title-field" placeholder="Untitled note">
+            <div class="note-editor-actions">
+                <button class="btn" type="button" id="note-pin-btn" onclick="NotesUI.togglePinCurrentNote()"><i class="ph ph-push-pin"></i> Pin</button>
+                <button class="btn btn-icon btn-danger" type="button" onclick="NotesUI.deleteCurrentNote()" title="Delete Note"><i class="ph ph-trash"></i></button>
+                <button class="btn btn-primary" type="button" onclick="NotesUI.saveNote()">Save</button>
+            </div>
+        </div>
+        <div class="form-group note-meta-fields">
+            <label class="form-label" for="note-tags">Tags</label>
+            <input type="text" id="note-tags" class="form-control" placeholder="research, references, ideas">
+        </div>
+        <div class="note-editor-shell">
+            <textarea id="note-content"></textarea>
+        </div>
+    </section>
+    
+    <section class="card note-empty-card" id="note-empty-state">
+        <i class="ph ph-notepad empty-illustration"></i>
         <p>Select a note or create a new one.</p>
-    </div>
+    </section>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <style>
-    /* Customize EasyMDE to fit the dark theme */
     .editor-toolbar {
         border: 1px solid var(--border-subtle);
         border-bottom: none;
-        border-radius: var(--radius-md) var(--radius-md) 0 0;
+        border-radius: 0;
         background: var(--bg-surface);
         opacity: 1;
+        padding: 7px 10px;
     }
     .editor-toolbar > button {
         color: var(--text-primary) !important;
+        border-color: transparent !important;
     }
     .editor-toolbar > button:hover, .editor-toolbar > button.active {
         background: var(--bg-surface-hover);
-        border-color: transparent;
+        border-color: var(--border-focus) !important;
     }
     .CodeMirror {
         border: 1px solid var(--border-subtle);
-        border-radius: 0 0 var(--radius-md) var(--radius-md);
+        border-right: 0;
+        border-left: 0;
+        border-bottom: 0;
+        border-radius: 0;
         background: var(--bg-panel);
         color: var(--text-primary);
         font-family: var(--font-mono);
         font-size: 13px;
+        line-height: 1.65;
     }
     .editor-preview {
         background: var(--bg-base);
         color: var(--text-primary);
     }
     .editor-preview a {
-        color: var(--primary);
+        color: var(--accent-blue);
         text-decoration: underline;
+    }
+
+    .EasyMDEContainer {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        flex-direction: column;
+    }
+
+    .EasyMDEContainer .CodeMirror {
+        flex: 1;
+        min-height: 0;
     }
 </style>
 <script src="{{ url_for('static', filename='js/notes.js', v=asset_version('js/notes.js')) }}"></script>

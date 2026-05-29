@@ -8,7 +8,7 @@ const NotebookUI = {
     async init() {
         try {
             const project = await API.get(`/api/projects/${this.projectId}`);
-            document.getElementById('notebook-page-title').innerHTML = `<span style="opacity: 0.5;">Notebook /</span> ${CoreUI.escapeHtml(project.name)}`;
+            document.getElementById('notebook-page-title').innerHTML = `<span class="item-desc">Notebook /</span> ${CoreUI.escapeHtml(project.name)}`;
             
             this.initEditor();
             await this.loadNotes();
@@ -54,21 +54,25 @@ const NotebookUI = {
 
     renderNotesList(filter = '') {
         const listEl = document.getElementById('notes-list');
-        const filteredNotes = this.allNotes.filter(n => 
-            n.title.toLowerCase().includes(filter.toLowerCase()) || 
-            n.content.toLowerCase().includes(filter.toLowerCase())
+        const countEl = document.getElementById('notebook-note-count');
+        const query = filter.trim().toLowerCase();
+        const filteredNotes = this.allNotes.filter((note) => 
+            (note.title || '').toLowerCase().includes(query) ||
+            (note.content || '').toLowerCase().includes(query)
         );
+        if (countEl) countEl.textContent = `${filteredNotes.length} note${filteredNotes.length === 1 ? '' : 's'}`;
 
         listEl.innerHTML = filteredNotes.map(note => `
-            <div class="note-item ${this.currentNoteId === note.id ? 'active' : ''}" 
+            <div class="project-note-item ${this.currentNoteId === note.id ? 'active' : ''}" 
                  onclick="NotebookUI.selectNote(${note.id})">
-                <div class="note-title">${CoreUI.escapeHtml(note.title)}</div>
-                <div class="note-meta">${this.formatDate(note.updated_at)}</div>
+                <div class="project-note-item-title">${CoreUI.escapeHtml(note.title || 'Untitled note')}</div>
+                <div class="project-note-item-preview">${CoreUI.escapeHtml(this.getPreview(note.content))}</div>
+                <div class="project-note-item-meta">${this.formatDate(note.updated_at)}</div>
             </div>
         `).join('');
 
         if (filteredNotes.length === 0) {
-            listEl.innerHTML = `<div class="empty-state-container" style="padding: 20px; text-align: center; font-size: 13px; color: var(--text-muted);">No notes found</div>`;
+            listEl.innerHTML = '<div class="compact-item"><span class="item-desc">No notes found.</span></div>';
         }
     },
 
@@ -80,8 +84,8 @@ const NotebookUI = {
             document.getElementById('notebook-empty-state').style.display = 'none';
             document.getElementById('editor-container').style.display = 'flex';
             
-            document.getElementById('note-title-input').value = note.title;
-            this.editor.value(note.content);
+            document.getElementById('note-title-input').value = note.title || '';
+            this.editor.value(note.content || '');
             
             this.renderNotesList();
             
@@ -95,7 +99,7 @@ const NotebookUI = {
     async createNewNote() {
         try {
             const newNote = {
-                title: 'New Note',
+                title: 'Untitled note',
                 content: ''
             };
             const response = await API.post(`/api/projects/${this.projectId}/notes`, newNote);
@@ -113,7 +117,11 @@ const NotebookUI = {
 
     async deleteCurrentNote() {
         if (!this.currentNoteId) return;
-        if (!confirm('Are you sure you want to delete this note?')) return;
+        if (!(await CoreUI.confirm({
+            title: 'Delete project note?',
+            message: 'This project note will be removed permanently.',
+            confirmText: 'Delete'
+        }))) return;
 
         try {
             await API.delete(`/api/projects/${this.projectId}/notes/${this.currentNoteId}`);
@@ -145,7 +153,7 @@ const NotebookUI = {
 
         try {
             await API.put(`/api/projects/${this.projectId}/notes/${this.currentNoteId}`, { 
-                title, 
+                title: title || 'Untitled note', 
                 content 
             });
             
@@ -157,7 +165,8 @@ const NotebookUI = {
             // Update list without reloading everything if possible
             const note = this.allNotes.find(n => n.id === this.currentNoteId);
             if (note) {
-                note.title = title;
+                note.title = title || 'Untitled note';
+                note.content = content;
                 note.updated_at = new Date().toISOString();
                 this.renderNotesList(document.getElementById('notes-search').value);
             }
@@ -172,6 +181,14 @@ const NotebookUI = {
         this.renderNotesList(term);
     },
 
+    getPreview(content) {
+        const clean = String(content || '')
+            .replace(/[#*_`>\-[\]()]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        return clean || 'No content yet.';
+    },
+
     formatDate(dateString) {
         if (!dateString) return 'Never';
         return new Date(dateString).toLocaleDateString(undefined, { 
@@ -184,4 +201,12 @@ const NotebookUI = {
 
 document.addEventListener('DOMContentLoaded', () => {
     NotebookUI.init();
+    document.addEventListener('keydown', (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+            if (NotebookUI.currentNoteId) {
+                event.preventDefault();
+                NotebookUI.saveNote();
+            }
+        }
+    });
 });

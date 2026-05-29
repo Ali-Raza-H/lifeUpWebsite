@@ -11,7 +11,6 @@ const HabitUI = {
             this.renderToolbar(payload);
             this.renderMatrix(payload);
         } catch (error) {
-            console.error('Failed to load habits', error);
             CoreUI.showError(error.message || 'Failed to load habits.');
         }
     },
@@ -162,7 +161,11 @@ const HabitUI = {
 
     async deleteCurrentHabit() {
         const habitId = document.getElementById('habit-id').value;
-        if (!habitId || !confirm('Confirm protocol termination?')) return;
+        if (!habitId || !(await CoreUI.confirm({
+            title: 'Delete habit?',
+            message: 'This habit and its tracking history will be removed permanently.',
+            confirmText: 'Delete'
+        }))) return;
         try {
             await API.delete(`/api/habits/${habitId}`);
             this.closeModal();

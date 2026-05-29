@@ -89,6 +89,311 @@ def test_project_progress_uses_related_tasks(client):
     assert refreshed_project["progress"] == 100
 
 
+def test_project_progress_combines_stages_and_tasks(client):
+    project_response = client.post("/api/projects/", json={"name": "Stage tracked project"})
+    assert project_response.status_code == 201
+    project_id = project_response.get_json()["project"]["id"]
+
+    task_response = client.post(
+        "/api/tasks/",
+        json={"title": "Build component", "project_id": project_id, "status": "completed"},
+    )
+    assert task_response.status_code == 201
+
+    stage_response = client.post(
+        f"/api/projects/{project_id}/milestones",
+        json={"title": "Prototype", "status": "in_progress"},
+    )
+    assert stage_response.status_code == 201
+
+    project = client.get("/api/projects/").get_json()[0]
+    assert project["task_count"] == 1
+    assert project["milestone_count"] == 1
+    assert project["completed_task_count"] == 1
+    assert project["in_progress_milestone_count"] == 1
+    assert project["progress"] == 75
+
+
+def test_task_and_project_links_can_be_cleared(client):
+    project = client.post("/api/projects/", json={"name": "Linked project"}).get_json()["project"]
+    goal = client.post("/api/goals/", json={"title": "Linked goal"}).get_json()["goal"]
+    task = client.post(
+        "/api/tasks/",
+        json={"title": "Linked task", "project_id": project["id"], "goal_id": goal["id"], "estimated_minutes": 25},
+    ).get_json()["task"]
+
+    task_update = client.put(
+        f"/api/tasks/{task['id']}",
+        json={"project_id": None, "goal_id": None, "estimated_minutes": None},
+    )
+    assert task_update.status_code == 200
+    updated_task = task_update.get_json()["task"]
+    assert updated_task["project_id"] is None
+    assert updated_task["goal_id"] is None
+    assert updated_task["estimated_minutes"] is None
+
+    project_update = client.put(f"/api/projects/{project['id']}", json={"goal_id": None})
+    assert project_update.status_code == 200
+    assert project_update.get_json()["project"]["goal_id"] is None
+
+
+def test_goal_notes_and_completion_metadata(client):
+    create_response = client.post(
+        "/api/goals/",
+        json={
+            "title": "Reach C2 writing level",
+            "type": "skill",
+            "notes": "Focus on weekly essays and direct feedback loops.",
+            "status": "completed",
+        },
+    )
+    assert create_response.status_code == 201
+    goal = create_response.get_json()["goal"]
+    assert goal["notes"] == "Focus on weekly essays and direct feedback loops."
+    assert goal["completed_at"] is not None
+
+    update_response = client.put(
+        f"/api/goals/{goal['id']}",
+        json={"status": "active", "notes": "Reopened for further practice."},
+    )
+    assert update_response.status_code == 200
+    updated_goal = update_response.get_json()["goal"]
+    assert updated_goal["notes"] == "Reopened for further practice."
+    assert updated_goal["completed_at"] is None
+
+
+def test_goal_links_can_be_created_listed_and_deleted(client):
+    goal = client.post("/api/goals/", json={"title": "Build revision system"}).get_json()["goal"]
+
+    create_response = client.post(
+        f"/api/goals/{goal['id']}/links",
+        json={"title": "Revision site", "url": "revision.example.com"},
+    )
+    assert create_response.status_code == 201
+    link = create_response.get_json()["link"]
+    assert link["title"] == "Revision site"
+    assert link["url"] == "https://revision.example.com"
+
+    goals_payload = client.get("/api/goals/").get_json()
+    refreshed_goal = next(item for item in goals_payload if item["id"] == goal["id"])
+    assert refreshed_goal["link_count"] == 1
+    assert refreshed_goal["links"][0]["id"] == link["id"]
+
+    listed = client.get(f"/api/goals/{goal['id']}/links")
+    assert listed.status_code == 200
+    assert listed.get_json()[0]["url"] == "https://revision.example.com"
+
+    delete_response = client.delete(f"/api/goals/{goal['id']}/links/{link['id']}")
+    assert delete_response.status_code == 200
+    assert client.get(f"/api/goals/{goal['id']}/links").get_json() == []
+
+
+def test_goal_milestones_count_toward_progress(client):
+    goal = client.post("/api/goals/", json={"title": "Build full life tracker"}).get_json()["goal"]
+
+    task_response = client.post(
+        "/api/tasks/",
+        json={"title": "Plan views", "goal_id": goal["id"], "status": "completed"},
+    )
+    assert task_response.status_code == 201
+
+    milestone_response = client.post(
+        f"/api/goals/{goal['id']}/milestones",
+        json={"title": "Health module", "status": "in_progress", "due_date": "2026-06-03"},
+    )
+    assert milestone_response.status_code == 201
+    milestone = milestone_response.get_json()["milestone"]
+
+    goals_payload = client.get("/api/goals/").get_json()
+    refreshed_goal = next(item for item in goals_payload if item["id"] == goal["id"])
+    assert refreshed_goal["milestone_count"] == 1
+    assert refreshed_goal["completed_task_count"] == 1
+    assert refreshed_goal["in_progress_milestone_count"] == 1
+    assert refreshed_goal["progress"] == 75
+
+    update_response = client.put(
+        f"/api/goals/{goal['id']}/milestones/{milestone['id']}",
+        json={"status": "completed"},
+    )
+    assert update_response.status_code == 200
+    assert update_response.get_json()["milestone"]["completed_at"] is not None
+
+    delete_response = client.delete(f"/api/goals/{goal['id']}/milestones/{milestone['id']}")
+    assert delete_response.status_code == 200
+
+
+def test_life_tracker_core_modules(client):
+    health = client.post(
+        "/api/life/health",
+        json={
+            "log_date": "2026-05-29",
+            "sleep_hours": 7.5,
+            "weight_kg": 70.2,
+            "exercise_minutes": 45,
+            "energy_score": 8,
+            "symptoms": "None",
+        },
+    )
+    assert health.status_code == 201
+
+    finance = client.post(
+        "/api/life/finance",
+        json={
+            "entry_date": "2026-05-29",
+            "type": "subscription",
+            "category": "Hosting",
+            "amount": 12.5,
+            "is_recurring": True,
+        },
+    )
+    assert finance.status_code == 201
+
+    contact = client.post(
+        "/api/life/contacts",
+        json={"name": "Alex", "relation": "Mentor", "priority": "high", "next_follow_up": "2026-05-29"},
+    )
+    assert contact.status_code == 201
+    contact_id = contact.get_json()["contact"]["id"]
+
+    review = client.post(
+        "/api/life/reviews",
+        json={
+            "period_type": "weekly",
+            "period_start": "2026-05-25",
+            "score": 8,
+            "wins": "Shipped tracker",
+            "next_focus": "Polish",
+        },
+    )
+    assert review.status_code == 201
+
+    attachment = client.post(
+        "/api/life/attachments",
+        json={"entity_type": "goal", "entity_id": 1, "title": "Planning board", "url": "board.example.com"},
+    )
+    assert attachment.status_code == 201
+    assert attachment.get_json()["attachment"]["url"] == "https://board.example.com"
+
+    summary = client.get("/api/life/summary").get_json()
+    assert summary["latest_health"]["sleep_hours"] == 7.5
+    assert summary["contacts_due"] == 1
+    assert client.get("/api/life/finance").get_json()[0]["is_recurring"] == 1
+
+    update_contact = client.put(f"/api/life/contacts/{contact_id}", json={"priority": "normal"})
+    assert update_contact.status_code == 200
+    assert update_contact.get_json()["contact"]["priority"] == "normal"
+
+
+def test_notes_support_tags_and_pinning(client):
+    create_response = client.post(
+        "/api/notes/",
+        json={"title": "Reference", "tags": "python, flask", "is_pinned": 1, "content": "Docs and snippets"},
+    )
+    assert create_response.status_code == 201
+    note = create_response.get_json()["note"]
+    assert note["tags"] == "python, flask"
+    assert note["is_pinned"] == 1
+
+    listed = client.get("/api/notes/?pinned=1&q=flask")
+    assert listed.status_code == 200
+    payload = listed.get_json()
+    assert len(payload) == 1
+    assert payload[0]["id"] == note["id"]
+
+
+def test_journal_entries_can_be_updated_and_filtered(client):
+    create_response = client.post(
+        "/api/journal/",
+        json={"title": "Deep work", "tags": "study, focus", "content": "Strong session", "mood_score": 8},
+    )
+    assert create_response.status_code == 201
+    entry = create_response.get_json()["entry"]
+
+    update_response = client.put(
+        f"/api/journal/{entry['id']}",
+        json={"title": "Deep work revised", "content": "Strong session with revision", "tags": "study", "mood_score": 9},
+    )
+    assert update_response.status_code == 200
+    updated = update_response.get_json()["entry"]
+    assert updated["title"] == "Deep work revised"
+    assert updated["mood_score"] == 9
+
+    filtered = client.get("/api/journal/?q=revised&mood=9")
+    assert filtered.status_code == 200
+    assert len(filtered.get_json()) == 1
+
+
+def test_calendar_event_supports_goal_and_project_links(client):
+    project = client.post("/api/projects/", json={"name": "Calendar-linked project"}).get_json()["project"]
+    goal = client.post("/api/goals/", json={"title": "Calendar-linked goal"}).get_json()["goal"]
+
+    create_response = client.post(
+        "/api/calendar/events",
+        json={
+            "title": "Planning block",
+            "start_at": "2026-05-19T09:00",
+            "end_at": "2026-05-19T10:00",
+            "project_id": project["id"],
+            "goal_id": goal["id"],
+        },
+    )
+    assert create_response.status_code == 201
+
+    week_payload = client.get("/api/calendar/week?start=2026-05-19").get_json()
+    matching_day = next(day for day in week_payload["days"] if day["date"] == "2026-05-19")
+    event = matching_day["events"][0]
+    assert event["project_id"] == project["id"]
+    assert event["goal_id"] == goal["id"]
+    assert event["project_name"] == "Calendar-linked project"
+    assert event["goal_title"] == "Calendar-linked goal"
+
+
+def test_recurring_calendar_events_expand_into_week(client):
+    create_response = client.post(
+        "/api/calendar/events",
+        json={
+            "title": "Morning review",
+            "start_at": "2026-05-18T08:00",
+            "end_at": "2026-05-18T08:30",
+            "recurrence": "daily",
+            "recurrence_until": "2026-05-20",
+        },
+    )
+    assert create_response.status_code == 201
+
+    week_payload = client.get("/api/calendar/week?start=2026-05-18").get_json()
+    matches = [
+        day["date"]
+        for day in week_payload["days"]
+        if any(event["title"] == "Morning review" for event in day["events"])
+    ]
+    assert matches == ["2026-05-18", "2026-05-19", "2026-05-20"]
+
+
+def test_project_milestone_flow(client):
+    project = client.post("/api/projects/", json={"name": "Milestone project"}).get_json()["project"]
+    project_id = project["id"]
+
+    create_response = client.post(
+        f"/api/projects/{project_id}/milestones",
+        json={"title": "Prototype", "due_date": "2026-06-01"},
+    )
+    assert create_response.status_code == 201
+    milestone = create_response.get_json()["milestone"]
+
+    update_response = client.put(
+        f"/api/projects/{project_id}/milestones/{milestone['id']}",
+        json={"status": "completed"},
+    )
+    assert update_response.status_code == 200
+    updated = update_response.get_json()["milestone"]
+    assert updated["status"] == "completed"
+    assert updated["completed_at"] is not None
+
+    project_detail = client.get(f"/api/projects/{project_id}").get_json()
+    assert len(project_detail["milestones"]) == 1
+
+
 def test_profile_seed_and_exports_work(client):
     traits_response = client.get("/api/profile/traits")
     beliefs_response = client.get("/api/profile/beliefs")

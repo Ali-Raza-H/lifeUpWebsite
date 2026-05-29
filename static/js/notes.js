@@ -2,6 +2,21 @@ const NotesUI = {
     notes: [],
     currentNoteId: null,
     editor: null,
+    filters: {
+        query: '',
+        pinnedOnly: false
+    },
+
+    init() {
+        document.getElementById('notes-search')?.addEventListener('input', (event) => {
+            this.filters.query = event.target.value.trim().toLowerCase();
+            this.renderNotesList();
+        });
+        document.getElementById('notes-pinned-only')?.addEventListener('change', (event) => {
+            this.filters.pinnedOnly = event.target.checked;
+            this.renderNotesList();
+        });
+    },
 
     async loadNotes() {
         try {
@@ -13,36 +28,41 @@ const NotesUI = {
         }
     },
 
+    getFilteredNotes() {
+        return this.notes.filter((note) => {
+            const haystack = `${note.title} ${note.content || ''} ${note.tags || ''}`.toLowerCase();
+            if (this.filters.query && !haystack.includes(this.filters.query)) return false;
+            if (this.filters.pinnedOnly && !note.is_pinned) return false;
+            return true;
+        });
+    },
+
     renderNotesList() {
         const list = document.getElementById('notes-list');
+        const count = document.getElementById('notes-results-count');
+        if (!list) return;
+
+        const notes = this.getFilteredNotes();
+        if (count) count.textContent = `${notes.length} note${notes.length === 1 ? '' : 's'}`;
         list.innerHTML = '';
-        
-        if (this.notes.length === 0) {
-            list.innerHTML = '<div class="item-desc" style="padding: var(--space-2);">No notes yet.</div>';
+
+        if (notes.length === 0) {
+            CoreUI.setEmptyState(list, 'No notes found.');
             return;
         }
 
-        this.notes.forEach(note => {
+        notes.forEach((note) => {
             const div = document.createElement('div');
-            div.className = `compact-item ${note.id === this.currentNoteId ? 'active' : ''}`;
-            div.style.cursor = 'pointer';
-            div.style.flexDirection = 'column';
-            div.style.alignItems = 'flex-start';
-            div.style.gap = '4px';
-            div.style.padding = '12px';
-            
-            if (note.id === this.currentNoteId) {
-                div.style.background = 'var(--bg-surface-hover)';
-                div.style.borderLeft = '2px solid var(--primary)';
-            }
-            
+            div.className = `compact-item note-list-item ${note.id === this.currentNoteId ? 'active' : ''}`;
             div.onclick = () => this.selectNote(note.id);
-            
             const updated = new Date(note.updated_at).toLocaleDateString();
-            
             div.innerHTML = `
-                <div class="item-title" style="font-size: 14px; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${CoreUI.escapeHtml(note.title)}</div>
-                <div class="item-desc" style="font-size: 11px;">Updated ${updated}</div>
+                <div class="note-list-title-row">
+                    <div class="item-title note-list-title">${CoreUI.escapeHtml(note.title)}</div>
+                    ${note.is_pinned ? '<i class="ph-fill ph-push-pin note-list-pin"></i>' : ''}
+                </div>
+                ${note.tags ? `<div class="item-desc note-list-tags">${CoreUI.escapeHtml(note.tags)}</div>` : ''}
+                <div class="item-desc note-list-meta-row"><span>Updated ${updated}</span></div>
             `;
             list.appendChild(div);
         });
@@ -53,28 +73,32 @@ const NotesUI = {
         this.editor = new EasyMDE({
             element: document.getElementById('note-content'),
             spellChecker: false,
-            autosave: {
-                enabled: false
-            },
+            autosave: { enabled: false },
             status: false,
-            minHeight: "400px",
-            toolbar: ["bold", "italic", "heading", "|", "quote", "unordered-list", "ordered-list", "|", "link", "image", "|", "preview", "guide"]
+            minHeight: '360px',
+            toolbar: [
+                'bold', 'italic', 'strikethrough', '|',
+                'heading-1', 'heading-2', 'heading-3', '|',
+                'quote', 'unordered-list', 'ordered-list', '|',
+                'link', '|',
+                'preview', 'side-by-side', 'fullscreen', '|',
+                'guide'
+            ]
         });
     },
 
     selectNote(id) {
-        const note = this.notes.find(n => n.id === id);
+        const note = this.notes.find((item) => item.id === id);
         if (!note) return;
-        
+
         this.currentNoteId = id;
-        this.renderNotesList(); // update active state
-        
+        this.renderNotesList();
         document.getElementById('note-empty-state').style.display = 'none';
         document.getElementById('note-editor-container').style.display = 'flex';
-        
         document.getElementById('current-note-id').value = note.id;
         document.getElementById('note-title').value = note.title;
-        
+        document.getElementById('note-tags').value = note.tags || '';
+        document.getElementById('note-pin-btn').innerHTML = note.is_pinned ? '<i class="ph-fill ph-push-pin"></i> Unpin' : '<i class="ph ph-push-pin"></i> Pin';
         this.initEditor();
         this.editor.value(note.content || '');
     },
@@ -82,13 +106,12 @@ const NotesUI = {
     createNewNote() {
         this.currentNoteId = null;
         this.renderNotesList();
-        
         document.getElementById('note-empty-state').style.display = 'none';
         document.getElementById('note-editor-container').style.display = 'flex';
-        
         document.getElementById('current-note-id').value = '';
         document.getElementById('note-title').value = '';
-        
+        document.getElementById('note-tags').value = '';
+        document.getElementById('note-pin-btn').innerHTML = '<i class="ph ph-push-pin"></i> Pin';
         this.initEditor();
         this.editor.value('');
         document.getElementById('note-title').focus();
@@ -96,11 +119,14 @@ const NotesUI = {
 
     async saveNote() {
         const id = document.getElementById('current-note-id').value;
-        const title = document.getElementById('note-title').value || 'Untitled Note';
-        const content = this.editor.value();
-        
-        const payload = { title, content };
-        
+        const existing = this.notes.find((note) => note.id === this.currentNoteId);
+        const payload = {
+            title: document.getElementById('note-title').value || 'Untitled Note',
+            tags: document.getElementById('note-tags').value,
+            is_pinned: existing?.is_pinned || 0,
+            content: this.editor.value()
+        };
+
         try {
             if (id) {
                 await API.put(`/api/notes/${id}`, payload);
@@ -110,16 +136,34 @@ const NotesUI = {
                 document.getElementById('current-note-id').value = response.note.id;
             }
             await this.loadNotes();
-            CoreUI.showError('Note saved.', true); // Show success in alert region (abusing showError slightly or add generic alert, but this works)
+            if (this.currentNoteId) this.selectNote(this.currentNoteId);
+            CoreUI.showError('Note saved.', true);
         } catch (error) {
             CoreUI.showError(error.message || 'Failed to save note.');
         }
     },
 
+    async togglePinCurrentNote() {
+        const id = document.getElementById('current-note-id').value;
+        if (!id) return;
+        const note = this.notes.find((item) => item.id === Number(id));
+        if (!note) return;
+        try {
+            await API.put(`/api/notes/${id}`, { is_pinned: note.is_pinned ? 0 : 1 });
+            await this.loadNotes();
+            this.selectNote(Number(id));
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to update note.');
+        }
+    },
+
     async deleteCurrentNote() {
         const id = document.getElementById('current-note-id').value;
-        if (!id || !confirm('Delete this note forever?')) return;
-        
+        if (!id || !(await CoreUI.confirm({
+            title: 'Delete note?',
+            message: 'This note will be removed permanently.',
+            confirmText: 'Delete'
+        }))) return;
         try {
             await API.delete(`/api/notes/${id}`);
             this.currentNoteId = null;
@@ -133,13 +177,12 @@ const NotesUI = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+    NotesUI.init();
     NotesUI.loadNotes();
-    
-    // Auto-save shortcut (Ctrl+S / Cmd+S)
-    document.addEventListener('keydown', (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    document.addEventListener('keydown', (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key === 's') {
             if (document.getElementById('note-editor-container').style.display === 'flex') {
-                e.preventDefault();
+                event.preventDefault();
                 NotesUI.saveNote();
             }
         }

@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}Life{% endblock %}
+{% block page_title %}Life Tracker{% endblock %}
+
+{% block content %}
+<div class="page-stack life-shell">
+    <div class="metric-grid cols-4" id="life-summary-grid">
+        <div class="compact-item metric-card"><span class="item-desc">Loading overview...</span></div>
+    </div>
+
+    <div class="life-grid">
+        <section class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-heartbeat"></i> Health</span>
+                <span class="item-desc">Sleep, body, training, symptoms.</span>
+            </div>
+            <form id="life-health-form" class="life-form-grid" onsubmit="LifeUI.saveHealth(event)">
+                <div class="form-group">
+                    <label class="form-label" for="health-date">Date</label>
+                    <input type="date" id="health-date" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="health-sleep">Sleep Hours</label>
+                    <input type="number" id="health-sleep" class="form-control" min="0" step="0.25">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="health-weight">Weight Kg</label>
+                    <input type="number" id="health-weight" class="form-control" min="0" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="health-exercise">Exercise Minutes</label>
+                    <input type="number" id="health-exercise" class="form-control" min="0" step="5">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="health-energy">Energy</label>
+                    <input type="number" id="health-energy" class="form-control" min="1" max="10" step="1">
+                </div>
+                <div class="form-group life-wide">
+                    <label class="form-label" for="health-symptoms">Symptoms</label>
+                    <input type="text" id="health-symptoms" class="form-control" placeholder="Headache, soreness, stress">
+                </div>
+                <div class="form-group life-wide">
+                    <label class="form-label" for="health-notes">Notes</label>
+                    <textarea id="health-notes" class="form-control" rows="3"></textarea>
+                </div>
+                <div class="life-wide life-form-actions">
+                    <button type="submit" class="btn btn-primary"><i class="ph ph-plus"></i> Save Health Log</button>
+                </div>
+            </form>
+            <div id="life-health-list" class="life-list"></div>
+        </section>
+
+        <section class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-wallet"></i> Finance</span>
+                <span class="item-desc">Spending, income, savings, subscriptions.</span>
+            </div>
+            <form id="life-finance-form" class="life-form-grid" onsubmit="LifeUI.saveFinance(event)">
+                <div class="form-group">
+                    <label class="form-label" for="finance-date">Date</label>
+                    <input type="date" id="finance-date" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="finance-type">Type</label>
+                    <select id="finance-type" class="form-control">
+                        <option value="expense">Expense</option>
+                        <option value="income">Income</option>
+                        <option value="saving">Saving</option>
+                        <option value="subscription">Subscription</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="finance-category">Category</label>
+                    <input type="text" id="finance-category" class="form-control" placeholder="Food, transport, hosting">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="finance-amount">Amount</label>
+                    <input type="number" id="finance-amount" class="form-control" min="0" step="0.01" required>
+                </div>
+                <label class="life-check">
+                    <input type="checkbox" id="finance-recurring">
+                    <span>Recurring</span>
+                </label>
+                <div class="form-group life-wide">
+                    <label class="form-label" for="finance-description">Description</label>
+                    <input type="text" id="finance-description" class="form-control">
+                </div>
+                <div class="life-wide life-form-actions">
+                    <button type="submit" class="btn btn-primary"><i class="ph ph-plus"></i> Save Entry</button>
+                </div>
+            </form>
+            <div id="life-finance-list" class="life-list"></div>
+        </section>
+
+        <section class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-users-three"></i> Relationships</span>
+                <span class="item-desc">Follow-ups and people that matter.</span>
+            </div>
+            <form id="life-contact-form" class="life-form-grid" onsubmit="LifeUI.saveContact(event)">
+                <input type="hidden" id="contact-id">
+                <div class="form-group">
+                    <label class="form-label" for="contact-name">Name</label>
+                    <input type="text" id="contact-name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="contact-relation">Relation</label>
+                    <input type="text" id="contact-relation" class="form-control" placeholder="Friend, mentor, family">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="contact-priority">Priority</label>
+                    <select id="contact-priority" class="form-control">
+                        <option value="normal">Normal</option>
+                        <option value="high">High</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="contact-last">Last Contacted</label>
+                    <input type="date" id="contact-last" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="contact-next">Next Follow-up</label>
+                    <input type="date" id="contact-next" class="form-control">
+                </div>
+                <div class="form-group life-wide">
+                    <label class="form-label" for="contact-notes">Notes</label>
+                    <textarea id="contact-notes" class="form-control" rows="3"></textarea>
+                </div>
+                <div class="life-wide life-form-actions">
+                    <button type="submit" class="btn btn-primary"><i class="ph ph-plus"></i> Save Contact</button>
+                    <button type="button" class="btn" onclick="LifeUI.resetContactForm()">Clear</button>
+                </div>
+            </form>
+            <div id="life-contact-list" class="life-list"></div>
+        </section>
+
+        <section class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-clipboard-text"></i> Reviews</span>
+                <span class="item-desc">Weekly and monthly retrospectives.</span>
+            </div>
+            <form id="life-review-form" class="life-form-grid" onsubmit="LifeUI.saveReview(event)">
+                <div class="form-group">
+                    <label class="form-label" for="review-type">Period</label>
+                    <select id="review-type" class="form-control">
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="review-start">Start Date</label>
+                    <input type="date" id="review-start" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="review-score">Score</label>
+                    <input type="number" id="review-score" class="form-control" min="1" max="10">
+                </div>
+                <div class="form-group life-wide">
+                    <label class="form-label" for="review-wins">Wins</label>
+                    <textarea id="review-wins" class="form-control" rows="3"></textarea>
+                </div>
+                <div class="form-group life-wide">
+                    <label class="form-label" for="review-challenges">Challenges</label>
+                    <textarea id="review-challenges" class="form-control" rows="3"></textarea>
+                </div>
+                <div class="form-group life-wide">
+                    <label class="form-label" for="review-focus">Next Focus</label>
+                    <textarea id="review-focus" class="form-control" rows="3"></textarea>
+                </div>
+                <div class="life-wide life-form-actions">
+                    <button type="submit" class="btn btn-primary"><i class="ph ph-plus"></i> Save Review</button>
+                </div>
+            </form>
+            <div id="life-review-list" class="life-list"></div>
+        </section>
+
+        <section class="card life-full">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-paperclip"></i> Attachments & Sites</span>
+                <span class="item-desc">Links for goals, projects, notes, journal entries, tasks, or general resources.</span>
+            </div>
+            <form id="life-attachment-form" class="life-attachment-form" onsubmit="LifeUI.saveAttachment(event)">
+                <div class="form-group">
+                    <label class="form-label" for="attachment-type">Area</label>
+                    <select id="attachment-type" class="form-control">
+                        <option value="general">General</option>
+                        <option value="goal">Goal</option>
+                        <option value="project">Project</option>
+                        <option value="note">Note</option>
+                        <option value="journal">Journal</option>
+                        <option value="task">Task</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="attachment-entity-id">Item Id</label>
+                    <input type="number" id="attachment-entity-id" class="form-control" min="1" placeholder="Optional">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="attachment-title">Title</label>
+                    <input type="text" id="attachment-title" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="attachment-url">Website Or File Link</label>
+                    <input type="url" id="attachment-url" class="form-control" placeholder="https://example.com" required>
+                </div>
+                <div class="form-group life-wide">
+                    <label class="form-label" for="attachment-notes">Notes</label>
+                    <input type="text" id="attachment-notes" class="form-control">
+                </div>
+                <div class="life-form-actions">
+                    <button type="submit" class="btn btn-primary"><i class="ph ph-plus"></i> Save Link</button>
+                </div>
+            </form>
+            <div id="life-attachment-list" class="life-resource-grid"></div>
+        </section>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/life.js', v=asset_version('js/life.js')) }}"></script>
+{% endblock %}

@@ -7,6 +7,8 @@ from services import (
     activity_series,
     build_habit_calendar_payload,
     consistency_rate,
+    dashboard_today_payload,
+    mood_productivity_series,
     serialize_habits_with_metrics,
     weekly_completion_series,
 )
@@ -74,3 +76,13 @@ def get_activity():
 @bp.route("/velocity", methods=["GET"])
 def get_velocity():
     return jsonify(weekly_completion_series())
+
+
+@bp.route("/today", methods=["GET"])
+def get_today():
+    return jsonify(dashboard_today_payload())
+
+
+@bp.route("/mood_productivity", methods=["GET"])
+def get_mood_productivity():
+    return jsonify(mood_productivity_series())

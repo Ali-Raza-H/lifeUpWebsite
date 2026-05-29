@@ -54,6 +54,56 @@ const CoreUI = {
         }, 4000);
     },
 
+    confirm({ title = 'Confirm action', message = 'Are you sure?', confirmText = 'Confirm', cancelText = 'Cancel', danger = true } = {}) {
+        const modal = document.getElementById('app-confirm-modal');
+        const titleEl = document.getElementById('app-confirm-title');
+        const messageEl = document.getElementById('app-confirm-message');
+        const confirmBtn = document.getElementById('app-confirm-ok');
+        const cancelBtn = document.getElementById('app-confirm-cancel');
+
+        if (!modal || !titleEl || !messageEl || !confirmBtn || !cancelBtn) {
+            return Promise.resolve(false);
+        }
+
+        titleEl.textContent = title;
+        messageEl.textContent = message;
+        confirmBtn.textContent = confirmText;
+        cancelBtn.textContent = cancelText;
+        confirmBtn.className = danger ? 'btn btn-danger' : 'btn btn-primary';
+        modal.style.display = 'flex';
+
+        return new Promise((resolve) => {
+            let settled = false;
+
+            const close = (result) => {
+                if (settled) return;
+                settled = true;
+                modal.style.display = 'none';
+                confirmBtn.removeEventListener('click', onConfirm);
+                cancelBtn.removeEventListener('click', onCancel);
+                modal.removeEventListener('click', onBackdrop);
+                document.removeEventListener('keydown', onKeydown);
+                resolve(result);
+            };
+
+            const onConfirm = () => close(true);
+            const onCancel = () => close(false);
+            const onBackdrop = (event) => {
+                if (event.target === modal) close(false);
+            };
+            const onKeydown = (event) => {
+                if (event.key === 'Escape') close(false);
+                if (event.key === 'Enter') close(true);
+            };
+
+            confirmBtn.addEventListener('click', onConfirm);
+            cancelBtn.addEventListener('click', onCancel);
+            modal.addEventListener('click', onBackdrop);
+            document.addEventListener('keydown', onKeydown);
+            confirmBtn.focus();
+        });
+    },
+
     destroyChart(instance) {
         if (instance && typeof instance.destroy === 'function') {
             instance.destroy();

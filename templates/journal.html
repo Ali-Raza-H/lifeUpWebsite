@@ -4,39 +4,88 @@
 {% block page_title %}Journal{% endblock %}
 
 {% block header_actions %}
-<button class="btn btn-primary" onclick="JournalUI.openCreateModal()"><i class="ph ph-pen-nib"></i> New Entry</button>
+<button class="btn btn-primary" type="button" onclick="JournalUI.openCreateModal()"><i class="ph ph-pen-nib"></i> New Entry</button>
 {% endblock %}
 
 {% block content %}
-<div class="bento-grid">
-    <div class="card" style="grid-column: span 12; background: transparent; border: none; padding: 0;">
-        <div class="card-header" style="padding-bottom: var(--space-2);">
-            <span class="card-title"><i class="ph ph-book-open"></i> System Logs</span>
+<section class="page-stack">
+    <div class="section-grid-2">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-magnifying-glass"></i> Entry Filters</span>
+                <span class="item-desc">Search by title, tags, or entry text.</span>
+            </div>
+            <div class="section-grid-3">
+                <div class="form-group">
+                    <label class="form-label" for="journal-search">Search</label>
+                    <input type="text" id="journal-search" class="form-control" placeholder="Find an entry">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="journal-mood-filter">Mood</label>
+                    <select id="journal-mood-filter" class="form-control">
+                        <option value="">Any</option>
+                        {% for score in range(1, 11) %}
+                        <option value="{{ score }}">{{ score }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="journal-date-from">From</label>
+                    <input type="date" id="journal-date-from" class="form-control">
+                </div>
+            </div>
+            <div class="section-toolbar">
+                <span class="item-desc" id="journal-results-count">0 entries</span>
+                <button class="btn" type="button" id="journal-reset-filters"><i class="ph ph-arrow-counter-clockwise"></i> Reset</button>
+            </div>
         </div>
-        <div class="compact-list" id="journal-list">
-            <!-- Populated via JS -->
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-chart-line"></i> Mood Snapshot</span>
+                <span class="item-desc">Average mood and writing volume from current filters.</span>
+            </div>
+            <div class="metric-grid cols-3" id="journal-summary-grid">
+                <div class="compact-item metric-card"><span class="item-desc">Loading...</span></div>
+            </div>
         </div>
     </div>
-</div>
+
+    <div class="compact-list" id="journal-list">
+        <div class="compact-item"><span class="item-desc">Loading journal...</span></div>
+    </div>
+</section>
 
 <div id="journal-modal" class="modal-overlay">
-    <div class="modal-content" style="width: 600px;">
+    <div class="modal-content" style="width:min(760px, 94vw);">
         <div class="card-header">
-            <h3 class="card-title">Record Observation</h3>
-            <button class="btn btn-icon" onclick="JournalUI.closeModal()"><i class="ph ph-x"></i></button>
+            <h3 class="card-title" id="journal-modal-title">Record Observation</h3>
+            <button class="btn btn-icon" type="button" onclick="JournalUI.closeModal()"><i class="ph ph-x"></i></button>
         </div>
         <form id="journal-form" onsubmit="JournalUI.submitEntry(event)">
+            <input type="hidden" id="journal-id">
             <div class="form-group">
-                <label class="form-label">Observation / Theory / Event</label>
+                <label class="form-label" for="journal-title">Title</label>
+                <input type="text" id="journal-title" class="form-control" placeholder="Short summary">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="journal-tags">Tags</label>
+                <input type="text" id="journal-tags" class="form-control" placeholder="reflection, study, health">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="journal-content">Observation / Theory / Event</label>
                 <textarea id="journal-content" class="form-control" rows="8" required style="font-family: var(--font-mono); line-height: 1.6;"></textarea>
             </div>
             <div class="form-group">
-                <label class="form-label">System State / Mood (1-10)</label>
+                <label class="form-label" for="journal-mood">System State / Mood (1-10)</label>
                 <input type="number" id="journal-mood" class="form-control" min="1" max="10" value="5">
             </div>
-            <div style="display:flex; justify-content:flex-end; gap: var(--space-2);">
-                <button type="button" class="btn" onclick="JournalUI.closeModal()">Cancel</button>
-                <button type="submit" class="btn btn-primary">Commit to Memory</button>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" id="journal-delete-btn" onclick="JournalUI.deleteCurrentEntry()" style="display:none;">Delete</button>
+                <div class="modal-footer-actions">
+                    <button type="button" class="btn" onclick="JournalUI.closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Entry</button>
+                </div>
             </div>
         </form>
     </div>

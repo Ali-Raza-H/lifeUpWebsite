@@ -4,62 +4,130 @@
 {% block page_title %}Tasks{% endblock %}
 
 {% block header_actions %}
-<button class="btn btn-primary" onclick="TaskUI.openCreateModal()"><i class="ph ph-plus"></i> New Task</button>
+<button class="btn btn-primary" type="button" onclick="TaskUI.openCreateModal()"><i class="ph ph-plus"></i> New Task</button>
 {% endblock %}
 
 {% block content %}
-<!-- Kanban Style Layout -->
-<div class="bento-grid" style="grid-template-columns: repeat(3, 1fr); align-items: start;">
-    <!-- Pending Column -->
-    <div class="card" style="background: transparent; border: none; padding: 0;">
-        <div class="card-header" style="padding-bottom: var(--space-2);">
-            <span class="card-title"><i class="ph ph-circle"></i> Pending Execution</span>
+<section class="page-stack task-page">
+    <div class="task-top-grid">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-chart-donut"></i> Task Overview</span>
+                <span class="item-desc" id="task-results-count">0 tasks</span>
+            </div>
+            <div class="metric-grid cols-4" id="task-summary-grid">
+                <div class="compact-item"><span class="item-desc">Loading tasks...</span></div>
+            </div>
         </div>
-        <div class="compact-list" id="tasks-pending">
-            <!-- Populated via JS -->
-        </div>
-    </div>
-    
-    <!-- In Progress Column -->
-    <div class="card" style="background: transparent; border: none; padding: 0;">
-        <div class="card-header" style="padding-bottom: var(--space-2);">
-            <span class="card-title"><i class="ph ph-spinner-gap"></i> In Progress</span>
-        </div>
-        <div class="compact-list" id="tasks-in-progress">
-            <!-- Populated via JS -->
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-funnel"></i> Filters</span>
+                <button class="btn btn-sm" type="button" id="task-reset-filters"><i class="ph ph-arrow-counter-clockwise"></i> Reset</button>
+            </div>
+            <div class="task-filter-grid">
+                <div class="form-group">
+                    <label class="form-label" for="task-search">Search</label>
+                    <input type="text" id="task-search" class="form-control" placeholder="Title or description">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="task-status-filter">Status</label>
+                    <select id="task-status-filter" class="form-control">
+                        <option value="all">All statuses</option>
+                        <option value="pending">Pending</option>
+                        <option value="in_progress">In progress</option>
+                        <option value="on_hold">On hold</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="task-project-filter">Project</label>
+                    <select id="task-project-filter" class="form-control">
+                        <option value="all">All projects</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="task-goal-filter">Goal</label>
+                    <select id="task-goal-filter" class="form-control">
+                        <option value="all">All goals</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="task-due-filter">Due</label>
+                    <select id="task-due-filter" class="form-control">
+                        <option value="all">Any date</option>
+                        <option value="overdue">Overdue</option>
+                        <option value="today">Today</option>
+                        <option value="upcoming">Next 7 days</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="task-sort">Sort</label>
+                    <select id="task-sort" class="form-control">
+                        <option value="default">Smart order</option>
+                        <option value="due">Due date</option>
+                        <option value="priority">Priority</option>
+                        <option value="recent">Recently created</option>
+                    </select>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Completed Column -->
-    <div class="card" style="background: transparent; border: none; padding: 0; opacity: 0.7;">
-        <div class="card-header" style="padding-bottom: var(--space-2);">
-            <span class="card-title"><i class="ph-fill ph-check-circle"></i> Completed</span>
-        </div>
-        <div class="compact-list" id="tasks-completed">
-            <!-- Populated via JS -->
-        </div>
+    <div class="task-board">
+        <section class="board-column">
+            <div class="board-column-header">
+                <span class="card-title"><i class="ph ph-circle"></i> Pending</span>
+                <span class="badge" id="tasks-pending-count">0</span>
+            </div>
+            <div class="compact-list" id="tasks-pending"></div>
+        </section>
+
+        <section class="board-column">
+            <div class="board-column-header">
+                <span class="card-title"><i class="ph ph-spinner-gap"></i> In Progress</span>
+                <span class="badge" id="tasks-in-progress-count">0</span>
+            </div>
+            <div class="compact-list" id="tasks-in-progress"></div>
+        </section>
+
+        <section class="board-column">
+            <div class="board-column-header">
+                <span class="card-title"><i class="ph ph-pause"></i> On Hold</span>
+                <span class="badge" id="tasks-on-hold-count">0</span>
+            </div>
+            <div class="compact-list" id="tasks-on-hold"></div>
+        </section>
+
+        <section class="board-column is-muted">
+            <div class="board-column-header">
+                <span class="card-title"><i class="ph-fill ph-check-circle"></i> Completed</span>
+                <span class="badge" id="tasks-completed-count">0</span>
+            </div>
+            <div class="compact-list" id="tasks-completed"></div>
+        </section>
     </div>
-</div>
+</section>
 
 <div id="task-modal" class="modal-overlay">
-    <div class="modal-content">
+    <div class="modal-content task-modal-content">
         <div class="card-header">
             <h3 class="card-title" id="task-modal-title">Create Task</h3>
-            <button class="btn btn-icon" onclick="TaskUI.closeModal()"><i class="ph ph-x"></i></button>
+            <button class="btn btn-icon" type="button" onclick="TaskUI.closeModal()"><i class="ph ph-x"></i></button>
         </div>
         <form id="task-form" onsubmit="TaskUI.submitTask(event)">
             <input type="hidden" id="task-id">
             <div class="form-group">
-                <label class="form-label">Title</label>
+                <label class="form-label" for="task-title">Title</label>
                 <input type="text" id="task-title" class="form-control" required>
             </div>
             <div class="form-group">
-                <label class="form-label">Description</label>
+                <label class="form-label" for="task-desc">Description</label>
                 <textarea id="task-desc" class="form-control" rows="3"></textarea>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);">
+            <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label">Priority</label>
+                    <label class="form-label" for="task-priority">Priority</label>
                     <select id="task-priority" class="form-control">
                         <option value="1">Highest</option>
                         <option value="2">High</option>
@@ -68,17 +136,45 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Est. Minutes</label>
+                    <label class="form-label" for="task-status">Status</label>
+                    <select id="task-status" class="form-control">
+                        <option value="pending">Pending</option>
+                        <option value="in_progress">In progress</option>
+                        <option value="on_hold">On hold</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label" for="task-project">Project</label>
+                    <select id="task-project" class="form-control">
+                        <option value="">No project</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="task-goal">Goal</label>
+                    <select id="task-goal" class="form-control">
+                        <option value="">No goal</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label" for="task-due-date">Due Date & Time</label>
+                    <input type="datetime-local" id="task-due-date" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="task-est">Est. Minutes</label>
                     <input type="number" id="task-est" class="form-control" min="1" placeholder="e.g. 30">
                 </div>
             </div>
-            <div class="form-group">
-                <label class="form-label">Due Date & Time</label>
-                <input type="datetime-local" id="task-due-date" class="form-control">
-            </div>
-            <div style="display:flex; justify-content:flex-end; gap: var(--space-2);">
-                <button type="button" class="btn" onclick="TaskUI.closeModal()">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save Task</button>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" id="task-delete-btn" onclick="TaskUI.deleteCurrentTask()" style="display:none;">Delete</button>
+                <div class="modal-footer-actions">
+                    <button type="button" class="btn" onclick="TaskUI.closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Task</button>
+                </div>
             </div>
         </form>
     </div>

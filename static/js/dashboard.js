@@ -8,7 +8,17 @@ const DashboardUI = {
         this.initClock();
 
         try {
-            const [pendingTasks, inProgressTasks, onHoldTasks, projects, habits, overview, habitsMonthly, taskVelocity] = await Promise.all([
+            const [
+                pendingTasks,
+                inProgressTasks,
+                onHoldTasks,
+                projects,
+                habits,
+                overview,
+                habitsMonthly,
+                taskVelocity,
+                todayPayload
+            ] = await Promise.all([
                 API.get('/api/tasks/?status=pending'),
                 API.get('/api/tasks/?status=in_progress'),
                 API.get('/api/tasks/?status=on_hold'),
@@ -16,30 +26,30 @@ const DashboardUI = {
                 API.get('/api/habits/'),
                 API.get('/api/analytics/overview'),
                 API.get('/api/analytics/habits_monthly'),
-                API.get('/api/analytics/velocity')
+                API.get('/api/analytics/velocity'),
+                API.get('/api/analytics/today')
             ]);
 
             const tasks = [...pendingTasks, ...inProgressTasks, ...onHoldTasks];
-            this.renderOverview(overview, tasks);
+            this.renderOverview(overview, tasks, todayPayload);
+            this.renderToday(todayPayload);
             this.renderTasks(tasks);
             this.renderProjects(projects);
             this.renderHabits(habits);
+            this.renderNextEvent(todayPayload.next_event);
             this.initHabitChart(habitsMonthly);
             this.initTaskChart(taskVelocity);
         } catch (error) {
-            console.error('Dashboard data load failed', error);
             CoreUI.showError(error.message || 'Failed to load dashboard data.');
         }
     },
 
     initClock() {
         if (this.clockInterval) clearInterval(this.clockInterval);
-        
         const updateClock = () => {
             const now = new Date();
             const timeEl = document.getElementById('current-time');
             const dateEl = document.getElementById('current-date');
-            
             if (timeEl) {
                 timeEl.textContent = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
             }
@@ -47,7 +57,6 @@ const DashboardUI = {
                 dateEl.textContent = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
             }
         };
-
         updateClock();
         this.clockInterval = setInterval(updateClock, 1000);
     },
@@ -58,28 +67,98 @@ const DashboardUI = {
         if (hour >= 5 && hour < 12) greeting = 'Morning Protocol';
         else if (hour >= 12 && hour < 18) greeting = 'Afternoon Execution';
         else greeting = 'Evening Reflection';
-
         const el = document.getElementById('greeting');
         if (el) el.textContent = greeting;
     },
 
-    renderOverview(overview, tasks) {
-        const taskCount = document.getElementById('active-tasks-count');
-        const projectCount = document.getElementById('active-projects-count');
-        const consistency = document.getElementById('habit-consistency');
+    renderOverview(overview, tasks, todayPayload) {
+        const grid = document.getElementById('dashboard-summary-grid');
+        if (!grid) return;
+        grid.innerHTML = `
+            <div class="compact-item metric-card">
+                <span class="item-desc">Active Tasks</span>
+                <div class="stat-value">${tasks.length}</div>
+            </div>
+            <div class="compact-item metric-card">
+                <span class="item-desc">Active Projects</span>
+                <div class="stat-value">${overview?.active_projects ?? 0}</div>
+            </div>
+            <div class="compact-item metric-card">
+                <span class="item-desc">Overdue</span>
+                <div class="stat-value">${todayPayload?.overdue_tasks ?? 0}</div>
+            </div>
+            <div class="compact-item metric-card">
+                <span class="item-desc">Consistency</span>
+                <div class="stat-value">${overview?.consistency ?? 0}%</div>
+            </div>
+        `;
+    },
 
-        if (taskCount) taskCount.textContent = tasks.length;
-        if (projectCount) projectCount.textContent = overview?.active_projects ?? '-';
-        if (consistency) consistency.textContent = `${overview?.consistency ?? 0}%`;
+    renderToday(todayPayload) {
+        const list = document.getElementById('today-focus-list');
+        if (!list) return;
+
+        const focusTasks = todayPayload?.focus_tasks || [];
+        const items = [
+            { label: 'Tasks due today', value: todayPayload?.due_today ?? 0 },
+            { label: 'Overdue tasks', value: todayPayload?.overdue_tasks ?? 0 },
+            { label: 'Habits still open', value: todayPayload?.open_habits ?? 0 }
+        ];
+
+        list.innerHTML = items.map((item) => `
+            <div class="compact-item">
+                <span class="item-title">${CoreUI.escapeHtml(item.label)}</span>
+                <span class="badge">${item.value}</span>
+            </div>
+        `).join('');
+
+        if (focusTasks.length > 0) {
+            focusTasks.forEach((task) => {
+                list.innerHTML += `
+                    <div class="compact-item" style="flex-direction:column; align-items:flex-start; gap:6px;">
+                        <div style="display:flex; justify-content:space-between; width:100%; gap:12px;">
+                            <span class="item-title">${CoreUI.escapeHtml(task.title)}</span>
+                            ${CoreUI.getPriorityLabel(task.priority)}
+                        </div>
+                        <span class="item-desc">${task.due_date ? `Due ${CoreUI.escapeHtml(CoreUI.formatDate(task.due_date))}` : 'No due date'}</span>
+                    </div>
+                `;
+            });
+        }
+    },
+
+    renderNextEvent(event) {
+        const container = document.getElementById('dashboard-next-event');
+        if (!container) return;
+
+        if (!event || !event.id) {
+            CoreUI.setEmptyState(container, 'No upcoming events.');
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="compact-item" style="flex-direction:column; align-items:flex-start; gap:10px;">
+                <div style="display:flex; justify-content:space-between; width:100%; gap:12px; align-items:flex-start;">
+                    <div>
+                        <div class="item-title">${CoreUI.escapeHtml(event.title)}</div>
+                        <div class="item-desc" style="margin-top:4px;">${CoreUI.escapeHtml(CoreUI.formatDate(event.start_at))}</div>
+                    </div>
+                    ${event.category ? `<span class="badge">${CoreUI.escapeHtml(event.category)}</span>` : ''}
+                </div>
+                <div class="item-desc">${CoreUI.escapeHtml(event.location || 'No location')}</div>
+                <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                    ${event.project_name ? `<span class="badge"><i class="ph ph-kanban"></i>${CoreUI.escapeHtml(event.project_name)}</span>` : ''}
+                    ${event.goal_title ? `<span class="badge"><i class="ph ph-target"></i>${CoreUI.escapeHtml(event.goal_title)}</span>` : ''}
+                </div>
+            </div>
+        `;
     },
 
     renderTasks(tasks) {
         const taskList = document.getElementById('priority-tasks-list');
         if (!taskList) return;
-
         taskList.innerHTML = '';
-        const topTasks = [...tasks].sort((a, b) => a.priority - b.priority).slice(0, 9); // Show up to 9 tasks
-
+        const topTasks = [...tasks].sort((a, b) => a.priority - b.priority).slice(0, 9);
         if (topTasks.length === 0) {
             CoreUI.setEmptyState(taskList, 'No active tasks.', 3);
             return;
@@ -90,24 +169,19 @@ const DashboardUI = {
             div.className = 'compact-item';
             div.style.flexDirection = 'column';
             div.style.gap = '8px';
-            
-            const isPending = task.status === 'pending';
-            const isInProgress = task.status === 'in_progress';
-            const isOnHold = task.status === 'on_hold';
-            const isCompleted = task.status === 'completed';
 
             div.innerHTML = `
-                <div style="display:flex; justify-content:space-between; width:100%; gap: 12px; align-items: flex-start;">
-                    <span class="item-title" style="flex: 1;">${CoreUI.escapeHtml(task.title)}</span>
+                <div style="display:flex; justify-content:space-between; width:100%; gap:12px; align-items:flex-start;">
+                    <span class="item-title" style="flex:1;">${CoreUI.escapeHtml(task.title)}</span>
                     ${CoreUI.getPriorityLabel(task.priority)}
                 </div>
-                <div style="display:flex; justify-content:space-between; width:100%; align-items: center; margin-top: 4px;">
-                    <span class="item-desc"><i class="ph ph-clock"></i> ${task.due_date ? CoreUI.escapeHtml(CoreUI.formatDate(task.due_date)) : 'No due date'}</span>
-                    <select class="form-control" style="width: auto; padding: 2px 8px; font-size: 0.8rem; height: auto;" onchange="DashboardUI.changeTaskStatus(${task.id}, this.value)">
-                        <option value="pending" ${isPending ? 'selected' : ''}>Not Started</option>
-                        <option value="in_progress" ${isInProgress ? 'selected' : ''}>In Progress</option>
-                        <option value="on_hold" ${isOnHold ? 'selected' : ''}>On Hold</option>
-                        <option value="completed" ${isCompleted ? 'selected' : ''}>Completed</option>
+                <div style="display:flex; justify-content:space-between; width:100%; align-items:center; margin-top:4px;">
+                    <span class="item-desc">${task.due_date ? `Due ${CoreUI.escapeHtml(CoreUI.formatDate(task.due_date))}` : 'No due date'}</span>
+                    <select class="form-control form-control-compact" onchange="DashboardUI.changeTaskStatus(${task.id}, this.value)">
+                        <option value="pending" ${task.status === 'pending' ? 'selected' : ''}>Not started</option>
+                        <option value="in_progress" ${task.status === 'in_progress' ? 'selected' : ''}>In progress</option>
+                        <option value="on_hold" ${task.status === 'on_hold' ? 'selected' : ''}>On hold</option>
+                        <option value="completed" ${task.status === 'completed' ? 'selected' : ''}>Completed</option>
                     </select>
                 </div>
             `;
@@ -121,16 +195,14 @@ const DashboardUI = {
             await this.loadData();
         } catch (error) {
             CoreUI.showError(error.message || 'Failed to update task status.');
-            await this.loadData(); // Reload to revert UI state on failure
+            await this.loadData();
         }
     },
 
     renderProjects(projects) {
-        const activeProjects = projects.filter((project) => !['completed', 'archived'].includes(project.status));
-        
+        const activeProjects = projects.filter((project) => !['completed', 'archived'].includes(project.status)).slice(0, 6);
         const projectList = document.getElementById('current-projects-list');
         if (!projectList) return;
-
         projectList.innerHTML = '';
         if (activeProjects.length === 0) {
             CoreUI.setEmptyState(projectList, 'No active projects.');
@@ -143,20 +215,17 @@ const DashboardUI = {
             div.style.flexDirection = 'column';
             div.style.alignItems = 'flex-start';
             div.style.gap = '8px';
-            
-            const progress = project.progress || 0;
-
             div.innerHTML = `
-                <div style="display: flex; justify-content: space-between; width: 100%;">
+                <div style="display:flex; justify-content:space-between; width:100%;">
                     <span class="item-title">${CoreUI.escapeHtml(project.name)}</span>
-                    <span class="item-desc" style="font-weight: bold; color: var(--text-primary);">${progress}%</span>
+                    <span class="item-desc" style="font-weight:bold; color:var(--text-primary);">${project.progress}%</span>
                 </div>
-                <div class="progress-bar" style="width: 100%; height: 6px; background: var(--bg-surface); border-radius: 3px; overflow: hidden;">
-                    <div class="progress-fill" style="width: ${progress}%; height: 100%; background: var(--color-primary); transition: width 0.3s ease;"></div>
+                <div class="progress-track" style="width:100%;">
+                    <div class="progress-fill" style="width:${project.progress}%;"></div>
                 </div>
-                <div style="display: flex; justify-content: space-between; width: 100%; font-size: 0.8rem; color: var(--text-secondary);">
-                    <span>${project.completed_task_count} / ${project.task_count} tasks</span>
-                    <span>${project.deadline ? 'Due: ' + CoreUI.formatDate(project.deadline) : 'Ongoing'}</span>
+                <div style="display:flex; justify-content:space-between; width:100%; font-size:0.8rem; color:var(--text-secondary);">
+                    <span>${project.completed_task_count}/${project.task_count} tasks</span>
+                    <span>${project.health.replace('_', ' ')}</span>
                 </div>
             `;
             projectList.appendChild(div);
@@ -166,7 +235,6 @@ const DashboardUI = {
     renderHabits(habits) {
         const habitList = document.getElementById('daily-habits-list');
         if (!habitList) return;
-
         habitList.innerHTML = '';
         if (habits.length === 0) {
             CoreUI.setEmptyState(habitList, 'No active protocols.');
@@ -174,27 +242,22 @@ const DashboardUI = {
         }
 
         const todayStr = new Date().toISOString().split('T')[0];
-        habits.forEach((habit) => {
+        habits.slice(0, 8).forEach((habit) => {
             const isCompleted = habit.today_status === 'completed';
             const checkClass = isCompleted ? 'checked' : '';
             const icon = isCompleted ? '<i class="ph-bold ph-check"></i>' : '';
-            
-            const streakDisplay = habit.current_streak > 0 
-                ? `<span style="color: var(--color-warning); font-size: 0.85rem; font-weight: bold; display: flex; align-items: center; gap: 4px;"><i class="ph-fill ph-fire"></i> ${habit.current_streak}</span>`
-                : `<span style="color: var(--text-muted); font-size: 0.85rem; display: flex; align-items: center; gap: 4px;"><i class="ph ph-fire"></i> 0</span>`;
-
             const div = document.createElement('div');
             div.className = 'compact-item';
             div.style.alignItems = 'center';
             div.style.justifyContent = 'space-between';
             div.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
-                    <button class="tick-box ${checkClass}" onclick="DashboardUI.toggleHabit(${habit.id}, '${todayStr}', ${isCompleted})" style="margin: 0; width: 24px; height: 24px; flex-shrink: 0;">
+                <div style="display:flex; align-items:center; gap:12px; flex:1;">
+                    <button class="tick-box ${checkClass}" onclick="DashboardUI.toggleHabit(${habit.id}, '${todayStr}', ${isCompleted})" style="margin:0; width:24px; height:24px; flex-shrink:0;">
                         ${icon}
                     </button>
-                    <span class="item-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${CoreUI.escapeHtml(habit.name)}</span>
+                    <span class="item-title" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${CoreUI.escapeHtml(habit.name)}</span>
                 </div>
-                ${streakDisplay}
+                <span class="badge">${habit.current_streak}</span>
             `;
             habitList.appendChild(div);
         });
@@ -210,26 +273,47 @@ const DashboardUI = {
         }
     },
 
+    openQuickTaskModal() {
+        document.getElementById('dashboard-task-form').reset();
+        document.getElementById('dashboard-task-modal').style.display = 'flex';
+    },
+
+    closeQuickTaskModal() {
+        document.getElementById('dashboard-task-modal').style.display = 'none';
+    },
+
+    async submitQuickTask(event) {
+        event.preventDefault();
+        try {
+            await API.post('/api/tasks/', {
+                title: document.getElementById('dashboard-task-title').value,
+                priority: parseInt(document.getElementById('dashboard-task-priority').value, 10),
+                due_date: document.getElementById('dashboard-task-due').value || null
+            });
+            this.closeQuickTaskModal();
+            await this.loadData();
+            CoreUI.showError('Task created.', true);
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to create task.');
+        }
+    },
+
     initHabitChart(habitsMonthly) {
         const ctx = document.getElementById('habitChart');
         if (!ctx) return;
-
         CoreUI.destroyChart(this.habitChartInstance);
-
         Chart.defaults.color = '#a1a1aa';
         Chart.defaults.borderColor = '#1f1f22';
         Chart.defaults.font.family = '"JetBrains Mono", monospace';
-
-        const labels = habitsMonthly.map(h => h.name.length > 15 ? h.name.substring(0, 15) + '...' : h.name);
-        const data = habitsMonthly.map(h => h.completion_rate);
-
+        const labels = habitsMonthly.map((habit) => habit.name.length > 15 ? `${habit.name.substring(0, 15)}...` : habit.name);
+        const data = habitsMonthly.map((habit) => habit.completion_rate);
         this.habitChartInstance = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: labels,
+                labels,
                 datasets: [{
                     label: 'Completion Rate (%)',
-                    data: data,
+                    data,
                     backgroundColor: 'rgba(237, 237, 237, 0.8)',
                     borderColor: '#ededed',
                     borderWidth: 1,
@@ -239,25 +323,9 @@ const DashboardUI = {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { 
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                return context.parsed.y + '%';
-                            }
-                        }
-                    }
-                },
+                plugins: { legend: { display: false } },
                 scales: {
-                    y: { 
-                        beginAtZero: true, 
-                        max: 100,
-                        grid: { color: '#1f1f22' },
-                        ticks: {
-                            callback: function(value) { return value + '%' }
-                        }
-                    },
+                    y: { beginAtZero: true, max: 100, grid: { color: '#1f1f22' }, ticks: { callback: (value) => `${value}%` } },
                     x: { grid: { display: false } }
                 }
             }
@@ -267,13 +335,10 @@ const DashboardUI = {
     initTaskChart(taskVelocity) {
         const ctx = document.getElementById('taskChart');
         if (!ctx) return;
-
         CoreUI.destroyChart(this.taskChartInstance);
-
         Chart.defaults.color = '#a1a1aa';
         Chart.defaults.borderColor = '#1f1f22';
         Chart.defaults.font.family = '"JetBrains Mono", monospace';
-
         this.taskChartInstance = new Chart(ctx, {
             type: 'line',
             data: {

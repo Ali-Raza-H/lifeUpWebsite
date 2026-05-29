@@ -18,6 +18,7 @@ from utils import (
 bp = Blueprint("projects_api", __name__, url_prefix="/api/projects")
 
 PROJECT_STATUSES = {"planning", "active", "paused", "completed", "archived"}
+MILESTONE_STATUSES = {"pending", "in_progress", "completed"}
 
 
 @bp.route("/", methods=["GET"])
@@ -42,6 +43,21 @@ def get_project(project_id: int):
         [project_id]
     )
     project_dict["habits"] = [row_to_dict(h) for h in habits]
+
+    milestones = query_db(
+        """
+        SELECT *
+        FROM project_milestones
+        WHERE project_id = ?
+        ORDER BY
+            CASE status WHEN 'completed' THEN 1 ELSE 0 END,
+            COALESCE(due_date, '9999-12-31') ASC,
+            created_at DESC,
+            id DESC
+        """,
+        [project_id]
+    )
+    project_dict["milestones"] = [row_to_dict(item) for item in milestones]
     
     return jsonify(project_dict)
 
@@ -88,7 +104,11 @@ def update_project(project_id: int):
         if "notes" in payload
         else current_project["notes"]
     )
-    goal_id = get_optional_int(payload, "goal_id", default=current_project["goal_id"], minimum=1)
+    goal_id = (
+        get_optional_int(payload, "goal_id", minimum=1)
+        if "goal_id" in payload
+        else current_project["goal_id"]
+    )
     deadline = get_optional_date(payload, "deadline") if "deadline" in payload else current_project["deadline"]
     status = (
         get_optional_choice(payload, "status", allowed=PROJECT_STATUSES, default=current_project["status"])
@@ -147,3 +167,73 @@ def unlink_habit(project_id: int, habit_id: int):
         (project_id, habit_id)
     )
     return jsonify({"message": "Habit unlinked from project."})
+
+
+@bp.route("/<int:project_id>/milestones", methods=["POST"])
+def create_milestone(project_id: int):
+    project = query_db("SELECT id FROM projects WHERE id = ?", [project_id], one=True)
+    if not project:
+        return jsonify({"error": "Project not found."}), 404
+
+    payload = require_object(request.get_json(silent=True))
+    title = get_required_string(payload, "title", max_length=160)
+    status = get_optional_choice(payload, "status", allowed=MILESTONE_STATUSES, default="pending") or "pending"
+    due_date = get_optional_date(payload, "due_date")
+    completed_at = iso_now() if status == "completed" else None
+
+    milestone_id = execute_db(
+        """
+        INSERT INTO project_milestones (project_id, title, status, due_date, completed_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (project_id, title, status, due_date, completed_at),
+    )
+    milestone = query_db("SELECT * FROM project_milestones WHERE id = ?", [milestone_id], one=True)
+    return jsonify({"milestone": row_to_dict(milestone), "message": "Milestone created."}), 201
+
+
+@bp.route("/<int:project_id>/milestones/<int:milestone_id>", methods=["PUT"])
+def update_milestone(project_id: int, milestone_id: int):
+    milestone = query_db(
+        "SELECT * FROM project_milestones WHERE id = ? AND project_id = ?",
+        [milestone_id, project_id],
+        one=True,
+    )
+    if not milestone:
+        return jsonify({"error": "Milestone not found."}), 404
+
+    current = row_to_dict(milestone)
+    payload = require_object(request.get_json(silent=True))
+    title = get_optional_string(payload, "title", max_length=160, default=current["title"]) or current["title"]
+    status = get_optional_choice(payload, "status", allowed=MILESTONE_STATUSES, default=current["status"]) or current["status"]
+    due_date = get_optional_date(payload, "due_date") if "due_date" in payload else current["due_date"]
+    completed_at = current.get("completed_at")
+    if status == "completed" and current["status"] != "completed":
+        completed_at = iso_now()
+    elif status != "completed":
+        completed_at = None
+
+    execute_db(
+        """
+        UPDATE project_milestones
+        SET title = ?, status = ?, due_date = ?, completed_at = ?
+        WHERE id = ?
+        """,
+        (title, status, due_date, completed_at, milestone_id),
+    )
+    updated = query_db("SELECT * FROM project_milestones WHERE id = ?", [milestone_id], one=True)
+    return jsonify({"milestone": row_to_dict(updated), "message": "Milestone updated."})
+
+
+@bp.route("/<int:project_id>/milestones/<int:milestone_id>", methods=["DELETE"])
+def delete_milestone(project_id: int, milestone_id: int):
+    milestone = query_db(
+        "SELECT id FROM project_milestones WHERE id = ? AND project_id = ?",
+        [milestone_id, project_id],
+        one=True,
+    )
+    if not milestone:
+        return jsonify({"error": "Milestone not found."}), 404
+
+    execute_db("DELETE FROM project_milestones WHERE id = ?", [milestone_id])
+    return jsonify({"message": "Milestone deleted."})

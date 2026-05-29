@@ -43,6 +43,19 @@ def get_tasks():
         filters.append("goal_id = ?")
         params.append(goal_id)
 
+    due_window = request.args.get("due_window")
+    if due_window == "today":
+        filters.append("due_date IS NOT NULL AND DATE(due_date) = DATE('now')")
+    elif due_window == "overdue":
+        filters.append("due_date IS NOT NULL AND DATE(due_date) < DATE('now') AND status != 'completed'")
+    elif due_window == "upcoming":
+        filters.append("due_date IS NOT NULL AND DATE(due_date) BETWEEN DATE('now') AND DATE('now', '+7 day')")
+
+    query_text = request.args.get("q", "").strip()
+    if query_text:
+        filters.append("LOWER(title || ' ' || COALESCE(description, '')) LIKE ?")
+        params.append(f"%{query_text.lower()}%")
+
     query = """
         SELECT *
         FROM tasks
@@ -50,18 +63,26 @@ def get_tasks():
     if filters:
         query += f" WHERE {' AND '.join(filters)}"
 
-    query += """
-        ORDER BY
-            CASE status
-                WHEN 'pending' THEN 0
-                WHEN 'in_progress' THEN 1
-                ELSE 2
-            END,
-            priority ASC,
-            COALESCE(due_date, '9999-12-31') ASC,
-            created_at DESC,
-            id DESC
-    """
+    sort = request.args.get("sort", "default")
+    if sort == "due":
+        query += " ORDER BY COALESCE(due_date, '9999-12-31') ASC, priority ASC, created_at DESC, id DESC"
+    elif sort == "priority":
+        query += " ORDER BY priority ASC, COALESCE(due_date, '9999-12-31') ASC, created_at DESC, id DESC"
+    elif sort == "recent":
+        query += " ORDER BY created_at DESC, id DESC"
+    else:
+        query += """
+            ORDER BY
+                CASE status
+                    WHEN 'pending' THEN 0
+                    WHEN 'in_progress' THEN 1
+                    ELSE 2
+                END,
+                priority ASC,
+                COALESCE(due_date, '9999-12-31') ASC,
+                created_at DESC,
+                id DESC
+        """
 
     limit = request.args.get("limit", type=int)
     if limit:
@@ -113,9 +134,21 @@ def update_task(task_id: int):
     priority = get_optional_int(payload, "priority", default=current_task["priority"], minimum=1, maximum=4)
     status = get_optional_choice(payload, "status", allowed=TASK_STATUSES, default=current_task["status"]) or current_task["status"]
     due_date = get_optional_datetime(payload, "due_date") if "due_date" in payload else current_task["due_date"]
-    estimated_minutes = get_optional_int(payload, "estimated_minutes", default=current_task.get("estimated_minutes"), minimum=1) if "estimated_minutes" in payload else current_task.get("estimated_minutes")
-    project_id = get_optional_int(payload, "project_id", default=current_task["project_id"], minimum=1)
-    goal_id = get_optional_int(payload, "goal_id", default=current_task["goal_id"], minimum=1)
+    estimated_minutes = (
+        get_optional_int(payload, "estimated_minutes", minimum=1)
+        if "estimated_minutes" in payload
+        else current_task.get("estimated_minutes")
+    )
+    project_id = (
+        get_optional_int(payload, "project_id", minimum=1)
+        if "project_id" in payload
+        else current_task["project_id"]
+    )
+    goal_id = (
+        get_optional_int(payload, "goal_id", minimum=1)
+        if "goal_id" in payload
+        else current_task["goal_id"]
+    )
 
     completed_at = current_task.get("completed_at")
     if status == "completed" and current_task["status"] != "completed":

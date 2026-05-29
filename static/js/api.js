@@ -25,7 +25,6 @@ const API = {
             }
             return payload;
         } catch (error) {
-            console.error('API Error:', error);
             throw error;
         }
     },

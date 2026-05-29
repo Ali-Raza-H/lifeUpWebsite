@@ -105,7 +105,11 @@ const SettingsUI = {
 
     async deleteCurrentSkill() {
         const skillId = document.getElementById('settings-skill-id').value;
-        if (!skillId || !confirm('Delete this skill?')) return;
+        if (!skillId || !(await CoreUI.confirm({
+            title: 'Delete skill?',
+            message: 'This skill will be removed permanently.',
+            confirmText: 'Delete'
+        }))) return;
 
         try {
             await API.delete(`/api/profile/skills/${skillId}`);

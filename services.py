@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 import math
 
 from database import execute_db, query_db
-from utils import parse_datetime, rows_to_dicts
+from utils import parse_datetime, row_to_dict, rows_to_dicts
 
 DEFAULT_TRAITS = [
     ("Systems Thinking", 95, "cognitive"),
@@ -391,31 +391,43 @@ def build_week_schedule_payload(week_value: str | None = None) -> dict:
 
     rows = query_db(
         """
-        SELECT *
-        FROM calendar_events
-        WHERE start_at <= ? AND end_at >= ?
-        ORDER BY start_at ASC, end_at ASC, id ASC
+        SELECT
+            ce.*,
+            p.name AS project_name,
+            g.title AS goal_title
+        FROM calendar_events ce
+        LEFT JOIN projects p ON p.id = ce.project_id
+        LEFT JOIN goals g ON g.id = ce.goal_id
+        WHERE (ce.start_at <= ? AND ce.end_at >= ?)
+           OR (
+                COALESCE(ce.recurrence, 'none') != 'none'
+                AND ce.start_at <= ?
+                AND (ce.recurrence_until IS NULL OR ce.recurrence_until >= ?)
+           )
+        ORDER BY ce.start_at ASC, ce.end_at ASC, ce.id ASC
         """,
-        [end_boundary, start_boundary],
+        [end_boundary, start_boundary, end_boundary, week_start.isoformat()],
     )
+    event_rows = rows_to_dicts(rows)
 
     days: list[dict] = []
     for offset in range(7):
         current_day = week_start + timedelta(days=offset)
         day_events = []
-        for row in rows_to_dicts(rows):
+        for row in event_rows:
             start_dt = parse_datetime(row["start_at"])
             end_dt = parse_datetime(row["end_at"])
             if start_dt is None or end_dt is None:
                 continue
-            if start_dt.date() != current_day:
+            if not _calendar_event_occurs_on(row, start_dt, current_day):
                 continue
 
             day_events.append(
                 {
                     **row,
-                    "start_date": start_dt.date().isoformat(),
-                    "end_date": end_dt.date().isoformat(),
+                    "start_date": current_day.isoformat(),
+                    "end_date": current_day.isoformat(),
+                    "occurrence_date": current_day.isoformat(),
                     "start_time": start_dt.strftime("%H:%M"),
                     "end_time": end_dt.strftime("%H:%M"),
                     "start_minutes": (start_dt.hour * 60) + start_dt.minute,
@@ -444,6 +456,32 @@ def build_week_schedule_payload(week_value: str | None = None) -> dict:
     }
 
 
+def _calendar_event_occurs_on(row: dict, start_dt: datetime, current_day: date) -> bool:
+    start_date = start_dt.date()
+    if current_day < start_date:
+        return False
+
+    recurrence_until = row.get("recurrence_until")
+    if recurrence_until:
+        try:
+            until_date = date.fromisoformat(str(recurrence_until)[:10])
+        except ValueError:
+            until_date = None
+        if until_date and current_day > until_date:
+            return False
+
+    recurrence = row.get("recurrence") or "none"
+    if recurrence == "none":
+        return current_day == start_date
+    if recurrence == "daily":
+        return True
+    if recurrence == "weekly":
+        return (current_day - start_date).days % 7 == 0
+    if recurrence == "monthly":
+        return current_day.day == start_date.day
+    return current_day == start_date
+
+
 def fetch_project_metrics() -> list[dict]:
     rows = query_db(
         """
@@ -460,16 +498,35 @@ def fetch_project_metrics() -> list[dict]:
     )
 
     projects = rows_to_dicts(rows)
+    milestone_rows = rows_to_dicts(
+        query_db(
+            """
+            SELECT
+                project_id,
+                COUNT(*) AS milestone_count,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed_milestone_count,
+                SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress_milestone_count
+            FROM project_milestones
+            GROUP BY project_id
+            """
+        )
+    )
+    milestone_map = {row["project_id"]: row for row in milestone_rows}
     for project in projects:
         project["task_count"] = int(project["task_count"] or 0)
         project["completed_task_count"] = int(project["completed_task_count"] or 0)
         project["in_progress_task_count"] = int(project["in_progress_task_count"] or 0)
+        milestone_metrics = milestone_map.get(project["id"], {})
+        project["milestone_count"] = int(milestone_metrics.get("milestone_count") or 0)
+        project["completed_milestone_count"] = int(milestone_metrics.get("completed_milestone_count") or 0)
+        project["in_progress_milestone_count"] = int(milestone_metrics.get("in_progress_milestone_count") or 0)
         project["progress"] = calculate_progress(
-            project["task_count"],
-            project["completed_task_count"],
-            project["in_progress_task_count"],
+            project["task_count"] + project["milestone_count"],
+            project["completed_task_count"] + project["completed_milestone_count"],
+            project["in_progress_task_count"] + project["in_progress_milestone_count"],
             project["status"] == "completed",
         )
+        project["health"] = project_health(project)
     return projects
 
 
@@ -489,14 +546,77 @@ def fetch_goal_metrics() -> list[dict]:
     )
 
     goals = rows_to_dicts(rows)
+    milestone_rows = rows_to_dicts(
+        query_db(
+            """
+            SELECT *
+            FROM goal_milestones
+            ORDER BY
+                CASE status WHEN 'completed' THEN 1 ELSE 0 END,
+                COALESCE(due_date, '9999-12-31') ASC,
+                created_at DESC,
+                id DESC
+            """
+        )
+    )
+    milestones_by_goal: dict[int, list[dict]] = defaultdict(list)
+    for milestone in milestone_rows:
+        milestones_by_goal[milestone["goal_id"]].append(milestone)
+
+    milestone_metric_rows = rows_to_dicts(
+        query_db(
+            """
+            SELECT
+                goal_id,
+                COUNT(*) AS milestone_count,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed_milestone_count,
+                SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress_milestone_count
+            FROM goal_milestones
+            GROUP BY goal_id
+            """
+        )
+    )
+    milestone_map = {row["goal_id"]: row for row in milestone_metric_rows}
+    goal_link_rows = rows_to_dicts(
+        query_db(
+            """
+            SELECT *
+            FROM goal_links
+            ORDER BY created_at DESC, id DESC
+            """
+        )
+    )
+    goal_links_by_goal: dict[int, list[dict]] = defaultdict(list)
+    for link in goal_link_rows:
+        goal_links_by_goal[link["goal_id"]].append(link)
+
+    project_rows = rows_to_dicts(
+        query_db(
+            """
+            SELECT goal_id, COUNT(*) AS project_count
+            FROM projects
+            WHERE goal_id IS NOT NULL
+            GROUP BY goal_id
+            """
+        )
+    )
+    project_map = {row["goal_id"]: int(row["project_count"] or 0) for row in project_rows}
     for goal in goals:
         goal["task_count"] = int(goal["task_count"] or 0)
         goal["completed_task_count"] = int(goal["completed_task_count"] or 0)
         goal["in_progress_task_count"] = int(goal["in_progress_task_count"] or 0)
+        milestone_metrics = milestone_map.get(goal["id"], {})
+        goal["milestone_count"] = int(milestone_metrics.get("milestone_count") or 0)
+        goal["completed_milestone_count"] = int(milestone_metrics.get("completed_milestone_count") or 0)
+        goal["in_progress_milestone_count"] = int(milestone_metrics.get("in_progress_milestone_count") or 0)
+        goal["milestones"] = milestones_by_goal.get(goal["id"], [])
+        goal["project_count"] = project_map.get(goal["id"], 0)
+        goal["links"] = goal_links_by_goal.get(goal["id"], [])
+        goal["link_count"] = len(goal["links"])
         goal["progress"] = calculate_progress(
-            goal["task_count"],
-            goal["completed_task_count"],
-            goal["in_progress_task_count"],
+            goal["task_count"] + goal["milestone_count"],
+            goal["completed_task_count"] + goal["completed_milestone_count"],
+            goal["in_progress_task_count"] + goal["in_progress_milestone_count"],
             goal["status"] == "completed",
         )
     return goals
@@ -592,3 +712,150 @@ def consistency_rate() -> int:
     if total_target == 0:
         return 0
     return round((total_completed / total_target) * 100)
+
+
+def project_health(project: dict) -> str:
+    if project.get("status") == "completed":
+        return "done"
+    deadline = _coerce_date(project.get("deadline"))
+    today = date.today()
+    if deadline and deadline < today:
+        return "off_track"
+    if deadline and (deadline - today).days <= 7:
+        return "at_risk"
+    if (project.get("in_progress_task_count") or 0) > 0:
+        return "on_track"
+    return "planning"
+
+
+def dashboard_today_payload() -> dict:
+    today = date.today().isoformat()
+    now = datetime.now().replace(second=0, microsecond=0)
+    now_iso = now.isoformat(sep=" ")
+
+    due_today = int(
+        query_db(
+            """
+            SELECT COUNT(*) AS count
+            FROM tasks
+            WHERE status != 'completed'
+              AND due_date IS NOT NULL
+              AND DATE(due_date) = ?
+            """,
+            [today],
+            one=True,
+        )["count"]
+        or 0
+    )
+    overdue_tasks = int(
+        query_db(
+            """
+            SELECT COUNT(*) AS count
+            FROM tasks
+            WHERE status != 'completed'
+              AND due_date IS NOT NULL
+              AND DATE(due_date) < ?
+            """,
+            [today],
+            one=True,
+        )["count"]
+        or 0
+    )
+    open_habit_count = int(
+        query_db(
+            """
+            SELECT COUNT(*) AS count
+            FROM habits h
+            LEFT JOIN habit_logs hl
+              ON hl.habit_id = h.id
+             AND hl.log_date = ?
+             AND hl.status = 'completed'
+            WHERE hl.id IS NULL
+            """,
+            [today],
+            one=True,
+        )["count"]
+        or 0
+    )
+    next_event_row = query_db(
+        """
+        SELECT
+            ce.*,
+            p.name AS project_name,
+            g.title AS goal_title
+        FROM calendar_events ce
+        LEFT JOIN projects p ON p.id = ce.project_id
+        LEFT JOIN goals g ON g.id = ce.goal_id
+        WHERE ce.end_at >= ?
+        ORDER BY ce.start_at ASC
+        LIMIT 1
+        """,
+        [now_iso],
+        one=True,
+    )
+    next_event = row_to_dict(next_event_row)
+
+    focus_tasks = rows_to_dicts(
+        query_db(
+            """
+            SELECT *
+            FROM tasks
+            WHERE status IN ('pending', 'in_progress', 'on_hold')
+            ORDER BY
+                CASE WHEN DATE(due_date) = ? THEN 0 WHEN due_date IS NULL THEN 2 ELSE 1 END,
+                priority ASC,
+                COALESCE(due_date, '9999-12-31') ASC,
+                created_at DESC
+            LIMIT 5
+            """,
+            [today],
+        )
+    )
+
+    return {
+        "due_today": due_today,
+        "overdue_tasks": overdue_tasks,
+        "open_habits": open_habit_count,
+        "next_event": next_event,
+        "focus_tasks": focus_tasks,
+    }
+
+
+def mood_productivity_series(days: int = 14) -> dict[str, list]:
+    today = date.today()
+    start_date = today - timedelta(days=max(days - 1, 0))
+    mood_rows = rows_to_dicts(
+        query_db(
+            """
+            SELECT DATE(entry_date) AS event_date, AVG(mood_score) AS avg_mood
+            FROM journal_entries
+            WHERE DATE(entry_date) >= ?
+            GROUP BY DATE(entry_date)
+            """,
+            [start_date.isoformat()],
+        )
+    )
+    task_rows = rows_to_dicts(
+        query_db(
+            """
+            SELECT DATE(completed_at) AS event_date, COUNT(*) AS completed_tasks
+            FROM tasks
+            WHERE completed_at IS NOT NULL AND DATE(completed_at) >= ?
+            GROUP BY DATE(completed_at)
+            """,
+            [start_date.isoformat()],
+        )
+    )
+
+    mood_map = {row["event_date"]: round(float(row["avg_mood"] or 0), 2) for row in mood_rows}
+    task_map = {row["event_date"]: int(row["completed_tasks"] or 0) for row in task_rows}
+    labels: list[str] = []
+    mood_values: list[float | None] = []
+    task_values: list[int] = []
+    for offset in range(days):
+        current = start_date + timedelta(days=offset)
+        key = current.isoformat()
+        labels.append(current.strftime("%d %b"))
+        mood_values.append(mood_map.get(key))
+        task_values.append(task_map.get(key, 0))
+    return {"labels": labels, "mood": mood_values, "tasks": task_values}

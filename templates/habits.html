@@ -8,7 +8,8 @@
 {% endblock %}
 
 {% block content %}
-<div class="card" style="margin-bottom: var(--space-4);">
+<div class="page-stack">
+<div class="card">
     <div class="calendar-toolbar">
         <button id="habits-prev-month" class="btn" type="button"><i class="ph ph-caret-left"></i> Previous</button>
         <div id="habits-month-label" class="calendar-month-label">Loading month...</div>
@@ -16,7 +17,7 @@
     </div>
 </div>
 
-<div class="bento-grid" style="margin-bottom: var(--space-4);">
+<div class="bento-grid">
     <div class="card" style="grid-column: span 12;">
         <div class="card-header">
             <span class="card-title"><i class="ph ph-table"></i> Monthly Habit Matrix</span>
@@ -58,15 +59,16 @@
                 <label class="form-label">Description</label>
                 <textarea id="habit-description" class="form-control" rows="3"></textarea>
             </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; gap: var(--space-2);">
+            <div class="modal-footer">
                 <button type="button" class="btn" id="habit-delete-btn" onclick="HabitUI.deleteCurrentHabit()" style="display:none;">Delete</button>
-                <div style="display:flex; gap: var(--space-2); margin-left:auto;">
+                <div class="modal-footer-actions">
                     <button type="button" class="btn" onclick="HabitUI.closeModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Habit</button>
                 </div>
             </div>
         </form>
     </div>
+</div>
 </div>
 {% endblock %}
 

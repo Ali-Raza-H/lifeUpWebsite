@@ -6,7 +6,10 @@ from database import execute_db, query_db
 from services import build_week_schedule_payload
 from utils import (
     ValidationError,
+    get_optional_choice,
+    get_optional_date,
     get_optional_datetime,
+    get_optional_int,
     get_optional_string,
     get_required_string,
     parse_datetime,
@@ -14,6 +17,7 @@ from utils import (
 )
 
 bp = Blueprint("calendar_api", __name__, url_prefix="/api/calendar")
+RECURRENCE_OPTIONS = {"none", "daily", "weekly", "monthly"}
 
 
 def _validate_event_window(start_at: str, end_at: str) -> tuple[str, str]:
@@ -45,6 +49,10 @@ def create_event():
     description = get_optional_string(payload, "description", max_length=2000, default="") or ""
     category = get_optional_string(payload, "category", max_length=80, default="general") or "general"
     location = get_optional_string(payload, "location", max_length=140, default="") or ""
+    project_id = get_optional_int(payload, "project_id", minimum=1)
+    goal_id = get_optional_int(payload, "goal_id", minimum=1)
+    recurrence = get_optional_choice(payload, "recurrence", allowed=RECURRENCE_OPTIONS, default="none") or "none"
+    recurrence_until = get_optional_date(payload, "recurrence_until")
     start_at = get_optional_datetime(payload, "start_at")
     end_at = get_optional_datetime(payload, "end_at")
     if start_at is None or end_at is None:
@@ -53,10 +61,10 @@ def create_event():
 
     event_id = execute_db(
         """
-        INSERT INTO calendar_events (title, description, category, location, start_at, end_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO calendar_events (title, description, category, location, project_id, goal_id, start_at, end_at, recurrence, recurrence_until, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         """,
-        (title, description, category, location, start_at, end_at),
+        (title, description, category, location, project_id, goal_id, start_at, end_at, recurrence, recurrence_until),
     )
     event = query_db("SELECT * FROM calendar_events WHERE id = ?", [event_id], one=True)
     return jsonify({"event": dict(event), "message": "Event created."}), 201
@@ -74,6 +82,15 @@ def update_event(event_id: int):
     description = get_optional_string(payload, "description", max_length=2000, default=current["description"])
     category = get_optional_string(payload, "category", max_length=80, default=current["category"])
     location = get_optional_string(payload, "location", max_length=140, default=current["location"])
+    project_id = get_optional_int(payload, "project_id", default=current.get("project_id"), minimum=1)
+    goal_id = get_optional_int(payload, "goal_id", default=current.get("goal_id"), minimum=1)
+    recurrence = get_optional_choice(
+        payload,
+        "recurrence",
+        allowed=RECURRENCE_OPTIONS,
+        default=current.get("recurrence") or "none",
+    ) or "none"
+    recurrence_until = get_optional_date(payload, "recurrence_until") if "recurrence_until" in payload else current.get("recurrence_until")
     start_at = get_optional_datetime(payload, "start_at") if "start_at" in payload else current["start_at"]
     end_at = get_optional_datetime(payload, "end_at") if "end_at" in payload else current["end_at"]
     start_at, end_at = _validate_event_window(start_at, end_at)
@@ -81,10 +98,10 @@ def update_event(event_id: int):
     execute_db(
         """
         UPDATE calendar_events
-        SET title = ?, description = ?, category = ?, location = ?, start_at = ?, end_at = ?, updated_at = CURRENT_TIMESTAMP
+        SET title = ?, description = ?, category = ?, location = ?, project_id = ?, goal_id = ?, start_at = ?, end_at = ?, recurrence = ?, recurrence_until = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
         """,
-        (title, description, category, location, start_at, end_at, event_id),
+        (title, description, category, location, project_id, goal_id, start_at, end_at, recurrence, recurrence_until, event_id),
     )
     updated = query_db("SELECT * FROM calendar_events WHERE id = ?", [event_id], one=True)
     return jsonify({"event": dict(updated), "message": "Event updated."})

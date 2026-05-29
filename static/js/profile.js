@@ -16,7 +16,6 @@ const ProfileUI = {
             this.renderSkillCharts(skills);
             this.renderChart(traits);
         } catch (error) {
-            console.error('Failed to load profile data', error);
             CoreUI.showError(error.message || 'Failed to load profile data.');
         }
     },

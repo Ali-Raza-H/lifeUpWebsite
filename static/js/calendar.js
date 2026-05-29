@@ -2,19 +2,26 @@ const CalendarUI = {
     selectedWeek: null,
     eventsById: new Map(),
     weekData: null,
+    projects: [],
+    goals: [],
 
     async loadWeek(start = this.selectedWeek) {
         try {
             const suffix = start ? `?start=${encodeURIComponent(start)}` : '';
-            const payload = await API.get(`/api/calendar/week${suffix}`);
+            const [payload, projects, goals] = await Promise.all([
+                API.get(`/api/calendar/week${suffix}`),
+                API.get('/api/projects/'),
+                API.get('/api/goals/')
+            ]);
             this.selectedWeek = payload.week_start;
             this.weekData = payload;
+            this.projects = projects;
+            this.goals = goals;
             this.eventsById = new Map();
             payload.days.forEach((day) => day.events.forEach((event) => this.eventsById.set(event.id, event)));
             this.renderToolbar(payload);
             this.renderWeek(payload);
         } catch (error) {
-            console.error('Failed to load calendar week', error);
             CoreUI.showError(error.message || 'Failed to load weekly calendar.');
         }
     },
@@ -24,7 +31,6 @@ const CalendarUI = {
         const prevButton = document.getElementById('calendar-prev-week');
         const nextButton = document.getElementById('calendar-next-week');
         const thisWeekButton = document.getElementById('calendar-this-week');
-
         if (label) label.textContent = payload.week_label;
         if (prevButton) prevButton.onclick = () => this.loadWeek(payload.previous_week);
         if (nextButton) nextButton.onclick = () => this.loadWeek(payload.next_week);
@@ -35,26 +41,19 @@ const CalendarUI = {
         const container = document.getElementById('calendar-week-view');
         if (!container) return;
 
-        const header = payload.days
-            .map((day) => `
-                <div class="week-day-header ${day.is_today ? 'is-today' : ''}">
-                    <div class="week-day-name">${CoreUI.escapeHtml(day.label)}</div>
-                    <div class="week-day-number">${day.day_number}</div>
-                </div>
-            `)
-            .join('');
+        const header = payload.days.map((day) => `
+            <div class="week-day-header ${day.is_today ? 'is-today' : ''}">
+                <div class="week-day-name">${CoreUI.escapeHtml(day.label)}</div>
+                <div class="week-day-number">${day.day_number}</div>
+            </div>
+        `).join('');
 
-        const timeLabels = payload.time_labels
-            .map((label) => `<div class="week-time-label">${label}</div>`)
-            .join('');
-
-        const columns = payload.days
-            .map((day) => {
-                const grid = payload.time_labels.map(() => '<div class="week-grid-cell"></div>').join('');
-                const events = day.events.map((event) => this.renderEventBlock(event)).join('');
-                return `<div class="week-day-column">${grid}${events}</div>`;
-            })
-            .join('');
+        const timeLabels = payload.time_labels.map((label) => `<div class="week-time-label">${label}</div>`).join('');
+        const columns = payload.days.map((day) => {
+            const grid = payload.time_labels.map(() => '<div class="week-grid-cell"></div>').join('');
+            const events = day.events.map((event) => this.renderEventBlock(event)).join('');
+            return `<div class="week-day-column">${grid}${events}</div>`;
+        }).join('');
 
         container.innerHTML = `
             <div class="week-view-shell">
@@ -64,12 +63,8 @@ const CalendarUI = {
                         ${header}
                     </div>
                     <div class="week-body">
-                        <div class="week-time-column">
-                            ${timeLabels}
-                        </div>
-                        <div class="week-columns">
-                            ${columns}
-                        </div>
+                        <div class="week-time-column">${timeLabels}</div>
+                        <div class="week-columns">${columns}</div>
                     </div>
                 </div>
             </div>
@@ -81,6 +76,7 @@ const CalendarUI = {
         const endMinutes = Math.min(event.end_minutes, 1440);
         const top = ((startMinutes - 360) / 60) * 56;
         const height = Math.max(32, ((endMinutes - startMinutes) / 60) * 56);
+        const meta = [event.category || 'general', event.project_name, event.goal_title].filter(Boolean).join(' - ');
         return `
             <button
                 type="button"
@@ -91,10 +87,27 @@ const CalendarUI = {
                 <div class="week-event-title">${CoreUI.escapeHtml(event.title)}</div>
                 <div class="week-event-meta">
                     ${CoreUI.escapeHtml(event.start_time)} - ${CoreUI.escapeHtml(event.end_time)}<br>
-                    ${CoreUI.escapeHtml(event.category || 'general')}
+                    ${CoreUI.escapeHtml(meta)}
                 </div>
             </button>
         `;
+    },
+
+    populateRelationOptions() {
+        const projectSelect = document.getElementById('calendar-event-project');
+        const goalSelect = document.getElementById('calendar-event-goal');
+        if (projectSelect) {
+            projectSelect.innerHTML = '<option value="">No project</option>';
+            this.projects.forEach((project) => {
+                projectSelect.innerHTML += `<option value="${project.id}">${CoreUI.escapeHtml(project.name)}</option>`;
+            });
+        }
+        if (goalSelect) {
+            goalSelect.innerHTML = '<option value="">No goal</option>';
+            this.goals.forEach((goal) => {
+                goalSelect.innerHTML += `<option value="${goal.id}">${CoreUI.escapeHtml(goal.title)}</option>`;
+            });
+        }
     },
 
     openEventModal(eventId = null) {
@@ -105,6 +118,7 @@ const CalendarUI = {
         if (!modal || !title || !deleteBtn || !form) return;
 
         form.reset();
+        this.populateRelationOptions();
         document.getElementById('calendar-event-id').value = '';
         deleteBtn.style.display = 'none';
 
@@ -116,6 +130,10 @@ const CalendarUI = {
             document.getElementById('calendar-event-title').value = event.title;
             document.getElementById('calendar-event-category').value = event.category || '';
             document.getElementById('calendar-event-location').value = event.location || '';
+            document.getElementById('calendar-event-project').value = event.project_id || '';
+            document.getElementById('calendar-event-goal').value = event.goal_id || '';
+            document.getElementById('calendar-event-recurrence').value = event.recurrence || 'none';
+            document.getElementById('calendar-event-recurrence-until').value = event.recurrence_until || '';
             document.getElementById('calendar-event-start').value = this.toDateTimeLocal(event.start_at);
             document.getElementById('calendar-event-end').value = this.toDateTimeLocal(event.end_at);
             document.getElementById('calendar-event-description').value = event.description || '';
@@ -163,6 +181,10 @@ const CalendarUI = {
             title: document.getElementById('calendar-event-title').value,
             category: document.getElementById('calendar-event-category').value,
             location: document.getElementById('calendar-event-location').value,
+            project_id: document.getElementById('calendar-event-project').value ? parseInt(document.getElementById('calendar-event-project').value, 10) : null,
+            goal_id: document.getElementById('calendar-event-goal').value ? parseInt(document.getElementById('calendar-event-goal').value, 10) : null,
+            recurrence: document.getElementById('calendar-event-recurrence').value || 'none',
+            recurrence_until: document.getElementById('calendar-event-recurrence-until').value || null,
             start_at: document.getElementById('calendar-event-start').value,
             end_at: document.getElementById('calendar-event-end').value,
             description: document.getElementById('calendar-event-description').value
@@ -183,7 +205,11 @@ const CalendarUI = {
 
     async deleteCurrentEvent() {
         const eventId = document.getElementById('calendar-event-id').value;
-        if (!eventId || !confirm('Delete this event?')) return;
+        if (!eventId || !(await CoreUI.confirm({
+            title: 'Delete event?',
+            message: 'This calendar event will be removed permanently.',
+            confirmText: 'Delete'
+        }))) return;
 
         try {
             await API.delete(`/api/calendar/events/${eventId}`);

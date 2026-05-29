@@ -26,6 +26,7 @@
             <li><a href="{{ url_for('projects') }}" class="nav-link {% if request.endpoint == 'projects' %}active{% endif %}"><i class="ph ph-kanban"></i> <span>Projects</span></a></li>
             <li><a href="{{ url_for('goals') }}" class="nav-link {% if request.endpoint == 'goals' %}active{% endif %}"><i class="ph ph-target"></i> <span>Goals</span></a></li>
             <li><a href="{{ url_for('analytics') }}" class="nav-link {% if request.endpoint == 'analytics' %}active{% endif %}"><i class="ph ph-chart-bar"></i> <span>Analytics</span></a></li>
+            <li><a href="{{ url_for('life') }}" class="nav-link {% if request.endpoint == 'life' %}active{% endif %}"><i class="ph ph-heartbeat"></i> <span>Life</span></a></li>
             <li><a href="{{ url_for('journal') }}" class="nav-link {% if request.endpoint == 'journal' %}active{% endif %}"><i class="ph ph-book-open"></i> <span>Journal</span></a></li>
             <li><a href="{{ url_for('notes') }}" class="nav-link {% if request.endpoint == 'notes' %}active{% endif %}"><i class="ph ph-notepad"></i> <span>Notes</span></a></li>
             <li><a href="{{ url_for('calendar') }}" class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}"><i class="ph ph-calendar-blank"></i> <span>Calendar</span></a></li>
@@ -56,6 +57,20 @@
             </div>
         </div>
     </main>
+
+    <div id="app-confirm-modal" class="modal-overlay app-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="app-confirm-title" aria-describedby="app-confirm-message">
+        <div class="modal-content app-confirm-content">
+            <div class="app-confirm-icon"><i class="ph ph-warning-circle"></i></div>
+            <div class="app-confirm-copy">
+                <h3 id="app-confirm-title">Confirm action</h3>
+                <p id="app-confirm-message">Are you sure?</p>
+            </div>
+            <div class="app-confirm-actions">
+                <button type="button" class="btn" id="app-confirm-cancel">Cancel</button>
+                <button type="button" class="btn btn-danger" id="app-confirm-ok">Confirm</button>
+            </div>
+        </div>
+    </div>
 
     <script src="{{ url_for('static', filename='js/api.js', v=asset_version('js/api.js') ) }}"></script>
     <script src="{{ url_for('static', filename='js/core.js', v=asset_version('js/core.js') ) }}"></script>
