@@ -123,9 +123,20 @@ const CoreUI = {
 
         updateClock();
         setInterval(updateClock, 1000);
+    },
+
+    initSidebarToggle() {
+        const toggleBtn = document.getElementById('sidebar-toggle');
+        const sidebar = document.getElementById('sidebar');
+        if (toggleBtn && sidebar) {
+            toggleBtn.addEventListener('click', () => {
+                sidebar.classList.toggle('collapsed');
+            });
+        }
     }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
     CoreUI.initClock();
+    CoreUI.initSidebarToggle();
 });

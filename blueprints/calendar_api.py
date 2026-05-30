@@ -3,7 +3,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from database import execute_db, query_db
-from services import build_week_schedule_payload
+from services import build_month_schedule_payload, build_week_schedule_payload
 from utils import (
     ValidationError,
     get_optional_choice,
@@ -39,6 +39,16 @@ def get_week():
         payload = build_week_schedule_payload(week)
     except ValueError as exc:
         raise ValidationError(str(exc), "start") from exc
+    return jsonify(payload)
+
+
+@bp.route("/month", methods=["GET"])
+def get_month():
+    month = request.args.get("month")
+    try:
+        payload = build_month_schedule_payload(month)
+    except ValueError as exc:
+        raise ValidationError(str(exc), "month") from exc
     return jsonify(payload)
 
 

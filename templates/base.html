@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LifeOS | {% block title %}{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Ccircle cx='128' cy='128' r='64' fill='%23ffffff'/%3E%3C/svg%3E">
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
@@ -14,9 +15,9 @@
     {% block head %}{% endblock %}
 </head>
 <body>
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <i class="ph-fill ph-cpu"></i>
+            <i class="ph-fill ph-cpu" id="sidebar-toggle" style="cursor: pointer;"></i>
             <h2>LifeOS</h2>
         </div>
         <ul class="nav-links">
@@ -32,14 +33,16 @@
             <li><a href="{{ url_for('calendar') }}" class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}"><i class="ph ph-calendar-blank"></i> <span>Calendar</span></a></li>
             <li><a href="{{ url_for('mindset') }}" class="nav-link {% if request.endpoint == 'mindset' %}active{% endif %}"><i class="ph ph-brain"></i> <span>Mindset</span></a></li>
             <li><a href="{{ url_for('profile') }}" class="nav-link {% if request.endpoint == 'profile' %}active{% endif %}"><i class="ph ph-fingerprint"></i> <span>Profile</span></a></li>
-            <li><a href="{{ url_for('logout') }}" class="nav-link"><i class="ph ph-sign-out"></i> <span>Logout</span></a></li>
             <li style="margin-top: auto;"><a href="{{ url_for('settings') }}" class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}"><i class="ph ph-gear"></i> <span>Settings</span></a></li>
+            <li><a href="{{ url_for('logout') }}" class="nav-link"><i class="ph ph-sign-out"></i> <span>Logout</span></a></li>
         </ul>
     </aside>
     
     <main class="main-wrapper">
         <div class="top-bar">
-            <div><i class="ph-fill ph-circle" style="color: var(--accent-green); font-size: 8px; margin-right: 6px;"></i> SYSTEM OPTIMAL</div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div><i class="ph-fill ph-circle" style="color: var(--accent-green); font-size: 8px; margin-right: 6px; text-shadow: var(--glow-green);"></i> SYSTEM OPTIMAL</div>
+            </div>
             <div id="os-clock">00:00:00</div>
         </div>
         <div id="app-alert-region" class="app-alert-region" aria-live="polite"></div>

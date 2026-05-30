@@ -9,11 +9,11 @@ from database import execute_db, query_db
 from utils import parse_datetime, row_to_dict, rows_to_dicts
 
 DEFAULT_TRAITS = [
-    ("Systems Thinking", 95, "cognitive"),
-    ("Perfectionism", 90, "behavioral"),
-    ("Self-Reliance", 85, "behavioral"),
-    ("Curiosity", 99, "cognitive"),
-    ("Execution", 60, "behavioral"),
+    ("Systems Thinking", 95, "cognitive", 1),
+    ("Perfectionism", 90, "behavioral", 2),
+    ("Self-Reliance", 85, "behavioral", 3),
+    ("Curiosity", 99, "cognitive", 4),
+    ("Execution", 60, "behavioral", 5),
 ]
 
 DEFAULT_BELIEFS = [
@@ -35,7 +35,7 @@ def seed_profile_defaults() -> None:
     trait_count = query_db("SELECT COUNT(*) AS count FROM traits", one=True)["count"]
     if trait_count == 0:
         for trait in DEFAULT_TRAITS:
-            execute_db("INSERT INTO traits (name, score, category) VALUES (?, ?, ?)", trait)
+            execute_db("INSERT INTO traits (name, score, category, display_order) VALUES (?, ?, ?, ?)", trait)
 
     belief_count = query_db("SELECT COUNT(*) AS count FROM beliefs", one=True)["count"]
     if belief_count == 0:
@@ -55,6 +55,55 @@ def seed_profile_defaults() -> None:
                 """,
                 skill,
             )
+
+    normalize_profile_orders()
+
+
+def normalize_profile_orders() -> None:
+    _normalize_display_order(
+        "traits",
+        "ORDER BY COALESCE(display_order, 0) ASC, score DESC, name ASC, id ASC",
+    )
+    _normalize_display_order(
+        "beliefs",
+        "ORDER BY COALESCE(display_order, 0) ASC, id ASC",
+    )
+    _normalize_display_order(
+        "skills",
+        "ORDER BY COALESCE(display_order, 0) ASC, proficiency DESC, name ASC, id ASC",
+    )
+
+
+def _normalize_display_order(table_name: str, order_clause: str) -> None:
+    rows = rows_to_dicts(query_db(f"SELECT id, display_order FROM {table_name} {order_clause}"))
+    for index, row in enumerate(rows, start=1):
+        if int(row.get("display_order") or 0) == index:
+            continue
+        execute_db(f"UPDATE {table_name} SET display_order = ? WHERE id = ?", (index, row["id"]))
+
+
+def get_traits_payload() -> list[dict]:
+    seed_profile_defaults()
+    rows = query_db(
+        """
+        SELECT *
+        FROM traits
+        ORDER BY display_order ASC, score DESC, name ASC, id ASC
+        """
+    )
+    return rows_to_dicts(rows)
+
+
+def get_beliefs_payload() -> list[dict]:
+    seed_profile_defaults()
+    rows = query_db(
+        """
+        SELECT *
+        FROM beliefs
+        ORDER BY display_order ASC, id ASC
+        """
+    )
+    return rows_to_dicts(rows)
 
 
 def _group_habit_logs(habit_ids: list[int]) -> dict[int, list[dict]]:
@@ -350,11 +399,13 @@ def build_habit_calendar_payload(month_value: str | None = None) -> dict:
 
 
 def get_skills_payload() -> list[dict]:
+    seed_profile_defaults()
     rows = query_db(
         """
         SELECT *
         FROM skills
         ORDER BY
+            display_order ASC,
             CASE category
                 WHEN 'language' THEN 0
                 WHEN 'framework' THEN 1
@@ -362,12 +413,23 @@ def get_skills_payload() -> list[dict]:
                 WHEN 'database' THEN 3
                 ELSE 4
             END,
-            display_order ASC,
             proficiency DESC,
             name ASC
         """
     )
     return rows_to_dicts(rows)
+
+
+def reset_profile_defaults() -> dict[str, int]:
+    execute_db("DELETE FROM skills")
+    execute_db("DELETE FROM beliefs")
+    execute_db("DELETE FROM traits")
+    seed_profile_defaults()
+    return {
+        "traits": int(query_db("SELECT COUNT(*) AS count FROM traits", one=True)["count"] or 0),
+        "beliefs": int(query_db("SELECT COUNT(*) AS count FROM beliefs", one=True)["count"] or 0),
+        "skills": int(query_db("SELECT COUNT(*) AS count FROM skills", one=True)["count"] or 0),
+    }
 
 
 def resolve_week_start(week_value: str | None = None) -> date:
@@ -383,11 +445,22 @@ def resolve_week_start(week_value: str | None = None) -> date:
     return parsed - timedelta(days=parsed.weekday())
 
 
-def build_week_schedule_payload(week_value: str | None = None) -> dict:
-    week_start = resolve_week_start(week_value)
-    week_end = week_start + timedelta(days=6)
-    start_boundary = f"{week_start.isoformat()} 00:00:00"
-    end_boundary = f"{week_end.isoformat()} 23:59:59"
+def resolve_calendar_month(month_value: str | None = None) -> date:
+    today = date.today()
+    if not month_value:
+        return today.replace(day=1)
+
+    try:
+        parsed = datetime.strptime(month_value, "%Y-%m").date()
+    except ValueError as exc:
+        raise ValueError("Month must use YYYY-MM format.") from exc
+
+    return parsed.replace(day=1)
+
+
+def _fetch_calendar_base_rows(range_start: date, range_end: date) -> list[dict]:
+    start_boundary = f"{range_start.isoformat()} 00:00:00"
+    end_boundary = f"{range_end.isoformat()} 23:59:59"
 
     rows = query_db(
         """
@@ -406,9 +479,28 @@ def build_week_schedule_payload(week_value: str | None = None) -> dict:
            )
         ORDER BY ce.start_at ASC, ce.end_at ASC, ce.id ASC
         """,
-        [end_boundary, start_boundary, end_boundary, week_start.isoformat()],
+        [end_boundary, start_boundary, end_boundary, range_start.isoformat()],
     )
-    event_rows = rows_to_dicts(rows)
+    return rows_to_dicts(rows)
+
+
+def _serialize_calendar_event_occurrence(row: dict, start_dt: datetime, end_dt: datetime, current_day: date) -> dict:
+    return {
+        **row,
+        "start_date": current_day.isoformat(),
+        "end_date": current_day.isoformat(),
+        "occurrence_date": current_day.isoformat(),
+        "start_time": start_dt.strftime("%H:%M"),
+        "end_time": end_dt.strftime("%H:%M"),
+        "start_minutes": (start_dt.hour * 60) + start_dt.minute,
+        "end_minutes": (end_dt.hour * 60) + end_dt.minute,
+    }
+
+
+def build_week_schedule_payload(week_value: str | None = None) -> dict:
+    week_start = resolve_week_start(week_value)
+    week_end = week_start + timedelta(days=6)
+    event_rows = _fetch_calendar_base_rows(week_start, week_end)
 
     days: list[dict] = []
     for offset in range(7):
@@ -422,18 +514,9 @@ def build_week_schedule_payload(week_value: str | None = None) -> dict:
             if not _calendar_event_occurs_on(row, start_dt, current_day):
                 continue
 
-            day_events.append(
-                {
-                    **row,
-                    "start_date": current_day.isoformat(),
-                    "end_date": current_day.isoformat(),
-                    "occurrence_date": current_day.isoformat(),
-                    "start_time": start_dt.strftime("%H:%M"),
-                    "end_time": end_dt.strftime("%H:%M"),
-                    "start_minutes": (start_dt.hour * 60) + start_dt.minute,
-                    "end_minutes": (end_dt.hour * 60) + end_dt.minute,
-                }
-            )
+            day_events.append(_serialize_calendar_event_occurrence(row, start_dt, end_dt, current_day))
+
+        day_events.sort(key=lambda item: (item["start_minutes"], item["end_minutes"], item["id"]))
 
         days.append(
             {
@@ -452,6 +535,52 @@ def build_week_schedule_payload(week_value: str | None = None) -> dict:
         "previous_week": (week_start - timedelta(days=7)).isoformat(),
         "next_week": (week_start + timedelta(days=7)).isoformat(),
         "time_labels": [f"{hour:02d}:00" for hour in range(6, 24)],
+        "days": days,
+    }
+
+
+def build_month_schedule_payload(month_value: str | None = None) -> dict:
+    month_start = resolve_calendar_month(month_value)
+    month_start, month_end = month_bounds(month_start)
+
+    grid_start = month_start - timedelta(days=month_start.weekday())
+    grid_end = month_end + timedelta(days=(6 - month_end.weekday()))
+    event_rows = _fetch_calendar_base_rows(grid_start, grid_end)
+
+    days: list[dict] = []
+    cursor = grid_start
+    while cursor <= grid_end:
+        day_events = []
+        for row in event_rows:
+            start_dt = parse_datetime(row["start_at"])
+            end_dt = parse_datetime(row["end_at"])
+            if start_dt is None or end_dt is None:
+                continue
+            if not _calendar_event_occurs_on(row, start_dt, cursor):
+                continue
+            day_events.append(_serialize_calendar_event_occurrence(row, start_dt, end_dt, cursor))
+
+        day_events.sort(key=lambda item: (item["start_minutes"], item["end_minutes"], item["id"]))
+        days.append(
+            {
+                "date": cursor.isoformat(),
+                "label": cursor.strftime("%a"),
+                "day_number": cursor.day,
+                "is_today": cursor == date.today(),
+                "is_current_month": month_start <= cursor <= month_end,
+                "events": day_events,
+            }
+        )
+        cursor += timedelta(days=1)
+
+    return {
+        "month": month_start.strftime("%Y-%m"),
+        "month_label": month_start.strftime("%B %Y"),
+        "month_start": month_start.isoformat(),
+        "month_end": month_end.isoformat(),
+        "previous_month": shift_month(month_start, -1).strftime("%Y-%m"),
+        "next_month": shift_month(month_start, 1).strftime("%Y-%m"),
+        "weekday_labels": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
         "days": days,
     }
 

@@ -440,6 +440,98 @@ def test_skill_crud_flow(client):
     assert any(item["id"] == skill["id"] for item in skills)
 
 
+def test_profile_traits_and_beliefs_support_crud_and_reordering(client):
+    baseline_traits = client.get("/api/profile/traits").get_json()
+    create_trait = client.post(
+        "/api/profile/traits",
+        json={"name": "Adaptability", "category": "behavioral", "score": 77},
+    )
+    assert create_trait.status_code == 201
+    trait = create_trait.get_json()["trait"]
+    assert trait["name"] == "Adaptability"
+
+    update_trait = client.put(
+        f"/api/profile/traits/{trait['id']}",
+        json={"name": "Adaptive Execution", "category": "behavioral", "score": 81},
+    )
+    assert update_trait.status_code == 200
+    assert update_trait.get_json()["trait"]["score"] == 81
+
+    reorder_traits = client.post(
+        "/api/profile/traits/reorder",
+        json={"ids": [trait["id"], *[item["id"] for item in baseline_traits]]},
+    )
+    assert reorder_traits.status_code == 200
+    assert client.get("/api/profile/traits").get_json()[0]["id"] == trait["id"]
+
+    delete_trait = client.delete(f"/api/profile/traits/{trait['id']}")
+    assert delete_trait.status_code == 200
+
+    baseline_beliefs = client.get("/api/profile/beliefs").get_json()
+    create_belief = client.post(
+        "/api/profile/beliefs",
+        json={"title": "Ship Weekly", "text": "Every week should produce visible output."},
+    )
+    assert create_belief.status_code == 201
+    belief = create_belief.get_json()["belief"]
+
+    update_belief = client.put(
+        f"/api/profile/beliefs/{belief['id']}",
+        json={"title": "Ship Continuously", "text": "Visible output compounds faster than hidden preparation."},
+    )
+    assert update_belief.status_code == 200
+    assert update_belief.get_json()["belief"]["title"] == "Ship Continuously"
+
+    reorder_beliefs = client.post(
+        "/api/profile/beliefs/reorder",
+        json={"ids": [belief["id"], *[item["id"] for item in baseline_beliefs]]},
+    )
+    assert reorder_beliefs.status_code == 200
+    assert client.get("/api/profile/beliefs").get_json()[0]["id"] == belief["id"]
+
+    delete_belief = client.delete(f"/api/profile/beliefs/{belief['id']}")
+    assert delete_belief.status_code == 200
+
+
+def test_settings_system_restore_and_maintenance_endpoints(client):
+    seed_export = client.get("/api/settings/export/json")
+    assert seed_export.status_code == 200
+    exported_payload = seed_export.get_json()
+
+    created_task = client.post("/api/tasks/", json={"title": "Temporary task"}).get_json()["task"]
+    assert created_task["title"] == "Temporary task"
+
+    restore_response = client.post("/api/settings/import/json", json={"data": exported_payload})
+    assert restore_response.status_code == 200
+    restored_tasks = client.get("/api/tasks/?status=pending").get_json()
+    assert all(task["title"] != "Temporary task" for task in restored_tasks)
+
+    orphan_attachment = client.post(
+        "/api/life/attachments",
+        json={"entity_type": "note", "entity_id": 9999, "title": "Dangling", "url": "example.com"},
+    )
+    assert orphan_attachment.status_code == 201
+
+    system_response = client.get("/api/settings/system")
+    assert system_response.status_code == 200
+    system_payload = system_response.get_json()
+    assert system_payload["orphan_attachment_count"] >= 1
+
+    prune_response = client.post("/api/settings/maintenance/attachments/prune", json={})
+    assert prune_response.status_code == 200
+    assert len(prune_response.get_json()["removed_ids"]) >= 1
+
+    reset_response = client.post("/api/settings/maintenance/profile/reset", json={})
+    assert reset_response.status_code == 200
+    reset_counts = reset_response.get_json()["counts"]
+    assert reset_counts["traits"] >= 1
+    assert reset_counts["beliefs"] >= 1
+    assert reset_counts["skills"] >= 1
+
+    vacuum_response = client.post("/api/settings/maintenance/database/vacuum", json={})
+    assert vacuum_response.status_code == 200
+
+
 def test_calendar_event_lifecycle_and_week_payload(client):
     create_response = client.post(
         "/api/calendar/events",

@@ -7,6 +7,7 @@ from flask import current_app, g
 
 
 MIGRATIONS = (
+    ("traits", "display_order", "ALTER TABLE traits ADD COLUMN display_order INTEGER NOT NULL DEFAULT 0"),
     ("tasks", "completed_at", "ALTER TABLE tasks ADD COLUMN completed_at DATETIME"),
     ("projects", "completed_at", "ALTER TABLE projects ADD COLUMN completed_at DATETIME"),
     ("goals", "completed_at", "ALTER TABLE goals ADD COLUMN completed_at DATETIME"),
@@ -98,6 +99,8 @@ def _backfill_completion_timestamps(db: sqlite3.Connection) -> None:
     db.execute("UPDATE journal_entries SET title = COALESCE(title, '')")
     db.execute("UPDATE journal_entries SET tags = COALESCE(tags, '')")
     db.execute("UPDATE journal_entries SET updated_at = COALESCE(updated_at, entry_date, CURRENT_TIMESTAMP)")
+    if _column_exists(db, "traits", "display_order"):
+        db.execute("UPDATE traits SET display_order = COALESCE(NULLIF(display_order, 0), id)")
 
 
 def _ensure_project_milestones_table(db: sqlite3.Connection) -> None:

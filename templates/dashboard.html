@@ -3,6 +3,10 @@
 {% block title %}Dashboard{% endblock %}
 {% block page_title %}<span id="greeting" style="font-weight: 500;">System Overview</span>{% endblock %}
 
+{% block header_actions %}
+<button type="button" class="btn btn-primary" onclick="DashboardUI.openQuickTaskModal()"><i class="ph ph-plus"></i> Quick Task</button>
+{% endblock %}
+
 {% block content %}
 <!-- Date & Time View -->
 <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: var(--space-5);">
@@ -11,6 +15,25 @@
         <p id="current-date" style="color: var(--text-secondary); margin: 0; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.05em;">Loading date...</p>
     </div>
 </div>
+
+<section class="metric-grid cols-4" id="dashboard-summary-grid" style="margin-bottom: var(--space-5);">
+    <div class="compact-item metric-card">
+        <span class="item-desc">Active Tasks</span>
+        <div class="stat-value">-</div>
+    </div>
+    <div class="compact-item metric-card">
+        <span class="item-desc">Active Projects</span>
+        <div class="stat-value">-</div>
+    </div>
+    <div class="compact-item metric-card">
+        <span class="item-desc">Overdue</span>
+        <div class="stat-value">-</div>
+    </div>
+    <div class="compact-item metric-card">
+        <span class="item-desc">Consistency</span>
+        <div class="stat-value">-</div>
+    </div>
+</section>
 
 <div class="bento-grid">
     <!-- Stat Cards -->
@@ -44,6 +67,24 @@
         </div>
         <div class="chart-container">
             <canvas id="taskChart"></canvas>
+        </div>
+    </div>
+
+    <div class="card" style="grid-column: span 6; min-height: 260px;">
+        <div class="card-header">
+            <span class="card-title"><i class="ph ph-lightning"></i> Today Focus</span>
+        </div>
+        <div class="compact-list" id="today-focus-list">
+            <div class="compact-item"><span class="item-desc">Loading...</span></div>
+        </div>
+    </div>
+
+    <div class="card" style="grid-column: span 6; min-height: 260px;">
+        <div class="card-header">
+            <span class="card-title"><i class="ph ph-calendar-dots"></i> Next Event</span>
+        </div>
+        <div class="compact-list" id="dashboard-next-event">
+            <div class="compact-item"><span class="item-desc">Loading...</span></div>
         </div>
     </div>
 
@@ -82,6 +123,38 @@
         <div class="bento-grid" id="priority-tasks-list" style="grid-template-columns: repeat(3, 1fr); gap: var(--space-3);">
             <div class="compact-item" style="grid-column: span 3;"><span class="item-desc">Loading...</span></div>
         </div>
+    </div>
+</div>
+
+<div id="dashboard-task-modal" class="modal-overlay">
+    <div class="modal-content" style="width:min(520px, calc(100vw - 32px));">
+        <div class="card-header">
+            <h3 class="card-title">Quick Task</h3>
+            <button type="button" class="btn btn-icon" onclick="DashboardUI.closeQuickTaskModal()"><i class="ph ph-x"></i></button>
+        </div>
+        <form id="dashboard-task-form" onsubmit="DashboardUI.submitQuickTask(event)">
+            <div class="form-group">
+                <label class="form-label">Title</label>
+                <input type="text" id="dashboard-task-title" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Priority</label>
+                <select id="dashboard-task-priority" class="form-control">
+                    <option value="1">Highest</option>
+                    <option value="2">High</option>
+                    <option value="3" selected>Normal</option>
+                    <option value="4">Low</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Due Date</label>
+                <input type="date" id="dashboard-task-due" class="form-control">
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap: var(--space-2);">
+                <button type="button" class="btn" onclick="DashboardUI.closeQuickTaskModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Task</button>
+            </div>
+        </form>
     </div>
 </div>
 {% endblock %}

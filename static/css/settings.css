@@ -1,0 +1,163 @@
+.settings-page {
+    gap: var(--space-5);
+}
+
+.settings-section-desc {
+    margin-bottom: var(--space-3);
+}
+
+.settings-toolbar {
+    display: grid;
+    grid-template-columns: 1.4fr 0.9fr 0.9fr;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.settings-skills-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: var(--space-3);
+}
+
+.settings-skill-card {
+    grid-column: span 4;
+}
+
+.settings-entity-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(320px, 1fr) auto;
+    gap: var(--space-3);
+    align-items: center;
+}
+
+.settings-row-controls {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) 84px auto;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+.settings-row-actions,
+.settings-inline-actions,
+.settings-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.settings-row-actions {
+    justify-content: flex-end;
+}
+
+.settings-modal-actions {
+    justify-content: space-between;
+    margin-top: var(--space-4);
+}
+
+.settings-action-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.settings-action-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-4);
+    padding: var(--space-3);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-surface);
+}
+
+.settings-divider {
+    height: 1px;
+    background: var(--border-subtle);
+    margin: var(--space-4) 0;
+}
+
+.settings-import-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.settings-import-preview {
+    min-height: 88px;
+    padding: var(--space-3);
+    border: 1px dashed var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-surface);
+}
+
+.settings-import-preview .compact-list {
+    margin-top: var(--space-2);
+}
+
+.settings-modal {
+    width: min(560px, calc(100vw - 32px));
+}
+
+.settings-record-list {
+    columns: 2;
+    column-gap: var(--space-4);
+}
+
+.settings-record-list .compact-item {
+    break-inside: avoid;
+    margin-bottom: var(--space-2);
+}
+
+.settings-state {
+    min-width: 68px;
+    text-align: right;
+}
+
+@media (max-width: 1100px) {
+    .settings-skill-card {
+        grid-column: span 6;
+    }
+}
+
+@media (max-width: 900px) {
+    .settings-toolbar,
+    .settings-entity-row {
+        grid-template-columns: 1fr;
+    }
+
+    .settings-row-controls {
+        grid-template-columns: minmax(0, 1fr) 84px auto;
+    }
+
+    .settings-row-actions {
+        justify-content: flex-start;
+    }
+
+    .settings-record-list {
+        columns: 1;
+    }
+}
+
+@media (max-width: 768px) {
+    .settings-skill-card {
+        grid-column: span 12;
+    }
+
+    .settings-action-row,
+    .settings-modal-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .settings-inline-actions {
+        justify-content: stretch;
+    }
+
+    .settings-inline-actions .btn,
+    .settings-modal-actions .btn,
+    .settings-action-row .btn {
+        width: 100%;
+    }
+}

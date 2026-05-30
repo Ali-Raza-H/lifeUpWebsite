@@ -200,9 +200,9 @@ const ProfileUI = {
                 datasets: [{
                     label: scope === 'all' ? 'Top skills' : this.labelize(scope),
                     data: items.map((skill) => Number(skill.proficiency || 0)),
-                    backgroundColor: 'rgba(237, 237, 237, 0.08)',
-                    borderColor: '#ededed',
-                    pointBackgroundColor: '#ededed',
+                    backgroundColor: 'rgba(255, 0, 255, 0.2)',
+                    borderColor: '#ff00ff',
+                    pointBackgroundColor: '#ff00ff',
                     pointBorderColor: '#000',
                     borderWidth: 1.5
                 }]
@@ -245,9 +245,9 @@ const ProfileUI = {
                 datasets: [{
                     label: 'Trait profile',
                     data,
-                    backgroundColor: 'rgba(237, 237, 237, 0.1)',
-                    borderColor: '#ededed',
-                    pointBackgroundColor: '#ededed',
+                    backgroundColor: 'rgba(0, 240, 255, 0.2)',
+                    borderColor: '#00f0ff',
+                    pointBackgroundColor: '#00f0ff',
                     pointBorderColor: '#000',
                     borderWidth: 1.5
                 }]

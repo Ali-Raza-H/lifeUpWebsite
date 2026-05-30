@@ -1,19 +1,19 @@
 :root {
     /* AMOLED True Black Theme */
     --bg-base: #000000;
-    --bg-panel: #0a0a0a;
-    --bg-panel-hover: #121212;
-    --bg-surface: #111111;
-    --bg-surface-hover: #1a1a1a;
+    --bg-panel: #050505;
+    --bg-panel-hover: #0a0a0a;
+    --bg-surface: #0f0f0f;
+    --bg-surface-hover: #141414;
     
-    --text-primary: #ffffff;
+    --text-primary: #f0f0f0;
     --text-secondary: #a1a1aa;
-    --text-muted: #71717a;
+    --text-muted: #52525b;
     --text-error: var(--accent-red);
     --text-warning: var(--accent-amber);
     
-    --border-subtle: #27272a;
-    --border-focus: #3f3f46;
+    --border-subtle: #1f1f22;
+    --border-focus: #27272a;
     --border-strong: var(--border-focus);
     
     /* Accents - Neon Cyberpunk */
@@ -23,8 +23,13 @@
     --accent-red: #ff0055;
     --accent-yellow: var(--accent-amber);
     --accent-purple: #b026ff;
+    --accent-pink: #ff00ff;
     --status-critical: var(--accent-red);
     --text-success: var(--accent-green);
+
+    --glow-blue: 0 0 10px rgba(0, 240, 255, 0.4);
+    --glow-pink: 0 0 10px rgba(255, 0, 255, 0.4);
+    --glow-green: 0 0 10px rgba(57, 255, 20, 0.4);
 
     /* Legacy aliases used by older templates */
     --bg-color: var(--bg-base);
@@ -57,9 +62,9 @@
     --space-8: 48px;
     
     /* Layout */
-    --radius-sm: 6px;
-    --radius-md: 8px;
-    --radius-lg: 8px;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
     --radius-full: 9999px;
     
     --transition: 0.15s ease;

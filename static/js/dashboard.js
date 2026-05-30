@@ -329,8 +329,8 @@ const DashboardUI = {
                 datasets: [{
                     label: 'Completion Rate (%)',
                     data,
-                    backgroundColor: 'rgba(237, 237, 237, 0.8)',
-                    borderColor: '#ededed',
+                    backgroundColor: 'rgba(0, 240, 255, 0.8)',
+                    borderColor: '#00f0ff',
                     borderWidth: 1,
                     borderRadius: 4
                 }]
@@ -361,10 +361,10 @@ const DashboardUI = {
                 datasets: [{
                     label: 'Tasks Completed',
                     data: taskVelocity?.values || [],
-                    borderColor: '#ededed',
+                    borderColor: '#00f0ff',
                     borderWidth: 2,
-                    backgroundColor: 'rgba(237, 237, 237, 0.1)',
-                    pointBackgroundColor: '#ededed',
+                    backgroundColor: 'rgba(0, 240, 255, 0.1)',
+                    pointBackgroundColor: '#00f0ff',
                     pointBorderColor: '#000',
                     pointBorderWidth: 2,
                     pointRadius: 4,

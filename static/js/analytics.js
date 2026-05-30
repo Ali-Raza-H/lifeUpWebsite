@@ -140,7 +140,7 @@ const AnalyticsUI = {
                     datasets: [{
                         label: 'Tasks',
                         data: velocity?.values || [],
-                        backgroundColor: '#ededed',
+                        backgroundColor: 'rgba(0, 240, 255, 0.8)',
                         borderRadius: 4,
                         barThickness: 12
                     }]
@@ -167,9 +167,9 @@ const AnalyticsUI = {
                     datasets: [{
                         label: 'Profile',
                         data: traits.map((trait) => trait.score),
-                        backgroundColor: 'rgba(237, 237, 237, 0.1)',
-                        borderColor: '#ededed',
-                        pointBackgroundColor: '#ededed',
+                        backgroundColor: 'rgba(255, 0, 255, 0.2)',
+                        borderColor: '#ff00ff',
+                        pointBackgroundColor: '#ff00ff',
                         pointBorderColor: '#000',
                         borderWidth: 1.5
                     }]
@@ -203,8 +203,8 @@ const AnalyticsUI = {
                             type: 'line',
                             label: 'Mood',
                             data: moodProductivity.mood,
-                            borderColor: '#77d19a',
-                            backgroundColor: 'rgba(119, 209, 154, 0.12)',
+                            borderColor: '#39ff14',
+                            backgroundColor: 'rgba(57, 255, 20, 0.12)',
                             yAxisID: 'yMood',
                             tension: 0.3
                         },
@@ -212,7 +212,7 @@ const AnalyticsUI = {
                             type: 'bar',
                             label: 'Completed Tasks',
                             data: moodProductivity.tasks,
-                            backgroundColor: 'rgba(237, 237, 237, 0.75)',
+                            backgroundColor: 'rgba(0, 240, 255, 0.6)',
                             yAxisID: 'yTasks'
                         }
                     ]

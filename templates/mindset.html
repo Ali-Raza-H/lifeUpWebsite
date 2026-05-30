@@ -4,315 +4,99 @@
 {% block page_title %}Psychometric Profile{% endblock %}
 
 {% block head %}
-<style>
-    .mindset-header-panel {
-        background: var(--bg-panel);
-        border: 1px solid var(--border-subtle);
-        border-radius: var(--radius-lg);
-        padding: var(--space-5);
-        border-left: 4px solid var(--accent-purple);
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-2);
-        margin-bottom: var(--space-4);
-    }
-
-    .mindset-header-panel h2 {
-        margin: 0;
-        font-size: 20px;
-        color: var(--text-primary);
-        letter-spacing: -0.02em;
-    }
-    
-    .mindset-meta {
-        color: var(--text-muted);
-        font-family: var(--font-mono);
-        font-size: 12px;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-    }
-    
-    .mindset-quote {
-        margin-top: var(--space-2);
-        color: var(--text-secondary);
-        font-style: italic;
-        border-left: 2px solid var(--border-subtle);
-        padding-left: var(--space-3);
-        line-height: 1.6;
-    }
-
-    .trait-row {
-        margin-bottom: var(--space-3);
-    }
-
-    .trait-labels {
-        display: flex;
-        justify-content: space-between;
-        font-size: 13px;
-        color: var(--text-primary);
-        margin-bottom: 6px;
-    }
-
-    .trait-value {
-        font-family: var(--font-mono);
-        font-size: 12px;
-    }
-
-    .text-green { color: var(--accent-green); }
-    .text-amber { color: var(--accent-amber); }
-    .text-red { color: var(--accent-red); }
-
-    .bg-green { background-color: var(--accent-green) !important; }
-    .bg-amber { background-color: var(--accent-amber) !important; }
-    .bg-red { background-color: var(--accent-red) !important; }
-
-    .alert-box {
-        background: rgba(239, 68, 68, 0.08);
-        border: 1px solid rgba(239, 68, 68, 0.2);
-        border-radius: var(--radius-md);
-        padding: var(--space-3);
-        margin-bottom: var(--space-3);
-    }
-
-    .alert-box h4 {
-        color: var(--accent-red);
-        margin: 0 0 6px 0;
-        font-size: 13px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-
-    .alert-box p {
-        color: var(--text-secondary);
-        margin: 0;
-        font-size: 13px;
-        line-height: 1.5;
-    }
-
-    .success-box {
-        background: rgba(52, 211, 153, 0.08);
-        border: 1px solid rgba(52, 211, 153, 0.2);
-        border-radius: var(--radius-md);
-        padding: var(--space-4);
-        margin-top: var(--space-4);
-    }
-
-    .success-box h4 {
-        color: var(--accent-green);
-        margin: 0 0 8px 0;
-        font-size: 14px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-
-    .success-box p {
-        color: var(--text-primary);
-        margin: 0;
-        font-size: 13px;
-        line-height: 1.6;
-    }
-
-    ul.custom-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-3);
-    }
-
-    ul.custom-list li {
-        position: relative;
-        padding-left: 20px;
-        font-size: 13px;
-        line-height: 1.5;
-        color: var(--text-secondary);
-    }
-
-    ul.custom-list li::before {
-        content: "▹";
-        position: absolute;
-        left: 0;
-        color: var(--accent-blue);
-        font-weight: bold;
-    }
-
-    ul.custom-list li strong {
-        color: var(--text-primary);
-    }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mindset.css', v=asset_version('css/mindset.css')) }}">
 {% endblock %}
 
 {% block content %}
-<div class="page-stack">
-    
-    <div class="mindset-header-panel">
-        <h2>SUBJECT: ALI RAZA</h2>
-        <div class="mindset-meta">STATUS: ACTIVE // AGE: 18 // ROLE: THE ATONEMENT-DRIVEN ARCHITECT</div>
-        <div class="mindset-quote">
-            "The protagonist's sacrifice of humanity for eternal stability is the question Ali is asking himself: Is what I'm trading worth what I'm building?"
+<div class="page-stack mindset-page">
+    <section class="mindset-hero card">
+        <div class="mindset-hero-copy">
+            <div class="mindset-kicker">Live Profile Synthesis</div>
+            <h2 id="mindset-hero-title">Loading mindset profile...</h2>
+            <p id="mindset-hero-summary" class="mindset-summary">Building a synthesis from traits, beliefs, and skills.</p>
+            <div class="mindset-badges" id="mindset-hero-badges">
+                <span class="badge">Loading...</span>
+            </div>
         </div>
-    </div>
+    </section>
+
+    <section class="metric-grid cols-4" id="mindset-metrics">
+        <div class="compact-item metric-card">
+            <span class="item-desc">Traits</span>
+            <div class="stat-value" id="mindset-metric-traits">0</div>
+        </div>
+        <div class="compact-item metric-card">
+            <span class="item-desc">Beliefs</span>
+            <div class="stat-value" id="mindset-metric-beliefs">0</div>
+        </div>
+        <div class="compact-item metric-card">
+            <span class="item-desc">Skills</span>
+            <div class="stat-value" id="mindset-metric-skills">0</div>
+        </div>
+        <div class="compact-item metric-card">
+            <span class="item-desc">Average Skill</span>
+            <div class="stat-value" id="mindset-metric-skill-avg">0%</div>
+        </div>
+    </section>
 
     <div class="bento-grid">
-        
-        <!-- Cognitive Abilities -->
-        <div class="card" style="grid-column: span 6;">
+        <section class="card" style="grid-column: span 6;">
             <div class="card-header">
-                <span class="card-title"><i class="ph ph-brain text-purple"></i> Cognitive Abilities</span>
+                <span class="card-title"><i class="ph ph-chart-polar"></i> Trait Hierarchy</span>
             </div>
-            <p class="item-desc" style="margin-bottom: var(--space-4);">
-                <strong style="color: var(--text-primary);">General Intelligence Assessment:</strong> Exceptionally High Verbal-Logical Intelligence; High Spatial-Creative Intelligence.
-            </p>
-            
-            <div style="margin-bottom: var(--space-4);">
-                <h4 style="color: var(--text-primary); font-size: 13px; margin: 0 0 var(--space-2) 0;">Strengths</h4>
-                <ul class="custom-list">
-                    <li><strong>Systems Architecture Thinking:</strong> Views everything as debuggable code.</li>
-                    <li><strong>Abstract Reasoning:</strong> Constructs multi-layered philosophical frameworks.</li>
-                    <li><strong>Transfer Learning:</strong> Applies SE principles to diverse fields.</li>
-                    <li><strong>Meta-Cognition:</strong> Exceptional self-awareness of cognitive patterns.</li>
-                </ul>
+            <div class="compact-list" id="mindset-traits-list">
+                <div class="compact-item"><span class="item-desc">Loading traits...</span></div>
             </div>
-            
-            <div>
-                <h4 style="color: var(--text-primary); font-size: 13px; margin: 0 0 var(--space-2) 0;">Constraints</h4>
-                <ul class="custom-list">
-                    <li style="--accent-blue: var(--accent-red);"><strong>Execution Gap:</strong> Perfectionism-induced paralysis ("far too lazy").</li>
-                    <li style="--accent-blue: var(--accent-red);"><strong>Time Perception Distortion:</strong> 80-year lifespan viewed as insufficient.</li>
-                </ul>
-            </div>
-        </div>
+        </section>
 
-        <!-- Personality Assessment -->
-        <div class="card" style="grid-column: span 6;">
+        <section class="card" style="grid-column: span 6;">
             <div class="card-header">
-                <span class="card-title"><i class="ph ph-chart-polar text-blue"></i> Big Five Framework</span>
+                <span class="card-title"><i class="ph ph-scales"></i> Operating Principles</span>
             </div>
-            
-            <div style="margin-top: var(--space-2);">
-                <div class="trait-row">
-                    <div class="trait-labels">
-                        <span>Openness to Experience</span>
-                        <span class="trait-value text-green">99%</span>
-                    </div>
-                    <div class="progress-track"><div class="progress-fill bg-green" style="width: 99%;"></div></div>
-                </div>
-                
-                <div class="trait-row">
-                    <div class="trait-labels">
-                        <span>Conscientiousness (Achievement)</span>
-                        <span class="trait-value text-green">95%</span>
-                    </div>
-                    <div class="progress-track"><div class="progress-fill bg-green" style="width: 95%;"></div></div>
-                </div>
+            <div class="compact-list" id="mindset-beliefs-list">
+                <div class="compact-item"><span class="item-desc">Loading beliefs...</span></div>
+            </div>
+        </section>
 
-                <div class="trait-row">
-                    <div class="trait-labels">
-                        <span>Extraversion</span>
-                        <span class="trait-value text-red">20%</span>
-                    </div>
-                    <div class="progress-track"><div class="progress-fill bg-red" style="width: 20%;"></div></div>
-                </div>
-                
-                <div class="trait-row">
-                    <div class="trait-labels">
-                        <span>Agreeableness</span>
-                        <span class="trait-value text-amber">40%</span>
-                    </div>
-                    <div class="progress-track"><div class="progress-fill bg-amber" style="width: 40%;"></div></div>
-                </div>
-                
-                <div class="trait-row" style="margin-bottom: var(--space-4);">
-                    <div class="trait-labels">
-                        <span>Neuroticism</span>
-                        <span class="trait-value text-amber">50%</span>
-                    </div>
-                    <div class="progress-track"><div class="progress-fill bg-amber" style="width: 50%;"></div></div>
-                </div>
-            </div>
-            
-            <div class="item-desc" style="font-style: italic; border-left: 2px solid var(--border-subtle); padding-left: 12px; margin-top: auto;">
-                "I find joy and bliss in loneliness... Relying on anyone else will always end bad for me."
-            </div>
-        </div>
-
-        <!-- Motivational Architecture -->
-        <div class="card" style="grid-column: span 4;">
+        <section class="card" style="grid-column: span 4;">
             <div class="card-header">
-                <span class="card-title"><i class="ph ph-fire text-amber"></i> Motivational Architecture</span>
+                <span class="card-title"><i class="ph ph-lightbulb"></i> Cognitive Strengths</span>
             </div>
-            <ul class="custom-list" style="--accent-blue: var(--accent-amber);">
-                <li><strong>Atonement:</strong> "Atonement for not living up to my potential." Every project is penance for wasted years.</li>
-                <li><strong>Curiosity:</strong> Pure fascination with learning drives exploration. Not competitive comparison.</li>
-                <li><strong>Autonomy:</strong> Money = freedom from reliance on broken systems/people.</li>
-                <li><strong>Legacy:</strong> "I want my name to leave a permanent mark on history." Objective validation of transcendence.</li>
-            </ul>
-        </div>
+            <div class="compact-list" id="mindset-strengths-list">
+                <div class="compact-item"><span class="item-desc">Loading strengths...</span></div>
+            </div>
+        </section>
 
-        <!-- Core Philosophical Frameworks -->
-        <div class="card" style="grid-column: span 4;">
+        <section class="card" style="grid-column: span 4;">
             <div class="card-header">
-                <span class="card-title"><i class="ph ph-scales text-blue"></i> Philosophical Frameworks</span>
+                <span class="card-title"><i class="ph ph-warning"></i> Tension Points</span>
             </div>
-            <ul class="custom-list">
-                <li><strong>Uncompromising Perfectionism:</strong> Engine of transcendence; creates activation energy barrier.</li>
-                <li><strong>Absolute Self-Reliance:</strong> Complete control; deep foundational knowledge; capped by individual bandwidth.</li>
-                <li><strong>Supreme Meritocracy:</strong> "A fair tyrant is better than democracy." Hyper-efficient, but single point of failure.</li>
-                <li><strong>Law of Equivalent Exchange:</strong> Universe demands equal sacrifice for every achievement.</li>
-                <li><strong>Systemic Disdain:</strong> Modern society is "atrophy-inducing machine"; reverence for original builders.</li>
-            </ul>
-        </div>
+            <div class="compact-list" id="mindset-risks-list">
+                <div class="compact-item"><span class="item-desc">Loading constraints...</span></div>
+            </div>
+        </section>
 
-        <!-- Cognitive Distortions & Blind Spots -->
-        <div class="card" style="grid-column: span 4;">
+        <section class="card" style="grid-column: span 4;">
             <div class="card-header">
-                <span class="card-title"><i class="ph ph-warning text-red"></i> Cognitive Blind Spots</span>
+                <span class="card-title"><i class="ph ph-stack"></i> Skill Foundations</span>
             </div>
-            
-            <div class="alert-box">
-                <h4><i class="ph ph-warning-circle"></i> The Potential Shadow</h4>
-                <p>Every achievement compared not to past self but to idealized ceiling self - ensures permanent dissatisfaction. Atonement becomes an infinite treadmill.</p>
+            <div class="compact-list" id="mindset-skills-list">
+                <div class="compact-item"><span class="item-desc">Loading skills...</span></div>
             </div>
-            
-            <div class="alert-box">
-                <h4><i class="ph ph-warning-circle"></i> The Collaboration Ceiling</h4>
-                <p>Respects foundations laid by collectives, but refuses to join collectives. Creates a hard ceiling on achievable impact; one mind cannot outpace exponential collective scaling.</p>
-            </div>
-            
-            <div class="alert-box" style="margin-bottom: 0;">
-                <h4><i class="ph ph-warning-circle"></i> The Successor Illusion</h4>
-                <p>Assumes HE would be fair tyrant, hasn't stress-tested: "What if my fairness is optimized cruelty?"</p>
-            </div>
-        </div>
+        </section>
 
-        <!-- Recommendations -->
-        <div class="card" style="grid-column: span 12;">
+        <section class="card" style="grid-column: span 12;">
             <div class="card-header">
-                <span class="card-title"><i class="ph ph-target text-green"></i> Strategic Recommendations</span>
+                <span class="card-title"><i class="ph ph-target"></i> Strategic Recommendations</span>
             </div>
-            
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-4);">
-                <ul class="custom-list" style="--accent-blue: var(--accent-green);">
-                    <li><strong>Satisficing Rule:</strong> Define "Version 1.0" completion criteria BEFORE starting. Ship once met.</li>
-                    <li><strong>Strategic Collaboration:</strong> Identify areas where delegating to "B+ players" frees time for A+ work.</li>
-                    <li><strong>Atonement Deadline:</strong> Set age 25 milestone. Reframe as: optimize from 25 forward, not atone backward.</li>
-                </ul>
-                <ul class="custom-list" style="--accent-blue: var(--accent-green);">
-                    <li><strong>Publish the Novel:</strong> Imperfect published book > perfect unwritten book. Publish prologue, gauge response.</li>
-                    <li><strong>Document the System:</strong> Create "Ali's Principles" handbook - forces clarity, builds legacy.</li>
-                    <li><strong>Scheduled Solitude Audit:</strong> Monthly: "Am I choosing solitude or defaulting to it?"</li>
-                </ul>
+            <div class="mindset-recommendations" id="mindset-recommendations">
+                <div class="compact-item"><span class="item-desc">Generating recommendations...</span></div>
             </div>
-
-            <div class="success-box">
-                <h4><i class="ph ph-check-circle"></i> Prognosis</h4>
-                <p>Exceptional individual achievement likely. Apex of humanity unlikely without evolving collaboration model. Satisfaction unlikely regardless of achievement level due to infinite atonement drive.</p>
-            </div>
-        </div>
-
+        </section>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/mindset.js', v=asset_version('js/mindset.js')) }}"></script>
 {% endblock %}

@@ -3,67 +3,235 @@
 {% block title %}Settings{% endblock %}
 {% block page_title %}System Configuration{% endblock %}
 
-{% block content %}
-<div class="bento-grid">
-    <div class="card" style="grid-column: span 6;">
-        <div class="card-header">
-            <span class="card-title"><i class="ph ph-hard-drives"></i> Data Redundancy</span>
-        </div>
-        <div style="margin-bottom: var(--space-5);">
-            <p style="color: var(--text-secondary); margin-bottom: var(--space-3); font-size: 13px;">Export all internal memory banks to a portable JSON format.</p>
-            <a href="/api/settings/export/json" class="btn btn-primary"><i class="ph ph-file-code"></i> JSON Archive</a>
-        </div>
-        <div style="border-top: 1px solid var(--border-subtle); padding-top: var(--space-5);">
-            <p style="color: var(--text-secondary); margin-bottom: var(--space-3); font-size: 13px;">Export raw SQLite database for offline portability.</p>
-            <a href="/api/settings/export/db" class="btn btn-primary"><i class="ph ph-database"></i> SQLite Core</a>
-        </div>
-    </div>
-    
-    <div class="card" style="grid-column: span 6; background: transparent; border: none; padding: 0;">
-        <div class="card-header" style="padding-bottom: var(--space-2);">
-            <span class="card-title"><i class="ph ph-info"></i> System Information</span>
-        </div>
-        <div class="compact-list">
-            <div class="compact-item">
-                <span class="item-title"><i class="ph ph-git-commit"></i> Version</span>
-                <span class="item-desc">v2.0 (Bento Architecture)</span>
-            </div>
-            <div class="compact-item">
-                <span class="item-title"><i class="ph ph-activity"></i> Status</span>
-                <span class="item-desc" style="color: var(--accent-green); display:flex; align-items:center; gap:6px;">
-                    <i class="ph-fill ph-circle" style="font-size: 8px;"></i> Online & Isolated
-                </span>
-            </div>
-            <div class="compact-item">
-                <span class="item-title"><i class="ph ph-brain"></i> Philosophy</span>
-                <span class="item-desc">Absolute Self-Reliance</span>
-            </div>
-        </div>
-    </div>
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css', v=asset_version('css/settings.css')) }}">
+{% endblock %}
 
-    <div class="card" style="grid-column: span 12;">
-        <div class="card-header">
-            <span class="card-title"><i class="ph ph-sliders"></i> Trait Score Management</span>
+{% block content %}
+<div class="page-stack settings-page">
+    <section class="metric-grid cols-4" id="settings-system-metrics">
+        <div class="compact-item metric-card">
+            <span class="item-desc">Total Records</span>
+            <div class="stat-value" id="settings-metric-total">-</div>
         </div>
-        <div class="item-desc" style="margin-bottom: var(--space-3);">These scores drive the trait previews on Profile.</div>
+        <div class="compact-item metric-card">
+            <span class="item-desc">Traits</span>
+            <div class="stat-value" id="settings-metric-traits">-</div>
+        </div>
+        <div class="compact-item metric-card">
+            <span class="item-desc">Beliefs</span>
+            <div class="stat-value" id="settings-metric-beliefs">-</div>
+        </div>
+        <div class="compact-item metric-card">
+            <span class="item-desc">Skills</span>
+            <div class="stat-value" id="settings-metric-skills">-</div>
+        </div>
+    </section>
+
+    <section class="section-grid-2">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-hard-drives"></i> Backup And Restore</span>
+            </div>
+            <div class="settings-action-stack">
+                <div class="settings-action-row">
+                    <div>
+                        <div class="item-title">Export JSON Archive</div>
+                        <div class="item-desc">Portable snapshot of all tracked data.</div>
+                    </div>
+                    <a href="/api/settings/export/json" class="btn btn-primary"><i class="ph ph-file-code"></i> Export JSON</a>
+                </div>
+                <div class="settings-action-row">
+                    <div>
+                        <div class="item-title">Export SQLite Core</div>
+                        <div class="item-desc">Raw database backup for offline recovery.</div>
+                    </div>
+                    <a href="/api/settings/export/db" class="btn btn-primary"><i class="ph ph-database"></i> Export DB</a>
+                </div>
+            </div>
+
+            <div class="settings-divider"></div>
+
+            <div class="settings-import-panel">
+                <div>
+                    <div class="item-title">Restore From JSON Backup</div>
+                    <div class="item-desc">This replaces current site data with the selected backup file.</div>
+                </div>
+                <input type="file" id="settings-import-file" class="form-control" accept=".json,application/json">
+                <div id="settings-import-preview" class="settings-import-preview">
+                    <span class="item-desc">No backup selected.</span>
+                </div>
+                <div class="settings-inline-actions">
+                    <button type="button" class="btn" onclick="SettingsUI.clearImportSelection()">Clear</button>
+                    <button type="button" class="btn btn-danger" id="settings-import-btn" onclick="SettingsUI.importBackup()" disabled>
+                        <i class="ph ph-upload-simple"></i> Restore Backup
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-info"></i> Live System Information</span>
+            </div>
+            <div class="compact-list" id="settings-system-info">
+                <div class="compact-item"><span class="item-desc">Loading system information...</span></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="card">
+        <div class="card-header">
+            <span class="card-title"><i class="ph ph-sliders"></i> Trait Management</span>
+            <button class="btn btn-primary" onclick="SettingsUI.openTraitModal()"><i class="ph ph-plus"></i> Add Trait</button>
+        </div>
+        <div class="item-desc settings-section-desc">Traits drive the profile radar, mindset framing, and identity summaries.</div>
         <div class="compact-list" id="settings-traits-list">
             <div class="compact-item"><span class="item-desc">Loading traits...</span></div>
         </div>
-    </div>
+    </section>
 
-    <div class="card" style="grid-column: span 12;">
+    <section class="card">
+        <div class="card-header">
+            <span class="card-title"><i class="ph ph-scales"></i> Belief Management</span>
+            <button class="btn btn-primary" onclick="SettingsUI.openBeliefModal()"><i class="ph ph-plus"></i> Add Belief</button>
+        </div>
+        <div class="item-desc settings-section-desc">Beliefs are the principles shown in Profile and used across reflection pages.</div>
+        <div class="compact-list" id="settings-beliefs-list">
+            <div class="compact-item"><span class="item-desc">Loading beliefs...</span></div>
+        </div>
+    </section>
+
+    <section class="card">
         <div class="card-header">
             <span class="card-title"><i class="ph ph-code"></i> Skill Management</span>
             <button class="btn btn-primary" onclick="SettingsUI.openSkillModal()"><i class="ph ph-plus"></i> Add Skill</button>
         </div>
-        <div id="settings-skills-grid" class="bento-grid">
-            <div class="compact-item" style="grid-column: span 12;"><span class="item-desc">Loading skills...</span></div>
+        <div class="settings-toolbar">
+            <input type="text" id="settings-skill-search" class="form-control" placeholder="Search skills">
+            <select id="settings-skill-filter-category" class="form-control">
+                <option value="">All categories</option>
+                <option value="language">Language</option>
+                <option value="framework">Framework</option>
+                <option value="tool">Tool</option>
+                <option value="database">Database</option>
+                <option value="platform">Platform</option>
+                <option value="other">Other</option>
+            </select>
+            <select id="settings-skill-sort" class="form-control">
+                <option value="manual">Manual order</option>
+                <option value="proficiency_desc">Highest proficiency</option>
+                <option value="proficiency_asc">Lowest proficiency</option>
+                <option value="name">Name</option>
+                <option value="category">Category</option>
+            </select>
         </div>
+        <div id="settings-skills-grid" class="settings-skills-grid">
+            <div class="compact-item"><span class="item-desc">Loading skills...</span></div>
+        </div>
+    </section>
+
+    <section class="section-grid-2">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-wrench"></i> Maintenance</span>
+            </div>
+            <div class="settings-action-stack">
+                <div class="settings-action-row">
+                    <div>
+                        <div class="item-title">Reset Profile Defaults</div>
+                        <div class="item-desc">Rebuild traits, beliefs, and skills from the seeded defaults.</div>
+                    </div>
+                    <button type="button" class="btn btn-danger" onclick="SettingsUI.resetProfileDefaults()">Reset Profile</button>
+                </div>
+                <div class="settings-action-row">
+                    <div>
+                        <div class="item-title">Prune Orphaned Attachments</div>
+                        <div class="item-desc">Remove attachment rows whose linked records no longer exist.</div>
+                    </div>
+                    <button type="button" class="btn" onclick="SettingsUI.pruneAttachments()">Prune Attachments</button>
+                </div>
+                <div class="settings-action-row">
+                    <div>
+                        <div class="item-title">Vacuum Database</div>
+                        <div class="item-desc">Reclaim unused SQLite space and optimize the file layout.</div>
+                    </div>
+                    <button type="button" class="btn" onclick="SettingsUI.vacuumDatabase()">Vacuum DB</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-stack"></i> Record Distribution</span>
+            </div>
+            <div class="compact-list" id="settings-record-distribution">
+                <div class="compact-item"><span class="item-desc">Loading record counts...</span></div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div id="settings-trait-modal" class="modal-overlay">
+    <div class="modal-content settings-modal">
+        <div class="card-header">
+            <h3 class="card-title" id="settings-trait-modal-title">Add Trait</h3>
+            <button class="btn btn-icon" onclick="SettingsUI.closeTraitModal()"><i class="ph ph-x"></i></button>
+        </div>
+        <form id="settings-trait-form" onsubmit="SettingsUI.submitTrait(event)">
+            <input type="hidden" id="settings-trait-id">
+            <div class="form-group">
+                <label class="form-label">Name</label>
+                <input type="text" id="settings-trait-name" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Category</label>
+                <input type="text" id="settings-trait-category" class="form-control" placeholder="cognitive">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Score</label>
+                <input type="number" id="settings-trait-score" class="form-control" min="0" max="100" value="50" required>
+            </div>
+            <div class="settings-modal-actions">
+                <button type="button" class="btn" id="settings-trait-delete-btn" onclick="SettingsUI.deleteCurrentTrait()" style="display:none;">Delete</button>
+                <div class="settings-inline-actions">
+                    <button type="button" class="btn" onclick="SettingsUI.closeTraitModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Trait</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="settings-belief-modal" class="modal-overlay">
+    <div class="modal-content settings-modal">
+        <div class="card-header">
+            <h3 class="card-title" id="settings-belief-modal-title">Add Belief</h3>
+            <button class="btn btn-icon" onclick="SettingsUI.closeBeliefModal()"><i class="ph ph-x"></i></button>
+        </div>
+        <form id="settings-belief-form" onsubmit="SettingsUI.submitBelief(event)">
+            <input type="hidden" id="settings-belief-id">
+            <div class="form-group">
+                <label class="form-label">Title</label>
+                <input type="text" id="settings-belief-title" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Principle</label>
+                <textarea id="settings-belief-text" class="form-control" rows="5" required></textarea>
+            </div>
+            <div class="settings-modal-actions">
+                <button type="button" class="btn" id="settings-belief-delete-btn" onclick="SettingsUI.deleteCurrentBelief()" style="display:none;">Delete</button>
+                <div class="settings-inline-actions">
+                    <button type="button" class="btn" onclick="SettingsUI.closeBeliefModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Belief</button>
+                </div>
+            </div>
+        </form>
     </div>
 </div>
 
 <div id="settings-skill-modal" class="modal-overlay">
-    <div class="modal-content">
+    <div class="modal-content settings-modal">
         <div class="card-header">
             <h3 class="card-title" id="settings-skill-modal-title">Add Skill</h3>
             <button class="btn btn-icon" onclick="SettingsUI.closeSkillModal()"><i class="ph ph-x"></i></button>
@@ -100,11 +268,11 @@
             </div>
             <div class="form-group">
                 <label class="form-label">Notes</label>
-                <textarea id="settings-skill-notes" class="form-control" rows="3"></textarea>
+                <textarea id="settings-skill-notes" class="form-control" rows="4"></textarea>
             </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; gap: var(--space-2);">
+            <div class="settings-modal-actions">
                 <button type="button" class="btn" id="settings-skill-delete-btn" onclick="SettingsUI.deleteCurrentSkill()" style="display:none;">Delete</button>
-                <div style="display:flex; gap: var(--space-2); margin-left:auto;">
+                <div class="settings-inline-actions">
                     <button type="button" class="btn" onclick="SettingsUI.closeSkillModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Skill</button>
                 </div>

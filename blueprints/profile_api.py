@@ -3,14 +3,19 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from database import execute_db, query_db
-from services import get_skills_payload, seed_profile_defaults
+from services import (
+    get_beliefs_payload,
+    get_skills_payload,
+    get_traits_payload,
+    seed_profile_defaults,
+)
 from utils import (
+    ValidationError,
     get_optional_choice,
     get_optional_int,
     get_optional_string,
     get_required_string,
     require_object,
-    rows_to_dicts,
 )
 
 bp = Blueprint("profile_api", __name__, url_prefix="/api/profile")
@@ -20,45 +25,162 @@ EXPERIENCE_LEVELS = {"beginner", "intermediate", "advanced", "expert"}
 
 @bp.route("/traits", methods=["GET"])
 def get_traits():
+    return jsonify(get_traits_payload())
+
+
+@bp.route("/traits", methods=["POST"])
+def create_trait():
     seed_profile_defaults()
-    traits = query_db("SELECT * FROM traits ORDER BY score DESC, name ASC")
-    return jsonify(rows_to_dicts(traits))
+    payload = require_object(request.get_json(silent=True))
+    name = get_required_string(payload, "name", max_length=120)
+    score = get_optional_int(payload, "score", default=50, minimum=0, maximum=100) or 50
+    category = get_optional_string(payload, "category", max_length=80, default="general") or "general"
+    display_order = get_optional_int(payload, "display_order", minimum=1) or _next_display_order("traits")
+
+    trait_id = execute_db(
+        """
+        INSERT INTO traits (name, score, category, display_order, last_updated)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """,
+        (name, score, category, display_order),
+    )
+    _normalize_display_order("traits")
+    trait = query_db("SELECT * FROM traits WHERE id = ?", [trait_id], one=True)
+    return jsonify({"trait": dict(trait), "message": "Trait created."}), 201
+
+
+@bp.route("/traits/reorder", methods=["POST"])
+def reorder_traits():
+    payload = require_object(request.get_json(silent=True))
+    _apply_reorder("traits", payload.get("ids"))
+    return jsonify({"traits": get_traits_payload(), "message": "Trait order updated."})
 
 
 @bp.route("/traits/<int:trait_id>", methods=["PUT"])
 def update_trait(trait_id: int):
+    seed_profile_defaults()
     trait = query_db("SELECT * FROM traits WHERE id = ?", [trait_id], one=True)
     if not trait:
         return jsonify({"error": "Trait not found."}), 404
 
-    payload = request.get_json(silent=True) or {}
-    score = get_optional_int(payload, "score", minimum=0, maximum=100)
-    if score is None:
-        return jsonify({"error": "Score is required.", "field": "score"}), 400
+    payload = require_object(request.get_json(silent=True))
+    current = dict(trait)
+    name = get_required_string({"name": payload.get("name", current["name"])}, "name", max_length=120)
+    score = get_optional_int(payload, "score", default=current["score"], minimum=0, maximum=100)
+    category = get_optional_string(payload, "category", max_length=80, default=current["category"]) or "general"
+    display_order = get_optional_int(
+        payload,
+        "display_order",
+        default=current.get("display_order"),
+        minimum=1,
+    )
 
     execute_db(
-        "UPDATE traits SET score = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
-        (score, trait_id),
+        """
+        UPDATE traits
+        SET name = ?, score = ?, category = ?, display_order = ?, last_updated = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        (name, score, category, display_order, trait_id),
     )
+    _normalize_display_order("traits")
     updated = query_db("SELECT * FROM traits WHERE id = ?", [trait_id], one=True)
     return jsonify({"trait": dict(updated), "message": "Trait updated."})
 
 
+@bp.route("/traits/<int:trait_id>", methods=["DELETE"])
+def delete_trait(trait_id: int):
+    trait = query_db("SELECT id FROM traits WHERE id = ?", [trait_id], one=True)
+    if not trait:
+        return jsonify({"error": "Trait not found."}), 404
+
+    execute_db("DELETE FROM traits WHERE id = ?", [trait_id])
+    _normalize_display_order("traits")
+    return jsonify({"message": "Trait deleted."})
+
+
 @bp.route("/beliefs", methods=["GET"])
 def get_beliefs():
+    return jsonify(get_beliefs_payload())
+
+
+@bp.route("/beliefs", methods=["POST"])
+def create_belief():
     seed_profile_defaults()
-    beliefs = query_db("SELECT * FROM beliefs ORDER BY display_order ASC, id ASC")
-    return jsonify(rows_to_dicts(beliefs))
+    payload = require_object(request.get_json(silent=True))
+    title = get_required_string(payload, "title", max_length=160)
+    text = get_required_string(payload, "text", max_length=2000)
+    display_order = get_optional_int(payload, "display_order", minimum=1) or _next_display_order("beliefs")
+
+    belief_id = execute_db(
+        """
+        INSERT INTO beliefs (title, text, display_order)
+        VALUES (?, ?, ?)
+        """,
+        (title, text, display_order),
+    )
+    _normalize_display_order("beliefs")
+    belief = query_db("SELECT * FROM beliefs WHERE id = ?", [belief_id], one=True)
+    return jsonify({"belief": dict(belief), "message": "Belief created."}), 201
+
+
+@bp.route("/beliefs/reorder", methods=["POST"])
+def reorder_beliefs():
+    payload = require_object(request.get_json(silent=True))
+    _apply_reorder("beliefs", payload.get("ids"))
+    return jsonify({"beliefs": get_beliefs_payload(), "message": "Belief order updated."})
+
+
+@bp.route("/beliefs/<int:belief_id>", methods=["PUT"])
+def update_belief(belief_id: int):
+    seed_profile_defaults()
+    belief = query_db("SELECT * FROM beliefs WHERE id = ?", [belief_id], one=True)
+    if not belief:
+        return jsonify({"error": "Belief not found."}), 404
+
+    payload = require_object(request.get_json(silent=True))
+    current = dict(belief)
+    title = get_required_string({"title": payload.get("title", current["title"])}, "title", max_length=160)
+    text = get_required_string({"text": payload.get("text", current["text"])}, "text", max_length=2000)
+    display_order = get_optional_int(
+        payload,
+        "display_order",
+        default=current["display_order"],
+        minimum=1,
+    )
+
+    execute_db(
+        """
+        UPDATE beliefs
+        SET title = ?, text = ?, display_order = ?
+        WHERE id = ?
+        """,
+        (title, text, display_order, belief_id),
+    )
+    _normalize_display_order("beliefs")
+    updated = query_db("SELECT * FROM beliefs WHERE id = ?", [belief_id], one=True)
+    return jsonify({"belief": dict(updated), "message": "Belief updated."})
+
+
+@bp.route("/beliefs/<int:belief_id>", methods=["DELETE"])
+def delete_belief(belief_id: int):
+    belief = query_db("SELECT id FROM beliefs WHERE id = ?", [belief_id], one=True)
+    if not belief:
+        return jsonify({"error": "Belief not found."}), 404
+
+    execute_db("DELETE FROM beliefs WHERE id = ?", [belief_id])
+    _normalize_display_order("beliefs")
+    return jsonify({"message": "Belief deleted."})
 
 
 @bp.route("/skills", methods=["GET"])
 def get_skills():
-    seed_profile_defaults()
     return jsonify(get_skills_payload())
 
 
 @bp.route("/skills", methods=["POST"])
 def create_skill():
+    seed_profile_defaults()
     payload = require_object(request.get_json(silent=True))
     name = get_required_string(payload, "name", max_length=120)
     category = get_optional_choice(payload, "category", allowed=SKILL_CATEGORIES, default="other") or "other"
@@ -68,7 +190,7 @@ def create_skill():
         or "intermediate"
     )
     notes = get_optional_string(payload, "notes", max_length=2000, default="") or ""
-    display_order = get_optional_int(payload, "display_order", default=0, minimum=0) or 0
+    display_order = get_optional_int(payload, "display_order", minimum=1) or _next_display_order("skills")
 
     skill_id = execute_db(
         """
@@ -77,12 +199,21 @@ def create_skill():
         """,
         (name, category, proficiency, experience_level, notes, display_order),
     )
+    _normalize_display_order("skills")
     skill = query_db("SELECT * FROM skills WHERE id = ?", [skill_id], one=True)
     return jsonify({"skill": dict(skill), "message": "Skill created."}), 201
 
 
+@bp.route("/skills/reorder", methods=["POST"])
+def reorder_skills():
+    payload = require_object(request.get_json(silent=True))
+    _apply_reorder("skills", payload.get("ids"))
+    return jsonify({"skills": get_skills_payload(), "message": "Skill order updated."})
+
+
 @bp.route("/skills/<int:skill_id>", methods=["PUT"])
 def update_skill(skill_id: int):
+    seed_profile_defaults()
     skill = query_db("SELECT * FROM skills WHERE id = ?", [skill_id], one=True)
     if not skill:
         return jsonify({"error": "Skill not found."}), 404
@@ -97,7 +228,7 @@ def update_skill(skill_id: int):
         or current["experience_level"]
     )
     notes = get_optional_string(payload, "notes", max_length=2000, default=current["notes"])
-    display_order = get_optional_int(payload, "display_order", default=current["display_order"], minimum=0)
+    display_order = get_optional_int(payload, "display_order", default=current["display_order"], minimum=1)
 
     execute_db(
         """
@@ -107,6 +238,7 @@ def update_skill(skill_id: int):
         """,
         (name, category, proficiency, experience_level, notes, display_order, skill_id),
     )
+    _normalize_display_order("skills")
     updated = query_db("SELECT * FROM skills WHERE id = ?", [skill_id], one=True)
     return jsonify({"skill": dict(updated), "message": "Skill updated."})
 
@@ -118,4 +250,47 @@ def delete_skill(skill_id: int):
         return jsonify({"error": "Skill not found."}), 404
 
     execute_db("DELETE FROM skills WHERE id = ?", [skill_id])
+    _normalize_display_order("skills")
     return jsonify({"message": "Skill deleted."})
+
+
+def _next_display_order(table_name: str) -> int:
+    row = query_db(f"SELECT COALESCE(MAX(display_order), 0) + 1 AS next_order FROM {table_name}", one=True)
+    return int(row["next_order"] or 1)
+
+
+def _apply_reorder(table_name: str, ids: object) -> None:
+    if not isinstance(ids, list) or not ids:
+        raise ValidationError("Ids must be a non-empty list.", "ids")
+
+    normalized_ids: list[int] = []
+    for item in ids:
+        try:
+            parsed = int(item)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("Ids must contain only integers.", "ids") from exc
+        normalized_ids.append(parsed)
+
+    if len(set(normalized_ids)) != len(normalized_ids):
+        raise ValidationError("Ids must be unique.", "ids")
+
+    existing_ids = {int(row["id"]) for row in query_db(f"SELECT id FROM {table_name}")}
+    if set(normalized_ids) != existing_ids:
+        raise ValidationError("Ids must include every existing record exactly once.", "ids")
+
+    for index, item_id in enumerate(normalized_ids, start=1):
+        execute_db(f"UPDATE {table_name} SET display_order = ? WHERE id = ?", (index, item_id))
+
+
+def _normalize_display_order(table_name: str) -> None:
+    rows = query_db(
+        f"""
+        SELECT id, display_order
+        FROM {table_name}
+        ORDER BY COALESCE(display_order, 0) ASC, id ASC
+        """
+    )
+    for index, row in enumerate(rows, start=1):
+        if int(row["display_order"] or 0) == index:
+            continue
+        execute_db(f"UPDATE {table_name} SET display_order = ? WHERE id = ?", (index, row["id"]))

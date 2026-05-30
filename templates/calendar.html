@@ -1,102 +1,137 @@
 {% extends "base.html" %}
 
 {% block title %}Calendar{% endblock %}
-{% block page_title %}Weekly Calendar{% endblock %}
+{% block page_title %}Calendar{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/calendar.css', v=asset_version('css/calendar.css')) }}">
+{% endblock %}
 
 {% block header_actions %}
-<button class="btn btn-primary" onclick="CalendarUI.openEventModal()"><i class="ph ph-plus"></i> New Event</button>
+<button class="btn btn-primary" type="button" onclick="CalendarUI.openEventModal()"><i class="ph ph-plus"></i> New Event</button>
 {% endblock %}
 
 {% block content %}
-<div class="page-stack">
-<div class="card">
-    <div class="calendar-toolbar">
-        <button id="calendar-prev-week" class="btn" type="button"><i class="ph ph-caret-left"></i> Previous</button>
-        <div id="calendar-week-label" class="calendar-month-label">Loading week...</div>
-        <div class="section-toolbar-actions">
-            <button id="calendar-this-week" class="btn" type="button">This Week</button>
-            <button id="calendar-next-week" class="btn" type="button">Next <i class="ph ph-caret-right"></i></button>
+<div class="page-stack calendar-page">
+    <section class="card">
+        <div class="calendar-topbar">
+            <div class="calendar-nav-group">
+                <button id="calendar-prev" class="btn btn-icon" type="button" title="Previous"><i class="ph ph-caret-left"></i></button>
+                <div id="calendar-period-label" class="calendar-period-label">Loading...</div>
+                <button id="calendar-next" class="btn btn-icon" type="button" title="Next"><i class="ph ph-caret-right"></i></button>
+            </div>
+            <div class="calendar-control-group">
+                <div class="calendar-view-toggle" role="tablist" aria-label="Calendar view">
+                    <button id="calendar-view-week" class="btn btn-sm active" type="button" role="tab" aria-selected="true">Week</button>
+                    <button id="calendar-view-month" class="btn btn-sm" type="button" role="tab" aria-selected="false">Month</button>
+                </div>
+                <select id="calendar-category-filter" class="form-control">
+                    <option value="">All categories</option>
+                </select>
+                <button id="calendar-today" class="btn" type="button">Today</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="calendar-layout">
+        <div class="card calendar-main-card">
+            <div id="calendar-week-view">
+                <div class="compact-item"><span class="item-desc">Loading week...</span></div>
+            </div>
+            <div id="calendar-month-view" style="display:none;">
+                <div class="compact-item"><span class="item-desc">Loading month...</span></div>
+            </div>
+        </div>
+
+        <aside class="card calendar-agenda-card">
+            <div class="card-header">
+                <div>
+                    <div class="card-title"><i class="ph ph-list-bullets"></i> Day Agenda</div>
+                    <div class="item-desc" id="calendar-selected-date-label">No date selected</div>
+                </div>
+                <button class="btn btn-icon" type="button" onclick="CalendarUI.openEventModal()" title="Add event"><i class="ph ph-plus"></i></button>
+            </div>
+            <div id="calendar-agenda-list" class="compact-list calendar-agenda-list">
+                <div class="compact-item"><span class="item-desc">Select a day to view events.</span></div>
+            </div>
+        </aside>
+    </section>
+
+    <div id="calendar-event-modal" class="modal-overlay">
+        <div class="modal-content calendar-modal-content">
+            <div class="card-header">
+                <h3 class="card-title" id="calendar-modal-title">New Event</h3>
+                <button class="btn btn-icon" type="button" onclick="CalendarUI.closeEventModal()"><i class="ph ph-x"></i></button>
+            </div>
+            <form id="calendar-event-form" onsubmit="CalendarUI.submitEvent(event)">
+                <input type="hidden" id="calendar-event-id">
+                <div class="form-group">
+                    <label class="form-label" for="calendar-event-title">Title</label>
+                    <input type="text" id="calendar-event-title" class="form-control" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="calendar-event-category">Category</label>
+                        <input type="text" id="calendar-event-category" class="form-control" placeholder="Study, Work, Personal">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="calendar-event-location">Location</label>
+                        <input type="text" id="calendar-event-location" class="form-control" placeholder="Optional">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="calendar-event-project">Linked Project</label>
+                        <select id="calendar-event-project" class="form-control">
+                            <option value="">No project</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="calendar-event-goal">Linked Goal</label>
+                        <select id="calendar-event-goal" class="form-control">
+                            <option value="">No goal</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="calendar-event-start">Start</label>
+                        <input type="datetime-local" id="calendar-event-start" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="calendar-event-end">End</label>
+                        <input type="datetime-local" id="calendar-event-end" class="form-control" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="calendar-event-recurrence">Repeats</label>
+                        <select id="calendar-event-recurrence" class="form-control">
+                            <option value="none">Does not repeat</option>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="calendar-event-recurrence-until">Repeat Until</label>
+                        <input type="date" id="calendar-event-recurrence-until" class="form-control">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="calendar-event-description">Description</label>
+                    <textarea id="calendar-event-description" class="form-control" rows="3"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" id="calendar-delete-btn" onclick="CalendarUI.deleteCurrentEvent()" style="display:none;">Delete</button>
+                    <div class="modal-footer-actions">
+                        <button type="button" class="btn" onclick="CalendarUI.closeEventModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Event</button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
-</div>
-
-<div class="card">
-    <div id="calendar-week-view">
-        <div class="compact-item"><span class="item-desc">Loading weekly schedule...</span></div>
-    </div>
-</div>
-
-<div id="calendar-event-modal" class="modal-overlay">
-    <div class="modal-content" style="width: 520px;">
-        <div class="card-header">
-            <h3 class="card-title" id="calendar-modal-title">New Event</h3>
-            <button class="btn btn-icon" onclick="CalendarUI.closeEventModal()"><i class="ph ph-x"></i></button>
-        </div>
-        <form id="calendar-event-form" onsubmit="CalendarUI.submitEvent(event)">
-            <input type="hidden" id="calendar-event-id">
-            <div class="form-group">
-                <label class="form-label">Title</label>
-                <input type="text" id="calendar-event-title" class="form-control" required>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Category</label>
-                <input type="text" id="calendar-event-category" class="form-control" placeholder="Study, Work, Personal">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Location</label>
-                <input type="text" id="calendar-event-location" class="form-control">
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Linked Project</label>
-                    <select id="calendar-event-project" class="form-control">
-                        <option value="">No project</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Linked Goal</label>
-                    <select id="calendar-event-goal" class="form-control">
-                        <option value="">No goal</option>
-                    </select>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Repeats</label>
-                    <select id="calendar-event-recurrence" class="form-control">
-                        <option value="none">Does not repeat</option>
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Repeat Until</label>
-                    <input type="date" id="calendar-event-recurrence-until" class="form-control">
-                </div>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Start</label>
-                <input type="datetime-local" id="calendar-event-start" class="form-control" required>
-            </div>
-            <div class="form-group">
-                <label class="form-label">End</label>
-                <input type="datetime-local" id="calendar-event-end" class="form-control" required>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Description</label>
-                <textarea id="calendar-event-description" class="form-control" rows="4"></textarea>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn" id="calendar-delete-btn" onclick="CalendarUI.deleteCurrentEvent()" style="display:none;">Delete</button>
-                <div class="modal-footer-actions">
-                    <button type="button" class="btn" onclick="CalendarUI.closeEventModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Event</button>
-                </div>
-            </div>
-        </form>
-    </div>
-</div>
 </div>
 {% endblock %}
 
