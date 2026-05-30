@@ -47,8 +47,11 @@
     </main>
 </section>
 
+{% endblock %}
+
+{% block scripts %}
 <script>
-    const PROJECT_ID = {{ project_id }};
+    const PROJECT_ID = {{ project_id | tojson }};
 </script>
 <script src="{{ url_for('static', filename='js/project_notebook.js', v=asset_version('js/project_notebook.js')) }}"></script>
 {% endblock %}

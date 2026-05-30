@@ -1,6 +1,9 @@
 const ProfileUI = {
-    chart: null,
-    skillCharts: [],
+    traitChart: null,
+    skillChart: null,
+    traits: [],
+    beliefs: [],
+    skills: [],
 
     async loadData() {
         try {
@@ -10,13 +13,55 @@ const ProfileUI = {
                 API.get('/api/profile/skills')
             ]);
 
-            this.renderBeliefs(beliefs);
-            this.renderTraitsList(traits);
-            this.renderSkills(skills);
-            this.renderSkillCharts(skills);
-            this.renderChart(traits);
+            this.traits = traits;
+            this.beliefs = beliefs;
+            this.skills = skills;
+            this.renderAll();
         } catch (error) {
             CoreUI.showError(error.message || 'Failed to load profile data.');
+        }
+    },
+
+    init() {
+        this.bindEvents();
+        this.loadData();
+    },
+
+    bindEvents() {
+        document.getElementById('profile-skill-search')?.addEventListener('input', () => this.renderSkillsSection());
+        document.getElementById('profile-skill-filter-category')?.addEventListener('change', () => this.renderSkillsSection());
+        document.getElementById('profile-skill-chart-scope')?.addEventListener('change', () => this.renderSkillChart());
+    },
+
+    renderAll() {
+        this.renderSummary();
+        this.renderBeliefs(this.beliefs);
+        this.renderTraitsPreview(this.traits);
+        this.renderTraitChart(this.traits);
+        this.renderSkillChartScope();
+        this.renderSkillsSection();
+    },
+
+    renderSummary() {
+        const traitsCountEl = document.getElementById('profile-summary-traits');
+        const beliefsCountEl = document.getElementById('profile-summary-beliefs');
+        const skillsCountEl = document.getElementById('profile-summary-skills');
+        const skillsAvgEl = document.getElementById('profile-summary-skill-avg');
+        const strongestTraitEl = document.getElementById('profile-strongest-trait');
+
+        const avgSkill = this.skills.length
+            ? Math.round(this.skills.reduce((sum, skill) => sum + Number(skill.proficiency || 0), 0) / this.skills.length)
+            : 0;
+        const strongestTrait = [...this.traits].sort((left, right) => (right.score || 0) - (left.score || 0))[0];
+
+        if (traitsCountEl) traitsCountEl.textContent = String(this.traits.length);
+        if (beliefsCountEl) beliefsCountEl.textContent = String(this.beliefs.length);
+        if (skillsCountEl) skillsCountEl.textContent = String(this.skills.length);
+        if (skillsAvgEl) skillsAvgEl.textContent = `${avgSkill}%`;
+        if (strongestTraitEl) {
+            strongestTraitEl.textContent = strongestTrait
+                ? `${strongestTrait.name} ${strongestTrait.score}`
+                : 'No data';
         }
     },
 
@@ -24,145 +69,168 @@ const ProfileUI = {
         const list = document.getElementById('beliefs-list');
         if (!list) return;
 
-        list.innerHTML = '';
-        beliefs.forEach((belief) => {
-            const div = document.createElement('div');
-            div.className = 'compact-item';
-            div.style.flexDirection = 'column';
-            div.style.alignItems = 'flex-start';
-            div.style.gap = '6px';
-            div.innerHTML = `
-                <span class="item-title" style="font-family: var(--font-mono); font-size: 13px;">${CoreUI.escapeHtml(belief.title)}</span>
+        if (beliefs.length === 0) {
+            CoreUI.setEmptyState(list, 'No principles saved yet.');
+            return;
+        }
+
+        list.innerHTML = beliefs.map((belief) => `
+            <div class="compact-item profile-belief-item">
+                <span class="item-title">${CoreUI.escapeHtml(belief.title)}</span>
                 <span class="item-desc">${CoreUI.escapeHtml(belief.text)}</span>
-            `;
-            list.appendChild(div);
+            </div>
+        `).join('');
+    },
+
+    renderTraitsPreview(traits) {
+        const list = document.getElementById('traits-editor-list');
+        if (!list) return;
+
+        if (traits.length === 0) {
+            CoreUI.setEmptyState(list, 'No traits available.');
+            return;
+        }
+
+        list.innerHTML = traits.map((trait) => `
+            <div class="compact-item profile-trait-row">
+                <div class="profile-trait-meta">
+                    <div class="item-title">${CoreUI.escapeHtml(trait.name)}</div>
+                    <div class="item-desc">${CoreUI.escapeHtml(this.labelize(trait.category || 'general'))}</div>
+                </div>
+                <div class="profile-trait-preview">
+                    <div class="skill-meter">
+                        <div class="skill-meter-fill" style="width: ${trait.score}%;"></div>
+                    </div>
+                </div>
+                <div class="badge">${trait.score}</div>
+            </div>
+        `).join('');
+    },
+
+    getFilteredSkills() {
+        const query = (document.getElementById('profile-skill-search')?.value || '').trim().toLowerCase();
+        const category = document.getElementById('profile-skill-filter-category')?.value || '';
+
+        return this.skills.filter((skill) => {
+            if (category && skill.category !== category) return false;
+            if (!query) return true;
+            const haystack = `${skill.name} ${skill.category} ${skill.experience_level} ${skill.notes || ''}`.toLowerCase();
+            return haystack.includes(query);
         });
     },
 
-    renderTraitsList(traits) {
-        const list = document.getElementById('traits-list');
-        if (!list) return;
-
-        list.innerHTML = '';
-        traits.forEach((trait) => {
-            const div = document.createElement('div');
-            div.className = 'compact-item';
-            div.innerHTML = `
-                <span class="item-title">${CoreUI.escapeHtml(trait.name)}</span>
-                <span class="badge" style="background: transparent;">Score: ${trait.score} | ${CoreUI.escapeHtml(trait.category || 'general')}</span>
-            `;
-            list.appendChild(div);
-        });
+    renderSkillsSection() {
+        const filtered = this.getFilteredSkills();
+        this.renderSkills(filtered);
+        this.renderSkillChart();
     },
 
     renderSkills(skills) {
         const grid = document.getElementById('skills-grid');
         if (!grid) return;
 
-        grid.innerHTML = '';
         if (skills.length === 0) {
-            CoreUI.setEmptyState(grid, 'No technical skills added yet.', 12);
+            CoreUI.setEmptyState(grid, 'No matching skills found.');
             return;
         }
 
-        skills.forEach((skill) => {
-            const card = document.createElement('div');
-            card.className = 'card';
-            card.style.gridColumn = 'span 4';
-            card.innerHTML = `
-                <div class="item-title" style="font-size: 16px;">${CoreUI.escapeHtml(skill.name)}</div>
-                <div class="item-desc" style="margin-top: 4px; text-transform: capitalize;">${CoreUI.escapeHtml(skill.category)} • ${CoreUI.escapeHtml(skill.experience_level)}</div>
+        grid.innerHTML = skills.map((skill) => `
+            <div class="compact-item profile-skill-tile">
+                <div class="profile-skill-head">
+                    <div>
+                        <div class="item-title">${CoreUI.escapeHtml(skill.name)}</div>
+                        <div class="item-desc">${CoreUI.escapeHtml(this.labelize(skill.category))} - ${CoreUI.escapeHtml(this.labelize(skill.experience_level))}</div>
+                    </div>
+                </div>
                 <div class="skill-meter">
                     <div class="skill-meter-fill" style="width: ${skill.proficiency}%;"></div>
                 </div>
-                <div style="display:flex; justify-content:space-between; margin-top: 6px;">
+                <div class="profile-skill-meta">
                     <span class="item-desc">Proficiency</span>
-                    <span class="badge" style="background: transparent;">${skill.proficiency}%</span>
+                    <span class="badge">${skill.proficiency}%</span>
                 </div>
-                <div class="item-desc" style="margin-top: var(--space-3); min-height: 36px;">${CoreUI.escapeHtml(skill.notes || 'No notes')}</div>
-            `;
-            grid.appendChild(card);
-        });
+                <div class="item-desc">${CoreUI.escapeHtml(skill.notes || 'No notes')}</div>
+            </div>
+        `).join('');
     },
 
-    renderSkillCharts(skills) {
-        const grid = document.getElementById('skill-radar-grid');
-        if (!grid) return;
+    renderSkillChartScope() {
+        const select = document.getElementById('profile-skill-chart-scope');
+        if (!select) return;
+        const previous = select.value;
+        const categories = [...new Set(this.skills.map((skill) => skill.category))];
+        select.innerHTML = '<option value="all">Chart: All skills</option>';
+        categories.forEach((category) => {
+            const option = document.createElement('option');
+            option.value = category;
+            option.textContent = `Chart: ${this.labelize(category)}`;
+            select.appendChild(option);
+        });
+        if ([...select.options].some((option) => option.value === previous)) {
+            select.value = previous;
+        }
+    },
 
-        this.skillCharts.forEach((chart) => CoreUI.destroyChart(chart));
-        this.skillCharts = [];
-        grid.innerHTML = '';
+    renderSkillChart() {
+        const chartCanvas = document.getElementById('profileSkillChart');
+        if (!chartCanvas) return;
 
-        if (skills.length === 0) {
-            CoreUI.setEmptyState(grid, 'No skill charts available.', 12);
+        const scope = document.getElementById('profile-skill-chart-scope')?.value || 'all';
+        const filteredSkills = this.getFilteredSkills();
+
+        let items = filteredSkills;
+        if (scope !== 'all') {
+            items = filteredSkills.filter((skill) => skill.category === scope);
+        }
+        items = [...items].sort((left, right) => Number(right.proficiency || 0) - Number(left.proficiency || 0)).slice(0, 8);
+
+        CoreUI.destroyChart(this.skillChart);
+        if (!items.length) {
+            const ctx = chartCanvas.getContext('2d');
+            if (ctx) ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
             return;
         }
 
-        const groups = skills.reduce((acc, skill) => {
-            if (!acc[skill.category]) acc[skill.category] = [];
-            acc[skill.category].push(skill);
-            return acc;
-        }, {});
-
-        Object.entries(groups).forEach(([category, items], index) => {
-            const card = document.createElement('div');
-            card.className = 'card';
-            card.style.gridColumn = 'span 4';
-            card.innerHTML = `
-                <div class="card-header" style="margin-bottom: var(--space-3);">
-                    <span class="card-title" style="text-transform: capitalize;">${CoreUI.escapeHtml(category)}</span>
-                </div>
-                <div class="chart-container" style="height: 260px; display:flex; justify-content:center;">
-                    <canvas id="skill-chart-${index}"></canvas>
-                </div>
-            `;
-            grid.appendChild(card);
-
-            const ctx = card.querySelector('canvas');
-            if (!ctx) return;
-
-            Chart.defaults.color = '#a1a1aa';
-            Chart.defaults.font.family = '"JetBrains Mono", monospace';
-
-            const chart = new Chart(ctx, {
-                type: 'radar',
-                data: {
-                    labels: items.map((skill) => skill.name),
-                    datasets: [{
-                        label: category,
-                        data: items.map((skill) => skill.proficiency),
-                        backgroundColor: 'rgba(237, 237, 237, 0.08)',
-                        borderColor: '#ededed',
-                        pointBackgroundColor: '#ededed',
-                        pointBorderColor: '#000',
-                        borderWidth: 1.5
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        r: {
-                            angleLines: { color: '#1f1f22' },
-                            grid: { color: '#1f1f22' },
-                            pointLabels: { color: '#a1a1aa', font: { size: 10 } },
-                            min: 0,
-                            max: 100,
-                            ticks: { display: false }
-                        }
+        Chart.defaults.color = '#a1a1aa';
+        Chart.defaults.font.family = '"JetBrains Mono", monospace';
+        this.skillChart = new Chart(chartCanvas, {
+            type: 'radar',
+            data: {
+                labels: items.map((skill) => skill.name),
+                datasets: [{
+                    label: scope === 'all' ? 'Top skills' : this.labelize(scope),
+                    data: items.map((skill) => Number(skill.proficiency || 0)),
+                    backgroundColor: 'rgba(237, 237, 237, 0.08)',
+                    borderColor: '#ededed',
+                    pointBackgroundColor: '#ededed',
+                    pointBorderColor: '#000',
+                    borderWidth: 1.5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    r: {
+                        angleLines: { color: '#1f1f22' },
+                        grid: { color: '#1f1f22' },
+                        pointLabels: { color: '#a1a1aa', font: { size: 10 } },
+                        min: 0,
+                        max: 100,
+                        ticks: { display: false }
                     }
                 }
-            });
-            this.skillCharts.push(chart);
+            }
         });
     },
 
-    renderChart(traits) {
+    renderTraitChart(traits) {
         const ctx = document.getElementById('profileChart');
         if (!ctx) return;
 
-        CoreUI.destroyChart(this.chart);
+        CoreUI.destroyChart(this.traitChart);
+        if (!traits.length) return;
 
         const labels = traits.map((trait) => trait.name);
         const data = traits.map((trait) => trait.score);
@@ -170,12 +238,12 @@ const ProfileUI = {
         Chart.defaults.color = '#a1a1aa';
         Chart.defaults.font.family = '"JetBrains Mono", monospace';
 
-        this.chart = new Chart(ctx, {
+        this.traitChart = new Chart(ctx, {
             type: 'radar',
             data: {
                 labels,
                 datasets: [{
-                    label: 'Psychometric Profile',
+                    label: 'Trait profile',
                     data,
                     backgroundColor: 'rgba(237, 237, 237, 0.1)',
                     borderColor: '#ededed',
@@ -200,9 +268,15 @@ const ProfileUI = {
                 }
             }
         });
+    },
+
+    labelize(value) {
+        return String(value || '')
+            .replaceAll('_', ' ')
+            .replace(/\b\w/g, (char) => char.toUpperCase());
     }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    ProfileUI.loadData();
+    ProfileUI.init();
 });

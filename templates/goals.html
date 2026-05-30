@@ -61,75 +61,39 @@
 
 <div id="goal-modal" class="modal-overlay">
     <div class="modal-content goal-modal-content">
-        <div class="card-header goal-modal-header">
-            <div>
-                <h3 class="card-title" id="goal-modal-title">Goal Workspace</h3>
-                <div class="item-desc">Capture the target and the context that makes it executable.</div>
-            </div>
-            <button class="btn btn-icon" type="button" onclick="GoalUI.closeModal()"><i class="ph ph-x"></i></button>
-        </div>
-        <form id="goal-form" onsubmit="GoalUI.submitGoal(event)">
+        <form id="goal-form" onsubmit="GoalUI.submitGoal(event)" class="goal-workspace-form">
             <input type="hidden" id="goal-id">
-            <div class="goal-form-grid">
+            
+            <div class="goal-workspace-header">
                 <div>
-                    <div class="form-group">
-                        <label class="form-label" for="goal-title">Title</label>
-                        <input type="text" id="goal-title" class="form-control" required>
-                    </div>
-                    <div class="goal-inline-fields">
-                        <div class="form-group">
-                            <label class="form-label" for="goal-type">Type</label>
-                            <select id="goal-type" class="form-control">
-                                <option value="short-term">Short-Term</option>
-                                <option value="long-term">Long-Term</option>
-                                <option value="identity">Identity</option>
-                                <option value="skill">Skill Mastery</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="goal-status">Status</label>
-                            <select id="goal-status" class="form-control">
-                                <option value="active">Active</option>
-                                <option value="paused">Paused</option>
-                                <option value="completed">Completed</option>
-                                <option value="archived">Archived</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="goal-date">Target Date</label>
-                        <input type="date" id="goal-date" class="form-control">
-                    </div>
+                    <h3 class="card-title" id="goal-modal-title">Goal Workspace</h3>
+                    <div class="item-desc">Capture the target and the context that makes it executable.</div>
                 </div>
-                <div>
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label class="form-label" for="goal-notes">Notes</label>
-                        <textarea id="goal-notes" class="form-control goal-notes-field" rows="8" placeholder="Why this goal matters, how you'll approach it, constraints, or milestones"></textarea>
+                <button class="btn btn-icon" type="button" onclick="GoalUI.closeModal()"><i class="ph ph-x"></i></button>
+            </div>
+
+            <div class="goal-workspace-layout">
+                <!-- Main Content Area -->
+                <div class="goal-main-area">
+                    <div class="form-group goal-title-group">
+                        <input type="text" id="goal-title" class="form-control goal-title-input" placeholder="Enter Goal Title..." required>
                     </div>
-                    <div class="goal-links-panel">
-                        <div class="section-toolbar">
-                            <span class="card-title"><i class="ph ph-link"></i> Websites</span>
-                            <span class="item-desc">Open goal-specific sites from the goal card.</span>
-                        </div>
-                        <div id="goal-links-list" class="goal-links-list">
-                            <div class="item-desc">Save the goal to add websites.</div>
-                        </div>
-                        <div id="goal-link-add" class="goal-link-add" style="display:none;">
-                            <input type="text" id="goal-link-title" class="form-control" placeholder="Label">
-                            <input type="url" id="goal-link-url" class="form-control" placeholder="https://example.com">
-                            <button type="button" class="btn btn-primary" onclick="GoalUI.addLink()"><i class="ph ph-plus"></i></button>
-                        </div>
+
+                    <div class="form-group goal-notes-group">
+                        <label class="form-label"><i class="ph ph-text-align-left"></i> Strategy & Notes</label>
+                        <textarea id="goal-notes" class="form-control goal-notes-field" placeholder="Why this goal matters, how you'll approach it, constraints, or milestones"></textarea>
                     </div>
+
                     <div class="goal-milestones-panel">
                         <div class="section-toolbar">
-                            <span class="card-title"><i class="ph ph-flag-checkered"></i> Milestones</span>
+                            <span class="card-title"><i class="ph ph-flag-checkered"></i> Actionable Milestones</span>
                             <span class="item-desc">Steps that count toward this goal.</span>
                         </div>
                         <div id="goal-milestones-list" class="goal-milestones-list">
                             <div class="item-desc">Save the goal to add milestones.</div>
                         </div>
                         <div id="goal-milestone-add" class="goal-milestone-add" style="display:none;">
-                            <input type="text" id="goal-milestone-title" class="form-control" placeholder="Milestone">
+                            <input type="text" id="goal-milestone-title" class="form-control" placeholder="New Milestone">
                             <select id="goal-milestone-status" class="form-control">
                                 <option value="pending">Pending</option>
                                 <option value="in_progress">In Progress</option>
@@ -140,12 +104,60 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Sidebar Metadata -->
+                <div class="goal-sidebar">
+                    <div class="goal-sidebar-fields">
+                        <div class="form-group">
+                            <label class="form-label"><i class="ph ph-tag"></i> Classification</label>
+                            <select id="goal-type" class="form-control">
+                                <option value="short-term">Short-Term</option>
+                                <option value="long-term">Long-Term</option>
+                                <option value="identity">Identity</option>
+                                <option value="skill">Skill Mastery</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label"><i class="ph ph-activity"></i> Current Status</label>
+                            <select id="goal-status" class="form-control">
+                                <option value="active">Active</option>
+                                <option value="paused">Paused</option>
+                                <option value="completed">Completed</option>
+                                <option value="archived">Archived</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label"><i class="ph ph-calendar-blank"></i> Target Deadline</label>
+                            <input type="date" id="goal-date" class="form-control">
+                        </div>
+
+                        <div class="goal-links-panel">
+                            <div class="section-toolbar">
+                                <span class="card-title"><i class="ph ph-link"></i> Resources & Links</span>
+                            </div>
+                            <div id="goal-links-list" class="goal-links-list">
+                                <div class="item-desc">Save the goal to add websites.</div>
+                            </div>
+                            <div id="goal-link-add" class="goal-link-add" style="display:none;">
+                                <input type="text" id="goal-link-title" class="form-control form-control-compact" placeholder="Resource Label">
+                                <div class="goal-link-url-row">
+                                    <input type="url" id="goal-link-url" class="form-control form-control-compact" placeholder="https://...">
+                                    <button type="button" class="btn btn-primary" onclick="GoalUI.addLink()"><i class="ph ph-plus"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="goal-modal-footer">
-                <button type="button" class="btn" id="goal-delete-btn" onclick="GoalUI.deleteCurrentGoal()" style="display:none;">Delete</button>
+
+            <div class="goal-workspace-footer">
+                <button type="button" class="btn btn-danger" id="goal-delete-btn" onclick="GoalUI.deleteCurrentGoal()" style="display:none;"><i class="ph ph-trash"></i> Delete</button>
+                <div style="flex: 1;"></div>
                 <div class="goal-modal-actions">
                     <button type="button" class="btn" onclick="GoalUI.closeModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Goal</button>
+                    <button type="submit" class="btn btn-primary"><i class="ph ph-floppy-disk"></i> Save Goal</button>
                 </div>
             </div>
         </form>
@@ -268,16 +280,11 @@
         background: var(--bg-surface);
     }
 
-    .goal-link-add,
     .goal-milestone-add {
         display: grid;
-        grid-template-columns: minmax(120px, 0.75fr) minmax(180px, 1.25fr) auto;
+        grid-template-columns: minmax(160px, 1fr) minmax(140px, 0.7fr) minmax(130px, 0.6fr) auto;
         gap: var(--space-2);
         align-items: center;
-    }
-
-    .goal-milestone-add {
-        grid-template-columns: minmax(160px, 1fr) minmax(140px, 0.7fr) minmax(130px, 0.6fr) auto;
     }
 
     .goal-summary-stat {
@@ -293,28 +300,162 @@
         letter-spacing: -0.04em;
     }
 
-    .goal-modal-content {
-        width: min(980px, 94vw);
+    .goal-summary-stat .badge {
+        font-size: 10px;
     }
 
-    .goal-modal-header {
-        padding-bottom: var(--space-3);
+    /* New Goal Workspace Styles */
+    .goal-modal-content {
+        width: min(1060px, 96vw);
+        padding: 0; /* Removing padding to allow full-width layout inside */
+        overflow: hidden;
+    }
+
+    .goal-workspace-form {
+        display: flex;
+        flex-direction: column;
+        max-height: 90vh; /* Keep it within the screen */
+    }
+
+    .goal-workspace-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: var(--space-4) var(--space-5);
+        background: var(--bg-panel-hover);
         border-bottom: 1px solid var(--border-subtle);
     }
 
+    .goal-workspace-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 340px;
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    .goal-main-area {
+        padding: var(--space-5);
+        border-right: 1px solid var(--border-subtle);
+    }
+
+    .goal-title-group {
+        margin-bottom: var(--space-4);
+    }
+
+    .goal-title-input {
+        font-size: 22px;
+        font-weight: 600;
+        padding: 10px 14px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border-subtle);
+        border-radius: 0;
+        box-shadow: none;
+    }
+    
+    .goal-title-input:focus {
+        box-shadow: none;
+        border-bottom-color: var(--accent-blue);
+    }
+
+    .goal-notes-group {
+        margin-bottom: var(--space-5);
+    }
+    
+    .goal-notes-group .form-label {
+        font-size: 13px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
     .goal-notes-field {
-        min-height: 250px;
+        min-height: 220px;
         resize: vertical;
+        padding: 14px;
+        font-size: 14px;
+        line-height: 1.6;
+    }
+
+    .goal-sidebar {
+        padding: var(--space-5);
+        background: var(--bg-base);
+    }
+
+    .goal-sidebar-fields {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-4);
+    }
+
+    .goal-sidebar-fields .form-group {
+        margin-bottom: 0;
+    }
+    
+    .goal-sidebar-fields .form-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .goal-links-panel {
+        margin-top: var(--space-2);
+        padding-top: var(--space-4);
+        border-top: 1px solid var(--border-subtle);
+    }
+
+    .goal-link-add {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: var(--space-3);
+        padding: var(--space-3);
+        background: var(--bg-surface);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border-subtle);
+    }
+
+    .goal-link-url-row {
+        display: flex;
+        gap: 6px;
+    }
+    
+    .goal-link-url-row .form-control {
+        flex: 1;
+    }
+
+    .goal-milestones-panel {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: none;
+    }
+
+    .goal-workspace-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: var(--space-4) var(--space-5);
+        border-top: 1px solid var(--border-subtle);
+        background: var(--bg-panel-hover);
     }
 
     @media (max-width: 960px) {
         .goals-top-grid,
-        .goal-form-grid,
         .goals-grid {
             grid-template-columns: 1fr;
         }
 
-        .goal-link-add,
+        .goal-workspace-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .goal-main-area {
+            border-right: none;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
         .goal-milestone-add {
             grid-template-columns: 1fr;
         }
@@ -329,6 +470,13 @@
         .goal-inline-fields {
             grid-template-columns: 1fr;
             display: grid;
+        }
+        
+        .goal-workspace-header,
+        .goal-main-area,
+        .goal-sidebar,
+        .goal-workspace-footer {
+            padding: var(--space-4);
         }
     }
 </style>

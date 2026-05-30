@@ -208,7 +208,7 @@ const GoalUI = {
         const addRow = document.getElementById('goal-link-add');
         if (!list || !addRow) return;
 
-        addRow.style.display = canEdit ? 'grid' : 'none';
+        addRow.style.display = canEdit ? 'flex' : 'none';
         document.getElementById('goal-link-title').value = '';
         document.getElementById('goal-link-url').value = '';
 

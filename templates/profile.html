@@ -1,57 +1,93 @@
 {% extends "base.html" %}
 
 {% block title %}Profile{% endblock %}
-{% block page_title %}Core Identity Architecture{% endblock %}
+{% block page_title %}Profile Intelligence{% endblock %}
 
 {% block head %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/profile.css', v=asset_version('css/profile.css')) }}">
 {% endblock %}
 
 {% block content %}
-<div class="bento-grid">
-    <div class="card" style="grid-column: span 5; height: 380px;">
-        <div class="card-header">
-            <span class="card-title"><i class="ph ph-hexagon"></i> Psychometric Topology</span>
+<div class="page-stack profile-page">
+    <section class="metric-grid cols-4" id="profile-summary-grid">
+        <div class="compact-item metric-card">
+            <span class="item-desc">Traits</span>
+            <div class="stat-value" id="profile-summary-traits">0</div>
         </div>
-        <div class="chart-container" style="height: 280px; display: flex; justify-content: center;">
-            <canvas id="profileChart"></canvas>
+        <div class="compact-item metric-card">
+            <span class="item-desc">Beliefs</span>
+            <div class="stat-value" id="profile-summary-beliefs">0</div>
         </div>
-    </div>
-    
-    <div class="card" style="grid-column: span 7; background: transparent; border: none; padding: 0;">
-        <div class="card-header" style="padding-bottom: var(--space-2);">
-            <span class="card-title"><i class="ph ph-scales"></i> Core Operating Principles</span>
+        <div class="compact-item metric-card">
+            <span class="item-desc">Skills</span>
+            <div class="stat-value" id="profile-summary-skills">0</div>
         </div>
-        <div class="compact-list" id="beliefs-list" style="margin-bottom: var(--space-6);">
-            <!-- Populated via JS -->
+        <div class="compact-item metric-card">
+            <span class="item-desc">Avg Skill</span>
+            <div class="stat-value" id="profile-summary-skill-avg">0%</div>
         </div>
-        
-        <div class="card-header" style="padding-bottom: var(--space-2);">
-            <span class="card-title"><i class="ph ph-dna"></i> System Traits</span>
-        </div>
-        <div class="compact-list" id="traits-list">
-            <!-- Populated via JS -->
-        </div>
-    </div>
+    </section>
 
-    <div class="card" style="grid-column: span 12;">
-        <div class="card-header">
-            <span class="card-title"><i class="ph ph-chart-polar"></i> Skill Field Charts</span>
+    <section class="section-grid-2 profile-top-grid">
+        <div class="card profile-chart-card">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-chart-polar"></i> Trait Radar</span>
+                <span class="badge" id="profile-strongest-trait">No data</span>
+            </div>
+            <div class="profile-chart-shell">
+                <canvas id="profileChart"></canvas>
+            </div>
         </div>
-        <div class="item-desc" style="margin-bottom: var(--space-4);">Skill editing lives in Settings. This page is the overview.</div>
-        <div class="bento-grid" id="skill-radar-grid">
-            <div class="compact-item" style="grid-column: span 12;"><span class="item-desc">Loading skill charts...</span></div>
-        </div>
-    </div>
 
-    <div class="card" style="grid-column: span 12;">
+        <div class="card profile-beliefs-card">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-scales"></i> Operating Principles</span>
+            </div>
+            <div class="compact-list profile-beliefs-list" id="beliefs-list">
+                <div class="compact-item"><span class="item-desc">Loading beliefs...</span></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="card">
         <div class="card-header">
-            <span class="card-title"><i class="ph ph-code"></i> Technical Skill Inventory</span>
+            <span class="card-title"><i class="ph ph-sliders"></i> Traits</span>
         </div>
-        <div class="bento-grid" id="skills-grid">
-            <div class="compact-item" style="grid-column: span 12;"><span class="item-desc">Loading skills...</span></div>
+        <div class="item-desc profile-section-desc">Trait values are managed in Settings.</div>
+        <div class="compact-list profile-trait-list" id="traits-editor-list">
+            <div class="compact-item"><span class="item-desc">Loading traits...</span></div>
         </div>
-    </div>
+    </section>
+
+    <section class="card">
+        <div class="card-header" style="padding-bottom: var(--space-2);">
+            <span class="card-title"><i class="ph ph-chart-line"></i> Skills</span>
+        </div>
+        <div class="item-desc profile-section-desc">Skill values are managed in Settings.</div>
+        <div class="profile-skill-toolbar">
+            <input type="text" id="profile-skill-search" class="form-control" placeholder="Search skills">
+            <select id="profile-skill-filter-category" class="form-control">
+                <option value="">All categories</option>
+                <option value="language">Language</option>
+                <option value="framework">Framework</option>
+                <option value="tool">Tool</option>
+                <option value="database">Database</option>
+                <option value="platform">Platform</option>
+                <option value="other">Other</option>
+            </select>
+            <select id="profile-skill-chart-scope" class="form-control">
+                <option value="all">Chart: All skills</option>
+            </select>
+        </div>
+        <div class="profile-skill-chart-card">
+            <div class="profile-chart-shell profile-skill-chart-shell">
+                <canvas id="profileSkillChart"></canvas>
+            </div>
+        </div>
+        <div class="profile-skill-grid" id="skills-grid">
+            <div class="compact-item"><span class="item-desc">Loading skills...</span></div>
+        </div>
+    </section>
 </div>
 {% endblock %}
 

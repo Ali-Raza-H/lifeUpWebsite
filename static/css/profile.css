@@ -1,0 +1,156 @@
+.profile-page {
+    min-width: 0;
+}
+
+.profile-top-grid {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+}
+
+.profile-chart-card,
+.profile-beliefs-card {
+    min-height: 0;
+}
+
+.profile-chart-shell {
+    position: relative;
+    width: 100%;
+    height: 320px;
+}
+
+.profile-skill-chart-shell {
+    height: 260px;
+}
+
+.profile-beliefs-list {
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.profile-belief-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.profile-section-desc {
+    margin-bottom: var(--space-3);
+}
+
+.profile-trait-list {
+    gap: var(--space-2);
+}
+
+.profile-trait-row {
+    display: grid;
+    grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.3fr) auto;
+    gap: var(--space-3);
+    align-items: center;
+}
+
+.profile-trait-meta {
+    min-width: 0;
+}
+
+.profile-trait-preview {
+    width: 100%;
+}
+
+.profile-trait-controls {
+    display: grid;
+    grid-template-columns: minmax(140px, 1fr) 86px auto;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+.profile-trait-range {
+    width: 100%;
+    accent-color: var(--accent-blue);
+}
+
+.profile-trait-number {
+    min-height: 32px;
+    padding: 4px 8px;
+}
+
+.profile-trait-state {
+    min-width: 76px;
+    text-align: right;
+}
+
+.profile-skill-toolbar {
+    display: grid;
+    grid-template-columns: minmax(220px, 1.5fr) minmax(180px, 1fr) minmax(180px, 1fr);
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.profile-skill-chart-card {
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-surface);
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.profile-skill-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+.profile-skill-tile {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+}
+
+.profile-skill-head,
+.profile-skill-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.profile-skill-head {
+    align-items: flex-start;
+}
+
+.profile-skill-modal-content {
+    width: min(640px, calc(100vw - 24px));
+    max-width: none;
+}
+
+#profile-skill-proficiency {
+    width: 100%;
+    accent-color: var(--accent-blue);
+}
+
+@media (max-width: 1024px) {
+    .profile-top-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .profile-skill-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .profile-trait-row {
+        grid-template-columns: 1fr;
+    }
+
+    .profile-trait-controls {
+        grid-template-columns: 1fr 82px auto;
+    }
+
+    .profile-trait-state {
+        text-align: left;
+    }
+
+    .profile-skill-toolbar,
+    .profile-skill-grid {
+        grid-template-columns: 1fr;
+    }
+}

@@ -5,15 +5,25 @@ const LifeUI = {
     reviews: [],
     attachments: [],
     summary: {},
+    activePanel: 'health',
 
     async init() {
         this.setDefaultDates();
         await this.loadAll();
+        this.setupModalClosures();
+    },
+
+    setupModalClosures() {
+        window.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) {
+                e.target.style.display = 'none';
+            }
+        });
     },
 
     setDefaultDates() {
         const today = new Date().toISOString().slice(0, 10);
-        ['health-date', 'finance-date', 'review-start'].forEach((id) => {
+        ['health-date', 'finance-date', 'review-start', 'contact-last', 'contact-next'].forEach((id) => {
             const field = document.getElementById(id);
             if (field && !field.value) field.value = today;
         });
@@ -63,24 +73,24 @@ const LifeUI = {
 
         container.innerHTML = `
             <div class="compact-item metric-card">
-                <span class="item-desc">Latest Sleep</span>
-                <div class="life-metric-value">${latest.sleep_hours ?? '--'}h</div>
-                <span class="badge">${CoreUI.escapeHtml(latest.log_date || 'No log')}</span>
+                <span class="item-desc">Sleep & Energy</span>
+                <div class="life-metric-value">${latest.sleep_hours ?? '--'}h / ${latest.energy_score ?? '--'}</div>
+                <span class="badge">${latest.exercise_minutes ?? 0}m exercise</span>
             </div>
             <div class="compact-item metric-card">
-                <span class="item-desc">Energy</span>
-                <div class="life-metric-value">${latest.energy_score ?? '--'}/10</div>
-                <span class="badge">${latest.exercise_minutes ?? 0} min movement</span>
-            </div>
-            <div class="compact-item metric-card">
-                <span class="item-desc">Net Tracked</span>
+                <span class="item-desc">Tracked Balance</span>
                 <div class="life-metric-value">${this.formatMoney(balance)}</div>
                 <span class="badge">${finance.entry_count || 0} entries</span>
             </div>
             <div class="compact-item metric-card">
                 <span class="item-desc">Follow-ups Due</span>
                 <div class="life-metric-value">${this.summary.contacts_due || 0}</div>
-                <span class="badge">${this.contacts.length} contacts</span>
+                <span class="badge">${this.contacts.length} total contacts</span>
+            </div>
+            <div class="compact-item metric-card">
+                <span class="item-desc">Last Review</span>
+                <div class="life-metric-value">${this.reviews[0]?.score ?? '--'}/10</div>
+                <span class="badge">${this.reviews[0] ? CoreUI.formatDate(this.reviews[0].period_start) : 'None'}</span>
             </div>
         `;
     },
@@ -93,16 +103,20 @@ const LifeUI = {
             return;
         }
 
-        container.innerHTML = this.health.slice(0, 8).map((log) => `
-            <div class="compact-item life-row">
+        container.innerHTML = this.health.slice(0, 15).map((log) => `
+            <div class="life-row compact-item">
                 <div class="item-main">
                     <div class="item-title">${CoreUI.formatDate(log.log_date)}</div>
                     <div class="item-desc">
-                        Sleep ${log.sleep_hours ?? '--'}h - Weight ${log.weight_kg ?? '--'}kg - Exercise ${log.exercise_minutes ?? 0}m - Energy ${log.energy_score ?? '--'}/10
+                        Sleep <strong>${log.sleep_hours ?? '--'}h</strong> • 
+                        Energy <strong>${log.energy_score ?? '--'}/10</strong> • 
+                        Exercise <strong>${log.exercise_minutes ?? 0}m</strong> • 
+                        Weight <strong>${log.weight_kg ?? '--'}kg</strong>
                     </div>
-                    ${log.symptoms ? `<div class="item-desc">${CoreUI.escapeHtml(log.symptoms)}</div>` : ''}
+                    ${log.symptoms ? `<div class="item-desc mt-1"><i class="ph ph-warning-circle"></i> ${CoreUI.escapeHtml(log.symptoms)}</div>` : ''}
+                    ${log.notes ? `<div class="item-desc text-muted">${CoreUI.escapeHtml(log.notes)}</div>` : ''}
                 </div>
-                <button type="button" class="btn btn-icon btn-danger" onclick="LifeUI.deleteItem('health', ${log.id})" title="Delete health log"><i class="ph ph-trash"></i></button>
+                <button type="button" class="btn btn-icon btn-danger" onclick="LifeUI.deleteItem('health', ${log.id})" title="Delete"><i class="ph ph-trash"></i></button>
             </div>
         `).join('');
     },
@@ -115,16 +129,19 @@ const LifeUI = {
             return;
         }
 
-        container.innerHTML = this.finance.slice(0, 10).map((entry) => `
-            <div class="compact-item life-row">
+        container.innerHTML = this.finance.slice(0, 20).map((entry) => `
+            <div class="life-row compact-item">
                 <div class="item-main">
-                    <div class="item-title">${CoreUI.escapeHtml(entry.category || entry.type)} - ${this.formatMoney(entry.amount)}</div>
-                    <div class="item-desc">
-                        ${CoreUI.formatDate(entry.entry_date)} - ${CoreUI.escapeHtml(entry.type)}${entry.is_recurring ? ' - recurring' : ''}
+                    <div class="item-title d-flex justify-content-between">
+                        <span>${CoreUI.escapeHtml(entry.category || entry.type)}</span>
+                        <span class="finance-${entry.type}">${entry.type === 'expense' ? '-' : '+'}${this.formatMoney(entry.amount)}</span>
                     </div>
-                    ${entry.description ? `<div class="item-desc">${CoreUI.escapeHtml(entry.description)}</div>` : ''}
+                    <div class="item-desc">
+                        ${CoreUI.formatDate(entry.entry_date)} • <span class="badge btn-sm">${entry.type}</span> ${entry.is_recurring ? '<i class="ph ph-repeat"></i>' : ''}
+                    </div>
+                    ${entry.description ? `<div class="item-desc text-muted">${CoreUI.escapeHtml(entry.description)}</div>` : ''}
                 </div>
-                <button type="button" class="btn btn-icon btn-danger" onclick="LifeUI.deleteItem('finance', ${entry.id})" title="Delete finance entry"><i class="ph ph-trash"></i></button>
+                <button type="button" class="btn btn-icon btn-danger" onclick="LifeUI.deleteItem('finance', ${entry.id})" title="Delete"><i class="ph ph-trash"></i></button>
             </div>
         `).join('');
     },
@@ -138,17 +155,19 @@ const LifeUI = {
         }
 
         container.innerHTML = this.contacts.map((contact) => `
-            <div class="compact-item life-row">
+            <div class="life-row compact-item">
                 <div class="item-main">
-                    <div class="item-title">${CoreUI.escapeHtml(contact.name)}</div>
+                    <div class="item-title">${CoreUI.escapeHtml(contact.name)} <span class="badge">${contact.priority}</span></div>
                     <div class="item-desc">
-                        ${CoreUI.escapeHtml(contact.relation || 'No relation')} - ${CoreUI.escapeHtml(contact.priority)}
+                        ${CoreUI.escapeHtml(contact.relation || 'No relation')} • 
+                        Last: ${CoreUI.formatDate(contact.last_contacted) || 'Never'} • 
+                        <strong>Next: ${CoreUI.formatDate(contact.next_follow_up) || 'Not set'}</strong>
                     </div>
-                    <div class="item-desc">Last ${CoreUI.formatDate(contact.last_contacted)} - Next ${CoreUI.formatDate(contact.next_follow_up)}</div>
+                    ${contact.notes ? `<div class="item-desc text-muted">${CoreUI.escapeHtml(contact.notes)}</div>` : ''}
                 </div>
                 <div class="life-row-actions">
-                    <button type="button" class="btn btn-icon" onclick="LifeUI.editContact(${contact.id})" title="Edit contact"><i class="ph ph-pencil-simple"></i></button>
-                    <button type="button" class="btn btn-icon btn-danger" onclick="LifeUI.deleteItem('contacts', ${contact.id})" title="Delete contact"><i class="ph ph-trash"></i></button>
+                    <button type="button" class="btn btn-icon" onclick="LifeUI.editContact(${contact.id})" title="Edit"><i class="ph ph-pencil-simple"></i></button>
+                    <button type="button" class="btn btn-icon btn-danger" onclick="LifeUI.deleteItem('contacts', ${contact.id})" title="Delete"><i class="ph ph-trash"></i></button>
                 </div>
             </div>
         `).join('');
@@ -162,14 +181,15 @@ const LifeUI = {
             return;
         }
 
-        container.innerHTML = this.reviews.slice(0, 6).map((review) => `
-            <div class="compact-item life-row">
+        container.innerHTML = this.reviews.map((review) => `
+            <div class="life-row compact-item">
                 <div class="item-main">
                     <div class="item-title">${CoreUI.escapeHtml(review.period_type)} review - ${CoreUI.formatDate(review.period_start)}</div>
-                    <div class="item-desc">Score ${review.score ?? '--'}/10</div>
-                    ${review.next_focus ? `<div class="item-desc">${CoreUI.escapeHtml(review.next_focus)}</div>` : ''}
+                    <div class="item-desc">Score <strong>${review.score ?? '--'}/10</strong></div>
+                    ${review.wins ? `<div class="item-desc"><strong>Wins:</strong> ${CoreUI.escapeHtml(review.wins)}</div>` : ''}
+                    ${review.next_focus ? `<div class="item-desc"><strong>Focus:</strong> ${CoreUI.escapeHtml(review.next_focus)}</div>` : ''}
                 </div>
-                <button type="button" class="btn btn-icon btn-danger" onclick="LifeUI.deleteItem('reviews', ${review.id})" title="Delete review"><i class="ph ph-trash"></i></button>
+                <button type="button" class="btn btn-icon btn-danger" onclick="LifeUI.deleteItem('reviews', ${review.id})" title="Delete"><i class="ph ph-trash"></i></button>
             </div>
         `).join('');
     },
@@ -183,21 +203,60 @@ const LifeUI = {
         }
 
         container.innerHTML = this.attachments.map((item) => `
-            <div class="compact-item life-resource">
+            <div class="compact-item life-resource card">
                 <div class="item-main">
                     <div class="life-resource-head">
-                        <span class="badge">${CoreUI.escapeHtml(item.entity_type)}${item.entity_id ? ` #${item.entity_id}` : ''}</span>
+                        <span class="badge">${CoreUI.escapeHtml(item.entity_type)}</span>
+                        ${item.entity_id ? `<span class="badge">#${item.entity_id}</span>` : ''}
                     </div>
                     <a class="item-title life-resource-link" href="${CoreUI.escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">
-                        <i class="ph ph-arrow-square-out"></i>${CoreUI.escapeHtml(item.title)}
+                        <i class="ph ph-arrow-square-out"></i> ${CoreUI.escapeHtml(item.title)}
                     </a>
                     ${item.notes ? `<div class="item-desc">${CoreUI.escapeHtml(item.notes)}</div>` : ''}
                 </div>
-                <button type="button" class="btn btn-icon btn-danger" onclick="LifeUI.deleteItem('attachments', ${item.id})" title="Delete resource"><i class="ph ph-trash"></i></button>
+                <div class="mt-3 d-flex justify-content-end">
+                    <button type="button" class="btn btn-icon btn-danger btn-sm" onclick="LifeUI.deleteItem('attachments', ${item.id})" title="Delete"><i class="ph ph-trash"></i></button>
+                </div>
             </div>
         `).join('');
     },
 
+    // UI Logic
+    switchPanel(panelId) {
+        this.activePanel = panelId;
+        
+        // Update nav
+        document.querySelectorAll('.life-nav-item').forEach(el => {
+            el.classList.toggle('active', el.dataset.panel === panelId);
+        });
+
+        // Update panels
+        document.querySelectorAll('.life-content-panel').forEach(el => {
+            el.classList.toggle('active', el.id === `panel-${panelId}`);
+        });
+    },
+
+    openModal(panelId) {
+        const modal = document.getElementById(`modal-${panelId}`);
+        if (modal) {
+            modal.style.display = 'flex';
+            this.setDefaultDates();
+        }
+    },
+
+    closeModal(panelId) {
+        const modal = document.getElementById(`modal-${panelId}`);
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    },
+
+    openQuickAdd() {
+        // Just open the active panel's modal for now, or health by default
+        this.openModal(this.activePanel || 'health');
+    },
+
+    // Form Submissions
     async saveHealth(event) {
         event.preventDefault();
         const payload = {
@@ -209,7 +268,7 @@ const LifeUI = {
             symptoms: document.getElementById('health-symptoms').value,
             notes: document.getElementById('health-notes').value
         };
-        await this.postForm('/api/life/health', payload, 'Health log saved.', 'life-health-form');
+        await this.postForm('/api/life/health', payload, 'Health log saved.', 'life-health-form', 'health');
     },
 
     async saveFinance(event) {
@@ -222,7 +281,7 @@ const LifeUI = {
             description: document.getElementById('finance-description').value,
             is_recurring: document.getElementById('finance-recurring').checked
         };
-        await this.postForm('/api/life/finance', payload, 'Finance entry saved.', 'life-finance-form');
+        await this.postForm('/api/life/finance', payload, 'Finance entry saved.', 'life-finance-form', 'finance');
     },
 
     async saveContact(event) {
@@ -242,6 +301,7 @@ const LifeUI = {
             } else {
                 await API.post('/api/life/contacts', payload);
             }
+            this.closeModal('contacts');
             this.resetContactForm();
             await this.loadAll();
             CoreUI.showError('Contact saved.', true);
@@ -260,7 +320,7 @@ const LifeUI = {
             challenges: document.getElementById('review-challenges').value,
             next_focus: document.getElementById('review-focus').value
         };
-        await this.postForm('/api/life/reviews', payload, 'Review saved.', 'life-review-form');
+        await this.postForm('/api/life/reviews', payload, 'Review saved.', 'life-review-form', 'reviews');
     },
 
     async saveAttachment(event) {
@@ -272,12 +332,13 @@ const LifeUI = {
             url: document.getElementById('attachment-url').value,
             notes: document.getElementById('attachment-notes').value
         };
-        await this.postForm('/api/life/attachments', payload, 'Resource saved.', 'life-attachment-form');
+        await this.postForm('/api/life/attachments', payload, 'Resource saved.', 'life-attachment-form', 'attachments');
     },
 
-    async postForm(endpoint, payload, message, formId) {
+    async postForm(endpoint, payload, message, formId, modalId) {
         try {
             await API.post(endpoint, payload);
+            this.closeModal(modalId);
             document.getElementById(formId)?.reset();
             this.setDefaultDates();
             await this.loadAll();
@@ -297,12 +358,15 @@ const LifeUI = {
         document.getElementById('contact-last').value = contact.last_contacted || '';
         document.getElementById('contact-next').value = contact.next_follow_up || '';
         document.getElementById('contact-notes').value = contact.notes || '';
+        document.getElementById('contact-modal-title').textContent = 'Edit Contact';
+        this.openModal('contacts');
     },
 
     resetContactForm() {
         document.getElementById('life-contact-form')?.reset();
         document.getElementById('contact-id').value = '';
         document.getElementById('contact-priority').value = 'normal';
+        document.getElementById('contact-modal-title').textContent = 'Relationship Contact';
     },
 
     async deleteItem(kind, id) {

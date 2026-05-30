@@ -1,28 +1,28 @@
 :root {
-    /* Premium Minimalist Dark Theme */
-    --bg-base: #0f1115;
-    --bg-panel: #151820;
-    --bg-panel-hover: #1a1f29;
-    --bg-surface: #1b202a;
-    --bg-surface-hover: #242b36;
+    /* AMOLED True Black Theme */
+    --bg-base: #000000;
+    --bg-panel: #0a0a0a;
+    --bg-panel-hover: #121212;
+    --bg-surface: #111111;
+    --bg-surface-hover: #1a1a1a;
     
-    --text-primary: #f4f6f8;
-    --text-secondary: #aeb7c4;
-    --text-muted: #6f7a89;
+    --text-primary: #ffffff;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
     --text-error: var(--accent-red);
     --text-warning: var(--accent-amber);
     
-    --border-subtle: #293140;
-    --border-focus: #475569;
+    --border-subtle: #27272a;
+    --border-focus: #3f3f46;
     --border-strong: var(--border-focus);
     
-    /* Accents - Very subtle, mostly monochrome with slight hues */
-    --accent-blue: #60a5fa;
-    --accent-green: #34d399;
-    --accent-amber: #fbbf24;
-    --accent-red: #fb7185;
+    /* Accents - Neon Cyberpunk */
+    --accent-blue: #00f0ff;
+    --accent-green: #39ff14;
+    --accent-amber: #ffdf00;
+    --accent-red: #ff0055;
     --accent-yellow: var(--accent-amber);
-    --accent-purple: #8b5cf6;
+    --accent-purple: #b026ff;
     --status-critical: var(--accent-red);
     --text-success: var(--accent-green);
 
@@ -33,7 +33,7 @@
     --surface-light: var(--bg-surface-hover);
     --border-color: var(--border-subtle);
     --border-radius: var(--radius-lg);
-    --shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.28);
+    --shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.4);
     --spacing-xs: var(--space-1);
     --spacing-sm: var(--space-2);
     --spacing-md: var(--space-4);

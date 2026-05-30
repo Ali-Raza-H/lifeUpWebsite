@@ -72,26 +72,41 @@ const DashboardUI = {
     },
 
     renderOverview(overview, tasks, todayPayload) {
+        const activeTaskCount = tasks.length;
+        const activeProjectCount = overview?.active_projects ?? 0;
+        const overdueCount = todayPayload?.overdue_tasks ?? 0;
+        const consistency = overview?.consistency ?? 0;
+
         const grid = document.getElementById('dashboard-summary-grid');
-        if (!grid) return;
-        grid.innerHTML = `
-            <div class="compact-item metric-card">
-                <span class="item-desc">Active Tasks</span>
-                <div class="stat-value">${tasks.length}</div>
-            </div>
-            <div class="compact-item metric-card">
-                <span class="item-desc">Active Projects</span>
-                <div class="stat-value">${overview?.active_projects ?? 0}</div>
-            </div>
-            <div class="compact-item metric-card">
-                <span class="item-desc">Overdue</span>
-                <div class="stat-value">${todayPayload?.overdue_tasks ?? 0}</div>
-            </div>
-            <div class="compact-item metric-card">
-                <span class="item-desc">Consistency</span>
-                <div class="stat-value">${overview?.consistency ?? 0}%</div>
-            </div>
-        `;
+        if (grid) {
+            grid.innerHTML = `
+                <div class="compact-item metric-card">
+                    <span class="item-desc">Active Tasks</span>
+                    <div class="stat-value">${activeTaskCount}</div>
+                </div>
+                <div class="compact-item metric-card">
+                    <span class="item-desc">Active Projects</span>
+                    <div class="stat-value">${activeProjectCount}</div>
+                </div>
+                <div class="compact-item metric-card">
+                    <span class="item-desc">Overdue</span>
+                    <div class="stat-value">${overdueCount}</div>
+                </div>
+                <div class="compact-item metric-card">
+                    <span class="item-desc">Consistency</span>
+                    <div class="stat-value">${consistency}%</div>
+                </div>
+            `;
+        }
+
+        const activeTasksEl = document.getElementById('active-tasks-count');
+        if (activeTasksEl) activeTasksEl.textContent = String(activeTaskCount);
+
+        const activeProjectsEl = document.getElementById('active-projects-count');
+        if (activeProjectsEl) activeProjectsEl.textContent = String(activeProjectCount);
+
+        const consistencyEl = document.getElementById('habit-consistency');
+        if (consistencyEl) consistencyEl.textContent = `${consistency}%`;
     },
 
     renderToday(todayPayload) {
