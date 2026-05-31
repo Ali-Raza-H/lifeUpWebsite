@@ -23,6 +23,7 @@ FINANCE_TYPES = {"income", "expense", "saving", "subscription"}
 CONTACT_PRIORITIES = {"low", "normal", "high"}
 REVIEW_PERIODS = {"weekly", "monthly"}
 ATTACHMENT_ENTITIES = {"general", "note", "project", "goal", "journal", "task"}
+MEAL_TYPES = {"breakfast", "lunch", "dinner", "snack"}
 
 
 def _optional_float(payload: dict, field: str, *, minimum: float | None = None) -> float | None:
@@ -79,11 +80,25 @@ def get_summary():
         """,
         one=True,
     )
+    today_diet = query_db(
+        """
+        SELECT
+            COUNT(*) AS entry_count,
+            COALESCE(SUM(calories), 0) AS calories,
+            COALESCE(SUM(protein_g), 0) AS protein_g,
+            COALESCE(SUM(carbs_g), 0) AS carbs_g,
+            COALESCE(SUM(fat_g), 0) AS fat_g
+        FROM diet_entries
+        WHERE entry_date = DATE('now')
+        """,
+        one=True,
+    )
     return jsonify(
         {
             "latest_health": row_to_dict(latest_health),
             "finance": row_to_dict(finance),
             "contacts_due": contacts_due["count"] if contacts_due else 0,
+            "today_diet": row_to_dict(today_diet),
         }
     )
 
@@ -125,6 +140,99 @@ def delete_health_log(log_id: int):
         return jsonify({"error": "Health log not found."}), 404
     execute_db("DELETE FROM health_logs WHERE id = ?", [log_id])
     return jsonify({"message": "Health log deleted."})
+
+
+@bp.route("/diet/presets", methods=["GET"])
+def get_food_presets():
+    rows = query_db(
+        """
+        SELECT *
+        FROM food_presets
+        ORDER BY display_order ASC, name COLLATE NOCASE ASC, id ASC
+        """
+    )
+    return jsonify(rows_to_dicts(rows))
+
+
+@bp.route("/diet", methods=["GET"])
+def get_diet_entries():
+    rows = query_db(
+        """
+        SELECT *
+        FROM diet_entries
+        ORDER BY
+            entry_date DESC,
+            CASE meal_type
+                WHEN 'breakfast' THEN 0
+                WHEN 'lunch' THEN 1
+                WHEN 'dinner' THEN 2
+                ELSE 3
+            END,
+            id DESC
+        LIMIT 120
+        """
+    )
+    return jsonify(rows_to_dicts(rows))
+
+
+@bp.route("/diet", methods=["POST"])
+def create_diet_entry():
+    payload = require_object(request.get_json(silent=True))
+    entry_date = get_optional_date(payload, "entry_date")
+    if not entry_date:
+        raise ValidationError("Entry date is required.", "entry_date")
+
+    preset_id = get_optional_int(payload, "preset_id", minimum=1)
+    if preset_id is None:
+        raise ValidationError("Preset food is required.", "preset_id")
+
+    meal_type = get_optional_choice(payload, "meal_type", allowed=MEAL_TYPES, default="snack") or "snack"
+    servings = _required_float(payload, "servings", minimum=0.1)
+    notes = get_optional_string(payload, "notes", max_length=1000, default="") or ""
+
+    preset = query_db("SELECT * FROM food_presets WHERE id = ?", [preset_id], one=True)
+    if not preset:
+        return jsonify({"error": "Food preset not found."}), 404
+
+    calories = round(float(preset["calories"] or 0) * servings, 2)
+    protein_g = round(float(preset["protein_g"] or 0) * servings, 2)
+    carbs_g = round(float(preset["carbs_g"] or 0) * servings, 2)
+    fat_g = round(float(preset["fat_g"] or 0) * servings, 2)
+
+    entry_id = execute_db(
+        """
+        INSERT INTO diet_entries (
+            entry_date, preset_id, food_name, category, serving_label, meal_type, servings,
+            calories, protein_g, carbs_g, fat_g, notes
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            entry_date,
+            preset_id,
+            preset["name"],
+            preset["category"] if "category" in preset.keys() else "",
+            preset["serving_label"],
+            meal_type,
+            servings,
+            calories,
+            protein_g,
+            carbs_g,
+            fat_g,
+            notes,
+        ),
+    )
+    entry = query_db("SELECT * FROM diet_entries WHERE id = ?", [entry_id], one=True)
+    return jsonify({"entry": row_to_dict(entry), "message": "Diet entry saved."}), 201
+
+
+@bp.route("/diet/<int:entry_id>", methods=["DELETE"])
+def delete_diet_entry(entry_id: int):
+    row = query_db("SELECT id FROM diet_entries WHERE id = ?", [entry_id], one=True)
+    if not row:
+        return jsonify({"error": "Diet entry not found."}), 404
+    execute_db("DELETE FROM diet_entries WHERE id = ?", [entry_id])
+    return jsonify({"message": "Diet entry deleted."})
 
 
 @bp.route("/finance", methods=["GET"])

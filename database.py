@@ -6,6 +6,38 @@ from pathlib import Path
 from flask import current_app, g
 
 
+DEFAULT_FOOD_PRESETS = (
+    ("Pakistani Staples", "Roti", "1 medium", 120, 3.8, 22, 1.2, 1),
+    ("Pakistani Staples", "Paratha", "1 plain paratha", 300, 7, 39, 12, 2),
+    ("Pakistani Staples", "Naan", "1 naan", 260, 8, 50, 4, 3),
+    ("Pakistani Staples", "Basmati Rice", "1 cup cooked", 205, 4.3, 45, 0.4, 4),
+    ("Protein & Basics", "White Rice", "100 g cooked", 130, 2.7, 28, 0.3, 5),
+    ("Pakistani Staples", "Chai", "1 mug with milk and sugar", 120, 3, 18, 4, 6),
+    ("Pakistani Mains", "Daal", "1 cup cooked", 230, 18, 40, 1, 7),
+    ("Pakistani Mains", "Chicken Curry", "1 cup", 280, 26, 8, 16, 8),
+    ("Pakistani Mains", "Keema Curry", "1 cup", 320, 23, 9, 22, 9),
+    ("Pakistani Mains", "Seekh Kebab", "2 kebabs", 220, 20, 5, 14, 10),
+    ("Pakistani Snacks", "Samosa", "1 medium", 260, 5, 27, 14, 11),
+    ("Pakistani Snacks", "Pakora", "3 pieces", 220, 5, 18, 14, 12),
+    ("Protein & Basics", "Chicken Breast", "100 g", 165, 31, 0, 3.6, 13),
+    ("Protein & Basics", "Eggs", "2 large eggs", 140, 12, 1, 10, 14),
+    ("Protein & Basics", "Whey Protein", "1 scoop", 120, 24, 3, 1.5, 15),
+    ("Protein & Basics", "Salmon", "100 g", 208, 20, 0, 13, 16),
+    ("Breakfast & Dairy", "Oats", "50 g", 190, 6.5, 33, 3.5, 17),
+    ("Breakfast & Dairy", "Greek Yogurt", "170 g pot", 100, 17, 6, 0, 18),
+    ("Breakfast & Dairy", "Whole Milk", "250 ml", 155, 8, 12, 8.5, 19),
+    ("Breakfast & Dairy", "Wholemeal Bread", "2 slices", 190, 8, 30, 2.5, 20),
+    ("Fruit & Quick Bits", "Banana", "1 medium", 105, 1.3, 27, 0.3, 21),
+    ("Fruit & Quick Bits", "Peanut Butter", "1 tbsp", 95, 4, 3, 8, 22),
+    ("Fruit & Quick Bits", "Pasta", "100 g cooked", 157, 5.8, 31, 0.9, 23),
+    ("Drinks", "Monster Energy Original", "1 can (500 ml)", 237, 0, 60, 0, 24),
+    ("Corner Shop Crisps", "Cheetos Twisted Sweet & Spicy Flamin' Hot", "1 grab bag (38 g)", 203, 2.1, 23, 11, 25),
+    ("Corner Shop Crisps", "Golden Cross Party Mix Sea Salt & Black Pepper", "1 serving (25 g)", 115, 1, 17.5, 4.7, 26),
+    ("Chocolate & Sweets", "Snickers Duo", "1 bar (41.7 g)", 215, 4, 22, 12, 27),
+    ("Chocolate & Sweets", "Reese's Big Cup King Size", "1 pack (78 g)", 400, 9, 45, 23, 28),
+)
+
+
 MIGRATIONS = (
     ("traits", "display_order", "ALTER TABLE traits ADD COLUMN display_order INTEGER NOT NULL DEFAULT 0"),
     ("tasks", "completed_at", "ALTER TABLE tasks ADD COLUMN completed_at DATETIME"),
@@ -21,6 +53,8 @@ MIGRATIONS = (
     ("calendar_events", "goal_id", "ALTER TABLE calendar_events ADD COLUMN goal_id INTEGER"),
     ("calendar_events", "recurrence", "ALTER TABLE calendar_events ADD COLUMN recurrence TEXT DEFAULT 'none'"),
     ("calendar_events", "recurrence_until", "ALTER TABLE calendar_events ADD COLUMN recurrence_until DATE"),
+    ("food_presets", "category", "ALTER TABLE food_presets ADD COLUMN category TEXT NOT NULL DEFAULT 'Uncategorized'"),
+    ("diet_entries", "category", "ALTER TABLE diet_entries ADD COLUMN category TEXT DEFAULT ''"),
 )
 
 
@@ -51,6 +85,7 @@ def init_db() -> None:
     _ensure_goal_links_table(db)
     _ensure_goal_milestones_table(db)
     _ensure_life_tables(db)
+    _ensure_library_tables(db)
     _ensure_calendar_relation_indexes(db)
     _backfill_completion_timestamps(db)
     db.commit()
@@ -230,11 +265,117 @@ def _ensure_life_tables(db: sqlite3.Connection) -> None:
         )
         """
     )
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS food_presets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT 'Uncategorized',
+            serving_label TEXT NOT NULL,
+            calories REAL NOT NULL DEFAULT 0,
+            protein_g REAL NOT NULL DEFAULT 0,
+            carbs_g REAL NOT NULL DEFAULT 0,
+            fat_g REAL NOT NULL DEFAULT 0,
+            display_order INTEGER NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS diet_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entry_date DATE NOT NULL,
+            preset_id INTEGER NOT NULL,
+            food_name TEXT NOT NULL,
+            category TEXT DEFAULT '',
+            serving_label TEXT NOT NULL,
+            meal_type TEXT NOT NULL DEFAULT 'snack',
+            servings REAL NOT NULL DEFAULT 1,
+            calories REAL NOT NULL DEFAULT 0,
+            protein_g REAL NOT NULL DEFAULT 0,
+            carbs_g REAL NOT NULL DEFAULT 0,
+            fat_g REAL NOT NULL DEFAULT 0,
+            notes TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (preset_id) REFERENCES food_presets(id) ON DELETE RESTRICT
+        )
+        """
+    )
     db.execute("CREATE INDEX IF NOT EXISTS idx_health_logs_date ON health_logs(log_date DESC)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_finance_entries_date ON finance_entries(entry_date DESC)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_contacts_follow_up ON contacts(next_follow_up)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_life_reviews_period ON life_reviews(period_type, period_start DESC)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, entity_id)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_food_presets_order ON food_presets(display_order, name)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_diet_entries_date ON diet_entries(entry_date DESC, meal_type, id DESC)")
+    _seed_food_presets(db)
+
+
+def _seed_food_presets(db: sqlite3.Connection) -> None:
+    for category, name, serving_label, calories, protein_g, carbs_g, fat_g, display_order in DEFAULT_FOOD_PRESETS:
+        existing = db.execute(
+            """
+            SELECT id
+            FROM food_presets
+            WHERE name = ? AND serving_label = ?
+            LIMIT 1
+            """,
+            (name, serving_label),
+        ).fetchone()
+
+        if existing:
+            db.execute(
+                """
+                UPDATE food_presets
+                SET
+                    category = ?,
+                    calories = ?,
+                    protein_g = ?,
+                    carbs_g = ?,
+                    fat_g = ?,
+                    display_order = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (category, calories, protein_g, carbs_g, fat_g, display_order, existing["id"]),
+            )
+            continue
+
+        db.execute(
+            """
+            INSERT INTO food_presets (
+                name, category, serving_label, calories, protein_g, carbs_g, fat_g, display_order, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (name, category, serving_label, calories, protein_g, carbs_g, fat_g, display_order),
+        )
+
+
+def _ensure_library_tables(db: sqlite3.Connection) -> None:
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS media_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            media_type TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'want_to_start',
+            creator TEXT,
+            platform TEXT,
+            current_unit INTEGER,
+            total_units INTEGER,
+            score INTEGER,
+            started_on DATE,
+            completed_on DATE,
+            notes TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    db.execute("CREATE INDEX IF NOT EXISTS idx_media_items_type_status ON media_items(media_type, status, updated_at DESC)")
 
 
 def _ensure_calendar_relation_indexes(db: sqlite3.Connection) -> None:

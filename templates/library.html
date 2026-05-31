@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+
+{% block title %}Library{% endblock %}
+{% block page_title %}Media Library{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/life.css', v=asset_version('css/life.css')) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/library.css', v=asset_version('css/library.css')) }}">
+{% endblock %}
+
+{% block header_actions %}
+<div class="header-actions">
+    <button class="btn btn-primary" onclick="LibraryUI.openModal()"><i class="ph ph-plus"></i> Quick Add</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="page-stack life-shell library-shell">
+    <div class="metric-grid cols-4" id="library-summary-grid">
+        <div class="compact-item metric-card"><span class="item-desc">Loading library...</span></div>
+    </div>
+
+    <div class="life-workspace">
+        <aside class="life-nav-card">
+            <nav class="life-nav-list">
+                <div class="life-nav-item active" data-panel="book" onclick="LibraryUI.switchPanel('book')">
+                    <i class="ph ph-book-open-text"></i>
+                    <span>Books</span>
+                </div>
+                <div class="life-nav-item" data-panel="manga" onclick="LibraryUI.switchPanel('manga')">
+                    <i class="ph ph-books"></i>
+                    <span>Manga</span>
+                </div>
+                <div class="life-nav-item" data-panel="manhwa" onclick="LibraryUI.switchPanel('manhwa')">
+                    <i class="ph ph-stack"></i>
+                    <span>Manhwa</span>
+                </div>
+                <div class="life-nav-item" data-panel="anime" onclick="LibraryUI.switchPanel('anime')">
+                    <i class="ph ph-television-simple"></i>
+                    <span>Anime</span>
+                </div>
+                <div class="life-nav-item" data-panel="tv" onclick="LibraryUI.switchPanel('tv')">
+                    <i class="ph ph-monitor-play"></i>
+                    <span>TV Shows</span>
+                </div>
+                <div class="life-nav-item" data-panel="movie" onclick="LibraryUI.switchPanel('movie')">
+                    <i class="ph ph-film-strip"></i>
+                    <span>Movies</span>
+                </div>
+            </nav>
+        </aside>
+
+        <main class="life-main">
+            <section id="panel-book" class="life-content-panel active">
+                <div class="life-section-header">
+                    <div>
+                        <h2 class="life-section-title"><i class="ph ph-book-open-text"></i> Books</h2>
+                        <p class="library-panel-subhead">Track novels, nonfiction, study books, and rereads.</p>
+                    </div>
+                    <button class="btn btn-sm btn-primary" onclick="LibraryUI.openModal('book')"><i class="ph ph-plus"></i> Add Book</button>
+                </div>
+                <div class="metric-grid cols-3 library-type-metrics" id="library-stats-book"></div>
+                <div class="life-list-container">
+                    <div class="life-list-header">
+                        <span class="item-desc">Shelf Status</span>
+                        <span class="badge" id="library-count-book">0 titles</span>
+                    </div>
+                    <div id="library-board-book" class="library-status-grid"></div>
+                </div>
+            </section>
+
+            <section id="panel-manga" class="life-content-panel">
+                <div class="life-section-header">
+                    <div>
+                        <h2 class="life-section-title"><i class="ph ph-books"></i> Manga</h2>
+                        <p class="library-panel-subhead">Keep tabs on series, volumes, and chapters you want next.</p>
+                    </div>
+                    <button class="btn btn-sm btn-primary" onclick="LibraryUI.openModal('manga')"><i class="ph ph-plus"></i> Add Manga</button>
+                </div>
+                <div class="metric-grid cols-3 library-type-metrics" id="library-stats-manga"></div>
+                <div class="life-list-container">
+                    <div class="life-list-header">
+                        <span class="item-desc">Shelf Status</span>
+                        <span class="badge" id="library-count-manga">0 titles</span>
+                    </div>
+                    <div id="library-board-manga" class="library-status-grid"></div>
+                </div>
+            </section>
+
+            <section id="panel-manhwa" class="life-content-panel">
+                <div class="life-section-header">
+                    <div>
+                        <h2 class="life-section-title"><i class="ph ph-stack"></i> Manhwa</h2>
+                        <p class="library-panel-subhead">Separate your webtoon backlog from everything else.</p>
+                    </div>
+                    <button class="btn btn-sm btn-primary" onclick="LibraryUI.openModal('manhwa')"><i class="ph ph-plus"></i> Add Manhwa</button>
+                </div>
+                <div class="metric-grid cols-3 library-type-metrics" id="library-stats-manhwa"></div>
+                <div class="life-list-container">
+                    <div class="life-list-header">
+                        <span class="item-desc">Shelf Status</span>
+                        <span class="badge" id="library-count-manhwa">0 titles</span>
+                    </div>
+                    <div id="library-board-manhwa" class="library-status-grid"></div>
+                </div>
+            </section>
+
+            <section id="panel-anime" class="life-content-panel">
+                <div class="life-section-header">
+                    <div>
+                        <h2 class="life-section-title"><i class="ph ph-television-simple"></i> Anime</h2>
+                        <p class="library-panel-subhead">Log seasons, movies, and watch progress without mixing them into TV.</p>
+                    </div>
+                    <button class="btn btn-sm btn-primary" onclick="LibraryUI.openModal('anime')"><i class="ph ph-plus"></i> Add Anime</button>
+                </div>
+                <div class="metric-grid cols-3 library-type-metrics" id="library-stats-anime"></div>
+                <div class="life-list-container">
+                    <div class="life-list-header">
+                        <span class="item-desc">Shelf Status</span>
+                        <span class="badge" id="library-count-anime">0 titles</span>
+                    </div>
+                    <div id="library-board-anime" class="library-status-grid"></div>
+                </div>
+            </section>
+
+            <section id="panel-tv" class="life-content-panel">
+                <div class="life-section-header">
+                    <div>
+                        <h2 class="life-section-title"><i class="ph ph-monitor-play"></i> TV Shows</h2>
+                        <p class="library-panel-subhead">Keep series and seasonal watchlists in one place.</p>
+                    </div>
+                    <button class="btn btn-sm btn-primary" onclick="LibraryUI.openModal('tv')"><i class="ph ph-plus"></i> Add Show</button>
+                </div>
+                <div class="metric-grid cols-3 library-type-metrics" id="library-stats-tv"></div>
+                <div class="life-list-container">
+                    <div class="life-list-header">
+                        <span class="item-desc">Shelf Status</span>
+                        <span class="badge" id="library-count-tv">0 titles</span>
+                    </div>
+                    <div id="library-board-tv" class="library-status-grid"></div>
+                </div>
+            </section>
+
+            <section id="panel-movie" class="life-content-panel">
+                <div class="life-section-header">
+                    <div>
+                        <h2 class="life-section-title"><i class="ph ph-film-strip"></i> Movies</h2>
+                        <p class="library-panel-subhead">Track film nights, rewatches, and titles worth hunting down.</p>
+                    </div>
+                    <button class="btn btn-sm btn-primary" onclick="LibraryUI.openModal('movie')"><i class="ph ph-plus"></i> Add Movie</button>
+                </div>
+                <div class="metric-grid cols-3 library-type-metrics" id="library-stats-movie"></div>
+                <div class="life-list-container">
+                    <div class="life-list-header">
+                        <span class="item-desc">Shelf Status</span>
+                        <span class="badge" id="library-count-movie">0 titles</span>
+                    </div>
+                    <div id="library-board-movie" class="library-status-grid"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+</div>
+
+<div id="modal-library" class="modal-overlay">
+    <div class="modal-content life-modal-content library-modal-content">
+        <div class="card-header">
+            <h3 class="card-title" id="library-modal-title">Add Library Entry</h3>
+            <button class="btn btn-icon" onclick="LibraryUI.closeModal()"><i class="ph ph-x"></i></button>
+        </div>
+        <form id="library-form" onsubmit="LibraryUI.saveItem(event)">
+            <input type="hidden" id="library-item-id">
+            <div class="life-form-grid">
+                <div class="form-group">
+                    <label class="form-label" for="library-media-type">Shelf</label>
+                    <select id="library-media-type" class="form-control">
+                        <option value="book">Book</option>
+                        <option value="manga">Manga</option>
+                        <option value="manhwa">Manhwa</option>
+                        <option value="anime">Anime</option>
+                        <option value="tv">TV Show</option>
+                        <option value="movie">Movie</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="library-status">Status</label>
+                    <select id="library-status" class="form-control">
+                        <option value="want_to_start">Want To Start</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                        <option value="paused">Paused</option>
+                        <option value="dropped">Dropped</option>
+                    </select>
+                </div>
+                <div class="form-group life-wide">
+                    <label class="form-label" for="library-title">Title</label>
+                    <input type="text" id="library-title" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="library-creator">Author / Studio</label>
+                    <input type="text" id="library-creator" class="form-control" placeholder="Author, studio, publisher">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="library-platform">Platform</label>
+                    <input type="text" id="library-platform" class="form-control" placeholder="Kindle, Netflix, Webtoon">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="library-current-unit">Current Progress</label>
+                    <input type="number" id="library-current-unit" class="form-control" min="0" step="1" placeholder="Episode, chapter, volume">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="library-total-units">Total Units</label>
+                    <input type="number" id="library-total-units" class="form-control" min="1" step="1" placeholder="Optional">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="library-score">Score (1-10)</label>
+                    <input type="number" id="library-score" class="form-control" min="1" max="10" step="1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="library-started-on">Started</label>
+                    <input type="date" id="library-started-on" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="library-completed-on">Completed</label>
+                    <input type="date" id="library-completed-on" class="form-control">
+                </div>
+                <div class="form-group life-wide">
+                    <label class="form-label" for="library-notes">Notes</label>
+                    <textarea id="library-notes" class="form-control" rows="4" placeholder="Arc notes, favorite moments, what to pick up next"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="LibraryUI.closeModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Entry</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/library.js', v=asset_version('js/library.js')) }}"></script>
+{% endblock %}

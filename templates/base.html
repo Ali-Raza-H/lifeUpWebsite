@@ -28,6 +28,7 @@
             <li><a href="{{ url_for('goals') }}" class="nav-link {% if request.endpoint == 'goals' %}active{% endif %}"><i class="ph ph-target"></i> <span>Goals</span></a></li>
             <li><a href="{{ url_for('analytics') }}" class="nav-link {% if request.endpoint == 'analytics' %}active{% endif %}"><i class="ph ph-chart-bar"></i> <span>Analytics</span></a></li>
             <li><a href="{{ url_for('life') }}" class="nav-link {% if request.endpoint == 'life' %}active{% endif %}"><i class="ph ph-heartbeat"></i> <span>Life</span></a></li>
+            <li><a href="{{ url_for('library') }}" class="nav-link {% if request.endpoint == 'library' %}active{% endif %}"><i class="ph ph-books"></i> <span>Library</span></a></li>
             <li><a href="{{ url_for('journal') }}" class="nav-link {% if request.endpoint == 'journal' %}active{% endif %}"><i class="ph ph-book-open"></i> <span>Journal</span></a></li>
             <li><a href="{{ url_for('notes') }}" class="nav-link {% if request.endpoint == 'notes' %}active{% endif %}"><i class="ph ph-notepad"></i> <span>Notes</span></a></li>
             <li><a href="{{ url_for('calendar') }}" class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}"><i class="ph ph-calendar-blank"></i> <span>Calendar</span></a></li>

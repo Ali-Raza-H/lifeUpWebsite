@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}Mindset Profile{% endblock %}
-{% block page_title %}Psychometric Profile{% endblock %}
+{% block page_title %}<span class="mindset-page-title">Psychometric Profile</span>{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/mindset.css', v=asset_version('css/mindset.css')) }}">
@@ -39,8 +39,8 @@
         </div>
     </section>
 
-    <div class="bento-grid">
-        <section class="card" style="grid-column: span 6;">
+    <div class="bento-grid mindset-panels">
+        <section id="trait-hierarchy" class="card mindset-section-wide">
             <div class="card-header">
                 <span class="card-title"><i class="ph ph-chart-polar"></i> Trait Hierarchy</span>
             </div>
@@ -49,7 +49,7 @@
             </div>
         </section>
 
-        <section class="card" style="grid-column: span 6;">
+        <section id="operating-principles" class="card mindset-section-wide">
             <div class="card-header">
                 <span class="card-title"><i class="ph ph-scales"></i> Operating Principles</span>
             </div>
@@ -58,7 +58,7 @@
             </div>
         </section>
 
-        <section class="card" style="grid-column: span 4;">
+        <section id="cognitive-strengths" class="card mindset-section-third">
             <div class="card-header">
                 <span class="card-title"><i class="ph ph-lightbulb"></i> Cognitive Strengths</span>
             </div>
@@ -67,7 +67,7 @@
             </div>
         </section>
 
-        <section class="card" style="grid-column: span 4;">
+        <section id="tension-points" class="card mindset-section-third">
             <div class="card-header">
                 <span class="card-title"><i class="ph ph-warning"></i> Tension Points</span>
             </div>
@@ -76,7 +76,7 @@
             </div>
         </section>
 
-        <section class="card" style="grid-column: span 4;">
+        <section id="skill-foundations" class="card mindset-section-third">
             <div class="card-header">
                 <span class="card-title"><i class="ph ph-stack"></i> Skill Foundations</span>
             </div>
@@ -85,7 +85,7 @@
             </div>
         </section>
 
-        <section class="card" style="grid-column: span 12;">
+        <section id="strategic-recommendations" class="card mindset-section-full">
             <div class="card-header">
                 <span class="card-title"><i class="ph ph-target"></i> Strategic Recommendations</span>
             </div>

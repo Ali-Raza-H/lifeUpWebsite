@@ -233,6 +233,55 @@ CREATE TABLE IF NOT EXISTS attachments (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS food_presets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'Uncategorized',
+    serving_label TEXT NOT NULL,
+    calories REAL NOT NULL DEFAULT 0,
+    protein_g REAL NOT NULL DEFAULT 0,
+    carbs_g REAL NOT NULL DEFAULT 0,
+    fat_g REAL NOT NULL DEFAULT 0,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS diet_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_date DATE NOT NULL,
+    preset_id INTEGER NOT NULL,
+    food_name TEXT NOT NULL,
+    category TEXT DEFAULT '',
+    serving_label TEXT NOT NULL,
+    meal_type TEXT NOT NULL DEFAULT 'snack',
+    servings REAL NOT NULL DEFAULT 1,
+    calories REAL NOT NULL DEFAULT 0,
+    protein_g REAL NOT NULL DEFAULT 0,
+    carbs_g REAL NOT NULL DEFAULT 0,
+    fat_g REAL NOT NULL DEFAULT 0,
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (preset_id) REFERENCES food_presets(id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS media_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    media_type TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'want_to_start',
+    creator TEXT,
+    platform TEXT,
+    current_unit INTEGER,
+    total_units INTEGER,
+    score INTEGER,
+    started_on DATE,
+    completed_on DATE,
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_habit_logs_habit_date ON habit_logs(habit_id, log_date DESC);
 CREATE INDEX IF NOT EXISTS idx_habit_logs_date_status ON habit_logs(log_date DESC, status);
 CREATE INDEX IF NOT EXISTS idx_tasks_status_due_date ON tasks(status, due_date);
@@ -252,3 +301,6 @@ CREATE INDEX IF NOT EXISTS idx_finance_entries_date ON finance_entries(entry_dat
 CREATE INDEX IF NOT EXISTS idx_contacts_follow_up ON contacts(next_follow_up);
 CREATE INDEX IF NOT EXISTS idx_life_reviews_period ON life_reviews(period_type, period_start DESC);
 CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_food_presets_order ON food_presets(display_order, name);
+CREATE INDEX IF NOT EXISTS idx_diet_entries_date ON diet_entries(entry_date DESC, meal_type, id DESC);
+CREATE INDEX IF NOT EXISTS idx_media_items_type_status ON media_items(media_type, status, updated_at DESC);

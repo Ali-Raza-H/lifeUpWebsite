@@ -1,5 +1,7 @@
 const LifeUI = {
     health: [],
+    dietEntries: [],
+    foodPresets: [],
     finance: [],
     contacts: [],
     reviews: [],
@@ -9,21 +11,27 @@ const LifeUI = {
 
     async init() {
         this.setDefaultDates();
-        await this.loadAll();
         this.setupModalClosures();
+        this.setupDietInteractions();
+        await this.loadAll();
     },
 
     setupModalClosures() {
-        window.addEventListener('click', (e) => {
-            if (e.target.classList.contains('modal-overlay')) {
-                e.target.style.display = 'none';
+        window.addEventListener('click', (event) => {
+            if (event.target.classList.contains('modal-overlay')) {
+                event.target.style.display = 'none';
             }
         });
     },
 
+    setupDietInteractions() {
+        document.getElementById('diet-preset')?.addEventListener('change', () => this.updateDietPreview());
+        document.getElementById('diet-servings')?.addEventListener('input', () => this.updateDietPreview());
+    },
+
     setDefaultDates() {
         const today = new Date().toISOString().slice(0, 10);
-        ['health-date', 'finance-date', 'review-start', 'contact-last', 'contact-next'].forEach((id) => {
+        ['health-date', 'diet-date', 'finance-date', 'review-start', 'contact-last', 'contact-next'].forEach((id) => {
             const field = document.getElementById(id);
             if (field && !field.value) field.value = today;
         });
@@ -31,9 +39,11 @@ const LifeUI = {
 
     async loadAll() {
         try {
-            const [summary, health, finance, contacts, reviews, attachments] = await Promise.all([
+            const [summary, health, dietEntries, foodPresets, finance, contacts, reviews, attachments] = await Promise.all([
                 API.get('/api/life/summary'),
                 API.get('/api/life/health'),
+                API.get('/api/life/diet'),
+                API.get('/api/life/diet/presets'),
                 API.get('/api/life/finance'),
                 API.get('/api/life/contacts'),
                 API.get('/api/life/reviews'),
@@ -41,6 +51,8 @@ const LifeUI = {
             ]);
             this.summary = summary;
             this.health = health;
+            this.dietEntries = dietEntries;
+            this.foodPresets = foodPresets;
             this.finance = finance;
             this.contacts = contacts;
             this.reviews = reviews;
@@ -54,10 +66,14 @@ const LifeUI = {
     render() {
         this.renderSummary();
         this.renderHealth();
+        this.renderDietMetrics();
+        this.renderDiet();
+        this.renderDietPresetOptions();
         this.renderFinance();
         this.renderContacts();
         this.renderReviews();
         this.renderAttachments();
+        this.updateDietPreview();
     },
 
     renderSummary() {
@@ -66,6 +82,7 @@ const LifeUI = {
 
         const latest = this.summary.latest_health || {};
         const finance = this.summary.finance || {};
+        const todayDiet = this.summary.today_diet || {};
         const spending = Number(finance.spending || 0);
         const income = Number(finance.income || 0);
         const savings = Number(finance.savings || 0);
@@ -78,6 +95,11 @@ const LifeUI = {
                 <span class="badge">${latest.exercise_minutes ?? 0}m exercise</span>
             </div>
             <div class="compact-item metric-card">
+                <span class="item-desc">Today's Diet</span>
+                <div class="life-metric-value">${this.formatNumber(todayDiet.calories || 0)} kcal</div>
+                <span class="badge">${this.formatNumber(todayDiet.protein_g || 0)}g protein</span>
+            </div>
+            <div class="compact-item metric-card">
                 <span class="item-desc">Tracked Balance</span>
                 <div class="life-metric-value">${this.formatMoney(balance)}</div>
                 <span class="badge">${finance.entry_count || 0} entries</span>
@@ -86,11 +108,6 @@ const LifeUI = {
                 <span class="item-desc">Follow-ups Due</span>
                 <div class="life-metric-value">${this.summary.contacts_due || 0}</div>
                 <span class="badge">${this.contacts.length} total contacts</span>
-            </div>
-            <div class="compact-item metric-card">
-                <span class="item-desc">Last Review</span>
-                <div class="life-metric-value">${this.reviews[0]?.score ?? '--'}/10</div>
-                <span class="badge">${this.reviews[0] ? CoreUI.formatDate(this.reviews[0].period_start) : 'None'}</span>
             </div>
         `;
     },
@@ -108,9 +125,9 @@ const LifeUI = {
                 <div class="item-main">
                     <div class="item-title">${CoreUI.formatDate(log.log_date)}</div>
                     <div class="item-desc">
-                        Sleep <strong>${log.sleep_hours ?? '--'}h</strong> • 
-                        Energy <strong>${log.energy_score ?? '--'}/10</strong> • 
-                        Exercise <strong>${log.exercise_minutes ?? 0}m</strong> • 
+                        Sleep <strong>${log.sleep_hours ?? '--'}h</strong> &middot;
+                        Energy <strong>${log.energy_score ?? '--'}/10</strong> &middot;
+                        Exercise <strong>${log.exercise_minutes ?? 0}m</strong> &middot;
                         Weight <strong>${log.weight_kg ?? '--'}kg</strong>
                     </div>
                     ${log.symptoms ? `<div class="item-desc mt-1"><i class="ph ph-warning-circle"></i> ${CoreUI.escapeHtml(log.symptoms)}</div>` : ''}
@@ -119,6 +136,103 @@ const LifeUI = {
                 <button type="button" class="btn btn-icon btn-danger" onclick="LifeUI.deleteItem('health', ${log.id})" title="Delete"><i class="ph ph-trash"></i></button>
             </div>
         `).join('');
+    },
+
+    renderDietMetrics() {
+        const container = document.getElementById('life-diet-metric-grid');
+        if (!container) return;
+
+        const totals = this.summary.today_diet || {};
+        container.innerHTML = `
+            <div class="compact-item metric-card">
+                <span class="item-desc">Calories</span>
+                <div class="life-metric-value">${this.formatNumber(totals.calories || 0)}</div>
+                <span class="badge">${totals.entry_count || 0} items today</span>
+            </div>
+            <div class="compact-item metric-card">
+                <span class="item-desc">Protein</span>
+                <div class="life-metric-value">${this.formatNumber(totals.protein_g || 0)}g</div>
+                <span class="badge">Primary macro</span>
+            </div>
+            <div class="compact-item metric-card">
+                <span class="item-desc">Carbs</span>
+                <div class="life-metric-value">${this.formatNumber(totals.carbs_g || 0)}g</div>
+                <span class="badge">Energy intake</span>
+            </div>
+            <div class="compact-item metric-card">
+                <span class="item-desc">Fat</span>
+                <div class="life-metric-value">${this.formatNumber(totals.fat_g || 0)}g</div>
+                <span class="badge">${this.foodPresets.length} presets loaded</span>
+            </div>
+        `;
+    },
+
+    renderDiet() {
+        const container = document.getElementById('life-diet-list');
+        if (!container) return;
+        if (!this.dietEntries.length) {
+            CoreUI.setEmptyState(container, 'No diet entries yet.');
+            return;
+        }
+
+        container.innerHTML = this.dietEntries.slice(0, 24).map((entry) => `
+            <div class="life-row compact-item">
+                <div class="item-main">
+                    <div class="item-title d-flex justify-content-between">
+                        <span>${CoreUI.escapeHtml(entry.food_name)}</span>
+                        <span class="life-diet-calories">${this.formatNumber(entry.calories)} kcal</span>
+                    </div>
+                    <div class="item-desc">
+                        ${CoreUI.formatDate(entry.entry_date)} &middot;
+                        <span class="badge btn-sm">${this.formatMealType(entry.meal_type)}</span>
+                        ${entry.category ? `<span class="badge btn-sm">${CoreUI.escapeHtml(entry.category)}</span>` : ''}
+                        ${this.formatNumber(entry.servings)} x ${CoreUI.escapeHtml(entry.serving_label)}
+                    </div>
+                    <div class="item-desc">
+                        Protein <strong>${this.formatNumber(entry.protein_g)}g</strong> &middot;
+                        Carbs <strong>${this.formatNumber(entry.carbs_g)}g</strong> &middot;
+                        Fat <strong>${this.formatNumber(entry.fat_g)}g</strong>
+                    </div>
+                    ${entry.notes ? `<div class="item-desc text-muted">${CoreUI.escapeHtml(entry.notes)}</div>` : ''}
+                </div>
+                <button type="button" class="btn btn-icon btn-danger" onclick="LifeUI.deleteItem('diet', ${entry.id})" title="Delete"><i class="ph ph-trash"></i></button>
+            </div>
+        `).join('');
+    },
+
+    renderDietPresetOptions() {
+        const select = document.getElementById('diet-preset');
+        if (!select) return;
+
+        const selectedValue = select.value;
+        const groupedPresets = [];
+
+        this.foodPresets.forEach((preset) => {
+            const category = preset.category || 'Uncategorized';
+            let group = groupedPresets.find((item) => item.category === category);
+            if (!group) {
+                group = { category, items: [] };
+                groupedPresets.push(group);
+            }
+            group.items.push(preset);
+        });
+
+        select.innerHTML = `
+            <option value="">Select a preset food</option>
+            ${groupedPresets.map((group) => `
+                <optgroup label="${CoreUI.escapeHtml(group.category)}">
+                    ${group.items.map((preset) => `
+                        <option value="${preset.id}">
+                            ${CoreUI.escapeHtml(preset.name)} - ${this.formatNumber(preset.calories)} kcal / ${CoreUI.escapeHtml(preset.serving_label)}
+                        </option>
+                    `).join('')}
+                </optgroup>
+            `).join('')}
+        `;
+
+        if (this.foodPresets.some((preset) => String(preset.id) === String(selectedValue))) {
+            select.value = selectedValue;
+        }
     },
 
     renderFinance() {
@@ -137,7 +251,7 @@ const LifeUI = {
                         <span class="finance-${entry.type}">${entry.type === 'expense' ? '-' : '+'}${this.formatMoney(entry.amount)}</span>
                     </div>
                     <div class="item-desc">
-                        ${CoreUI.formatDate(entry.entry_date)} • <span class="badge btn-sm">${entry.type}</span> ${entry.is_recurring ? '<i class="ph ph-repeat"></i>' : ''}
+                        ${CoreUI.formatDate(entry.entry_date)} &middot; <span class="badge btn-sm">${entry.type}</span> ${entry.is_recurring ? '<i class="ph ph-repeat"></i>' : ''}
                     </div>
                     ${entry.description ? `<div class="item-desc text-muted">${CoreUI.escapeHtml(entry.description)}</div>` : ''}
                 </div>
@@ -159,8 +273,8 @@ const LifeUI = {
                 <div class="item-main">
                     <div class="item-title">${CoreUI.escapeHtml(contact.name)} <span class="badge">${contact.priority}</span></div>
                     <div class="item-desc">
-                        ${CoreUI.escapeHtml(contact.relation || 'No relation')} • 
-                        Last: ${CoreUI.formatDate(contact.last_contacted) || 'Never'} • 
+                        ${CoreUI.escapeHtml(contact.relation || 'No relation')} &middot;
+                        Last: ${CoreUI.formatDate(contact.last_contacted) || 'Never'} &middot;
                         <strong>Next: ${CoreUI.formatDate(contact.next_follow_up) || 'Not set'}</strong>
                     </div>
                     ${contact.notes ? `<div class="item-desc text-muted">${CoreUI.escapeHtml(contact.notes)}</div>` : ''}
@@ -221,27 +335,29 @@ const LifeUI = {
         `).join('');
     },
 
-    // UI Logic
     switchPanel(panelId) {
         this.activePanel = panelId;
-        
-        // Update nav
-        document.querySelectorAll('.life-nav-item').forEach(el => {
-            el.classList.toggle('active', el.dataset.panel === panelId);
+
+        document.querySelectorAll('.life-nav-item').forEach((element) => {
+            element.classList.toggle('active', element.dataset.panel === panelId);
         });
 
-        // Update panels
-        document.querySelectorAll('.life-content-panel').forEach(el => {
-            el.classList.toggle('active', el.id === `panel-${panelId}`);
+        document.querySelectorAll('.life-content-panel').forEach((element) => {
+            element.classList.toggle('active', element.id === `panel-${panelId}`);
         });
     },
 
     openModal(panelId) {
         const modal = document.getElementById(`modal-${panelId}`);
-        if (modal) {
-            modal.style.display = 'flex';
-            this.setDefaultDates();
+        if (!modal) return;
+
+        if (panelId === 'diet') {
+            this.resetDietForm();
         }
+
+        modal.style.display = 'flex';
+        this.setDefaultDates();
+        this.updateDietPreview();
     },
 
     closeModal(panelId) {
@@ -249,14 +365,15 @@ const LifeUI = {
         if (modal) {
             modal.style.display = 'none';
         }
+        if (panelId === 'diet') {
+            this.resetDietForm();
+        }
     },
 
     openQuickAdd() {
-        // Just open the active panel's modal for now, or health by default
         this.openModal(this.activePanel || 'health');
     },
 
-    // Form Submissions
     async saveHealth(event) {
         event.preventDefault();
         const payload = {
@@ -269,6 +386,26 @@ const LifeUI = {
             notes: document.getElementById('health-notes').value
         };
         await this.postForm('/api/life/health', payload, 'Health log saved.', 'life-health-form', 'health');
+    },
+
+    async saveDiet(event) {
+        event.preventDefault();
+        const payload = {
+            entry_date: document.getElementById('diet-date').value,
+            preset_id: this.intOrNull('diet-preset'),
+            meal_type: document.getElementById('diet-meal-type').value,
+            servings: this.valueOrNull('diet-servings'),
+            notes: document.getElementById('diet-notes').value
+        };
+
+        try {
+            await API.post('/api/life/diet', payload);
+            this.closeModal('diet');
+            await this.loadAll();
+            CoreUI.showError('Diet entry saved.', true);
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to save diet entry.');
+        }
     },
 
     async saveFinance(event) {
@@ -369,9 +506,39 @@ const LifeUI = {
         document.getElementById('contact-modal-title').textContent = 'Relationship Contact';
     },
 
+    resetDietForm() {
+        document.getElementById('life-diet-form')?.reset();
+        const servings = document.getElementById('diet-servings');
+        if (servings) servings.value = '1';
+        this.setDefaultDates();
+        this.updateDietPreview();
+    },
+
+    updateDietPreview() {
+        const container = document.getElementById('life-diet-preset-preview');
+        if (!container) return;
+
+        const presetId = this.intOrNull('diet-preset');
+        const servings = Number(this.valueOrNull('diet-servings') || 1);
+        const preset = this.foodPresets.find((item) => item.id === presetId);
+
+        if (!preset) {
+            container.textContent = 'Select a preset food to see calories, protein, carbs, and fat per serving.';
+            return;
+        }
+
+        container.innerHTML = `
+            <strong>${CoreUI.escapeHtml(preset.name)}</strong> (${CoreUI.escapeHtml(preset.serving_label)})<br>
+            <span class="badge">${CoreUI.escapeHtml(preset.category || 'Uncategorized')}</span><br>
+            Per serving: ${this.formatNumber(preset.calories)} kcal, ${this.formatNumber(preset.protein_g)}g protein, ${this.formatNumber(preset.carbs_g)}g carbs, ${this.formatNumber(preset.fat_g)}g fat<br>
+            Current entry: ${this.formatNumber(preset.calories * servings)} kcal, ${this.formatNumber(preset.protein_g * servings)}g protein, ${this.formatNumber(preset.carbs_g * servings)}g carbs, ${this.formatNumber(preset.fat_g * servings)}g fat
+        `;
+    },
+
     async deleteItem(kind, id) {
         const labels = {
             health: 'health log',
+            diet: 'diet entry',
             finance: 'finance entry',
             contacts: 'contact',
             reviews: 'review',
@@ -399,6 +566,21 @@ const LifeUI = {
     intOrNull(id) {
         const value = this.valueOrNull(id);
         return value == null ? null : Math.trunc(value);
+    },
+
+    formatMealType(value) {
+        const labels = {
+            breakfast: 'Breakfast',
+            lunch: 'Lunch',
+            dinner: 'Dinner',
+            snack: 'Snack'
+        };
+        return labels[value] || value || 'Meal';
+    },
+
+    formatNumber(value) {
+        const numeric = Number(value || 0);
+        return Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(1);
     },
 
     formatMoney(value) {

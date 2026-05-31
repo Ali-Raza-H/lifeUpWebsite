@@ -84,7 +84,7 @@ const MindsetUI = {
 
         list.innerHTML = this.traits.map((trait) => `
             <div class="compact-item mindset-trait-row">
-                <div>
+                <div class="item-main">
                     <div class="item-title">${CoreUI.escapeHtml(trait.name)}</div>
                     <div class="item-desc">${CoreUI.escapeHtml(this.labelize(trait.category || 'general'))}</div>
                 </div>
@@ -107,8 +107,10 @@ const MindsetUI = {
 
         list.innerHTML = this.beliefs.map((belief) => `
             <div class="compact-item">
-                <span class="item-title">${CoreUI.escapeHtml(belief.title)}</span>
-                <span class="item-desc">${CoreUI.escapeHtml(belief.text)}</span>
+                <div class="item-main">
+                    <span class="item-title">${CoreUI.escapeHtml(belief.title)}</span>
+                    <span class="item-desc">${CoreUI.escapeHtml(belief.text)}</span>
+                </div>
             </div>
         `).join('');
     },
@@ -125,8 +127,10 @@ const MindsetUI = {
 
         list.innerHTML = strongest.map((trait) => `
             <div class="compact-item">
-                <span class="item-title">${CoreUI.escapeHtml(trait.name)}</span>
-                <span class="item-desc">${this.describeStrength(trait)}</span>
+                <div class="item-main">
+                    <span class="item-title">${CoreUI.escapeHtml(trait.name)}</span>
+                    <span class="item-desc">${this.describeStrength(trait)}</span>
+                </div>
             </div>
         `).join('');
     },
@@ -143,8 +147,10 @@ const MindsetUI = {
 
         list.innerHTML = risks.map((trait) => `
             <div class="compact-item">
-                <span class="item-title">${CoreUI.escapeHtml(trait.name)}</span>
-                <span class="item-desc">${this.describeRisk(trait)}</span>
+                <div class="item-main">
+                    <span class="item-title">${CoreUI.escapeHtml(trait.name)}</span>
+                    <span class="item-desc">${this.describeRisk(trait)}</span>
+                </div>
             </div>
         `).join('');
     },
@@ -163,11 +169,13 @@ const MindsetUI = {
 
         list.innerHTML = topSkills.map((skill) => `
             <div class="compact-item">
-                <div style="display:flex; justify-content:space-between; gap:12px;">
-                    <span class="item-title">${CoreUI.escapeHtml(skill.name)}</span>
-                    <span class="badge">${skill.proficiency}%</span>
+                <div class="item-main">
+                    <div class="mindset-skill-head">
+                        <span class="item-title">${CoreUI.escapeHtml(skill.name)}</span>
+                        <span class="badge">${skill.proficiency}%</span>
+                    </div>
+                    <span class="item-desc">${CoreUI.escapeHtml(this.labelize(skill.category))} - ${CoreUI.escapeHtml(this.labelize(skill.experience_level))}</span>
                 </div>
-                <span class="item-desc">${CoreUI.escapeHtml(this.labelize(skill.category))} - ${CoreUI.escapeHtml(this.labelize(skill.experience_level))}</span>
             </div>
         `).join('');
     },
@@ -203,8 +211,10 @@ const MindsetUI = {
 
         container.innerHTML = recommendations.map((item) => `
             <div class="compact-item mindset-panel-note">
-                <span class="item-title">${CoreUI.escapeHtml(item.title)}</span>
-                <span class="item-desc">${CoreUI.escapeHtml(item.text)}</span>
+                <div class="item-main">
+                    <span class="item-title">${CoreUI.escapeHtml(item.title)}</span>
+                    <span class="item-desc">${CoreUI.escapeHtml(item.text)}</span>
+                </div>
             </div>
         `).join('');
     },

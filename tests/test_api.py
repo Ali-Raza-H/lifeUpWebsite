@@ -284,6 +284,140 @@ def test_life_tracker_core_modules(client):
     assert update_contact.get_json()["contact"]["priority"] == "normal"
 
 
+def test_life_diet_tracker_uses_presets_and_calculates_macros(client):
+    presets_response = client.get("/api/life/diet/presets")
+    assert presets_response.status_code == 200
+    presets = presets_response.get_json()
+    assert len(presets) >= 1
+
+    chicken = next(item for item in presets if item["name"] == "Chicken Breast")
+    roti = next(item for item in presets if item["name"] == "Roti")
+    monster = next(item for item in presets if item["name"] == "Monster Energy Original")
+    assert roti["category"] == "Pakistani Staples"
+    assert monster["category"] == "Drinks"
+    today = date.today().isoformat()
+
+    create_response = client.post(
+        "/api/life/diet",
+        json={
+            "entry_date": today,
+            "preset_id": chicken["id"],
+            "meal_type": "lunch",
+            "servings": 2,
+            "notes": "Post workout meal",
+        },
+    )
+    assert create_response.status_code == 201
+    entry = create_response.get_json()["entry"]
+    assert entry["food_name"] == "Chicken Breast"
+    assert entry["category"] == "Protein & Basics"
+    assert entry["meal_type"] == "lunch"
+    assert entry["calories"] == 330
+    assert entry["protein_g"] == 62
+
+    entries_response = client.get("/api/life/diet")
+    assert entries_response.status_code == 200
+    entries = entries_response.get_json()
+    assert entries[0]["id"] == entry["id"]
+
+    summary = client.get("/api/life/summary")
+    assert summary.status_code == 200
+    today_diet = summary.get_json()["today_diet"]
+    assert today_diet["entry_count"] == 1
+    assert today_diet["calories"] == 330
+    assert today_diet["protein_g"] == 62
+
+
+def test_life_diet_tracker_validates_preset_presence(client):
+    response = client.post(
+        "/api/life/diet",
+        json={
+            "entry_date": date.today().isoformat(),
+            "meal_type": "dinner",
+            "servings": 1,
+        },
+    )
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "Preset food is required."
+
+
+def test_library_tracker_supports_crud_summary_and_filters(client):
+    book_response = client.post(
+        "/api/library/items",
+        json={
+            "title": "Omniscient Reader's Viewpoint",
+            "media_type": "manhwa",
+            "status": "in_progress",
+            "platform": "Webtoon",
+            "current_unit": 48,
+            "total_units": 200,
+            "notes": "Main weekly read.",
+        },
+    )
+    assert book_response.status_code == 201
+    first_item = book_response.get_json()["item"]
+    assert first_item["media_type"] == "manhwa"
+    assert first_item["current_unit"] == 48
+
+    film_response = client.post(
+        "/api/library/items",
+        json={
+            "title": "Spirited Away",
+            "media_type": "movie",
+            "status": "completed",
+            "score": 10,
+            "creator": "Studio Ghibli",
+        },
+    )
+    assert film_response.status_code == 201
+    second_item = film_response.get_json()["item"]
+    assert second_item["completed_on"] is not None
+
+    filtered_items = client.get("/api/library/items?type=manhwa")
+    assert filtered_items.status_code == 200
+    filtered_payload = filtered_items.get_json()
+    assert len(filtered_payload) == 1
+    assert filtered_payload[0]["id"] == first_item["id"]
+
+    summary = client.get("/api/library/summary")
+    assert summary.status_code == 200
+    summary_payload = summary.get_json()
+    assert summary_payload["total_items"] == 2
+    assert summary_payload["in_progress_count"] == 1
+    assert summary_payload["completed_count"] == 1
+    assert summary_payload["type_breakdown"]["manhwa"] == 1
+    assert summary_payload["average_score"] == 10.0
+
+    update_response = client.put(
+        f"/api/library/items/{first_item['id']}",
+        json={"status": "completed", "current_unit": 200, "total_units": 200, "score": 9},
+    )
+    assert update_response.status_code == 200
+    updated_item = update_response.get_json()["item"]
+    assert updated_item["status"] == "completed"
+    assert updated_item["completed_on"] is not None
+    assert updated_item["score"] == 9
+
+    delete_response = client.delete(f"/api/library/items/{second_item['id']}")
+    assert delete_response.status_code == 200
+    assert len(client.get("/api/library/items").get_json()) == 1
+
+
+def test_library_tracker_validates_progress_ranges(client):
+    response = client.post(
+        "/api/library/items",
+        json={
+            "title": "One Piece",
+            "media_type": "manga",
+            "status": "in_progress",
+            "current_unit": 1200,
+            "total_units": 1100,
+        },
+    )
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "Current progress cannot be higher than total progress."
+
+
 def test_notes_support_tags_and_pinning(client):
     create_response = client.post(
         "/api/notes/",

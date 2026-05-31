@@ -1,4 +1,6 @@
 const CoreUI = {
+    sidebarStorageKey: 'lifeos.sidebar.collapsed',
+
     escapeHtml(value) {
         return String(value ?? '')
             .replaceAll('&', '&amp;')
@@ -128,11 +130,28 @@ const CoreUI = {
     initSidebarToggle() {
         const toggleBtn = document.getElementById('sidebar-toggle');
         const sidebar = document.getElementById('sidebar');
-        if (toggleBtn && sidebar) {
-            toggleBtn.addEventListener('click', () => {
-                sidebar.classList.toggle('collapsed');
-            });
+        if (!toggleBtn || !sidebar) return;
+
+        let isCollapsed = false;
+
+        try {
+            isCollapsed = localStorage.getItem(this.sidebarStorageKey) === 'true';
+        } catch (error) {
+            console.warn('Unable to read sidebar state from localStorage.', error);
         }
+
+        sidebar.classList.toggle('collapsed', isCollapsed);
+
+        toggleBtn.addEventListener('click', () => {
+            const nextState = !sidebar.classList.contains('collapsed');
+            sidebar.classList.toggle('collapsed', nextState);
+
+            try {
+                localStorage.setItem(this.sidebarStorageKey, String(nextState));
+            } catch (error) {
+                console.warn('Unable to save sidebar state to localStorage.', error);
+            }
+        });
     }
 };
 

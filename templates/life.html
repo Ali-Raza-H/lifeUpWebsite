@@ -28,6 +28,10 @@
                     <i class="ph ph-heartbeat"></i>
                     <span>Health & Body</span>
                 </div>
+                <div class="life-nav-item" data-panel="diet" onclick="LifeUI.switchPanel('diet')">
+                    <i class="ph ph-bowl-food"></i>
+                    <span>Diet & Macros</span>
+                </div>
                 <div class="life-nav-item" data-panel="finance" onclick="LifeUI.switchPanel('finance')">
                     <i class="ph ph-wallet"></i>
                     <span>Finance</span>
@@ -60,6 +64,22 @@
                         <span class="item-desc">Recent Logs</span>
                     </div>
                     <div id="life-health-list" class="life-list-body"></div>
+                </div>
+            </section>
+
+            <section id="panel-diet" class="life-content-panel">
+                <div class="life-section-header">
+                    <h2 class="life-section-title"><i class="ph ph-bowl-food"></i> Diet Tracker</h2>
+                    <button class="btn btn-sm btn-primary" onclick="LifeUI.openModal('diet')"><i class="ph ph-plus"></i> Log Meal</button>
+                </div>
+                <div class="metric-grid cols-4 life-diet-metrics" id="life-diet-metric-grid">
+                    <div class="compact-item metric-card"><span class="item-desc">Loading macros...</span></div>
+                </div>
+                <div class="life-list-container">
+                    <div class="life-list-header">
+                        <span class="item-desc">Recent Meals</span>
+                    </div>
+                    <div id="life-diet-list" class="life-list-body"></div>
                 </div>
             </section>
 
@@ -160,6 +180,57 @@
             <div class="modal-footer">
                 <button type="button" class="btn" onclick="LifeUI.closeModal('health')">Cancel</button>
                 <button type="submit" class="btn btn-primary">Save Log</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Finance Modal -->
+<div id="modal-diet" class="modal-overlay">
+    <div class="modal-content life-modal-content">
+        <div class="card-header">
+            <h3 class="card-title">Diet Entry</h3>
+            <button class="btn btn-icon" onclick="LifeUI.closeModal('diet')"><i class="ph ph-x"></i></button>
+        </div>
+        <form id="life-diet-form" onsubmit="LifeUI.saveDiet(event)">
+            <div class="life-form-grid">
+                <div class="form-group">
+                    <label class="form-label" for="diet-date">Date</label>
+                    <input type="date" id="diet-date" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="diet-meal-type">Meal</label>
+                    <select id="diet-meal-type" class="form-control">
+                        <option value="breakfast">Breakfast</option>
+                        <option value="lunch">Lunch</option>
+                        <option value="dinner">Dinner</option>
+                        <option value="snack">Snack</option>
+                    </select>
+                </div>
+                <div class="form-group life-wide">
+                    <label class="form-label" for="diet-preset">Preset Food</label>
+                    <select id="diet-preset" class="form-control" required>
+                        <option value="">Select a preset food</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="diet-servings">Servings</label>
+                    <input type="number" id="diet-servings" class="form-control" min="0.1" step="0.25" value="1" required>
+                </div>
+                <div class="form-group life-wide">
+                    <label class="form-label">Preset Preview</label>
+                    <div id="life-diet-preset-preview" class="life-diet-preview">
+                        Select a preset food to see calories, protein, carbs, and fat per serving.
+                    </div>
+                </div>
+                <div class="form-group life-wide">
+                    <label class="form-label" for="diet-notes">Notes</label>
+                    <input type="text" id="diet-notes" class="form-control" placeholder="Post-workout meal, late snack, etc.">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="LifeUI.closeModal('diet')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Meal</button>
             </div>
         </form>
     </div>
