@@ -32,10 +32,22 @@ const SettingsUI = {
     async loadAll() {
         await Promise.all([
             this.loadSystemSummary(),
-            this.loadTraits(),
-            this.loadBeliefs(),
-            this.loadSkills()
+            this.loadProfileData()
         ]);
+    },
+
+    async loadProfileData() {
+        try {
+            const profile = await API.get('/api/profile/all');
+            this.traits = profile.traits || [];
+            this.beliefs = profile.beliefs || [];
+            this.skills = profile.skills || [];
+            this.renderTraits();
+            this.renderBeliefs();
+            this.renderSkills();
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to load profile settings.');
+        }
     },
 
     async loadSystemSummary() {

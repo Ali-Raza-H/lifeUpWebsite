@@ -7,15 +7,11 @@ const ProfileUI = {
 
     async loadData() {
         try {
-            const [traits, beliefs, skills] = await Promise.all([
-                API.get('/api/profile/traits'),
-                API.get('/api/profile/beliefs'),
-                API.get('/api/profile/skills')
-            ]);
+            const profile = await API.get('/api/profile/all');
 
-            this.traits = traits;
-            this.beliefs = beliefs;
-            this.skills = skills;
+            this.traits = profile.traits || [];
+            this.beliefs = profile.beliefs || [];
+            this.skills = profile.skills || [];
             this.renderAll();
         } catch (error) {
             CoreUI.showError(error.message || 'Failed to load profile data.');

@@ -7,13 +7,12 @@ const AnalyticsUI = {
     async loadData(month = this.selectedMonth) {
         try {
             const calendarSuffix = month ? `?month=${encodeURIComponent(month)}` : '';
-            const [overview, velocity, traits, calendarPayload, moodProductivity] = await Promise.all([
-                API.get('/api/analytics/overview'),
-                API.get('/api/analytics/velocity'),
-                API.get('/api/profile/traits'),
-                API.get(`/api/analytics/habit_calendar${calendarSuffix}`),
-                API.get('/api/analytics/mood_productivity')
-            ]);
+            const payload = await API.get(`/api/analytics/page${calendarSuffix}`);
+            const overview = payload.overview || {};
+            const velocity = payload.velocity || {};
+            const traits = payload.traits || [];
+            const calendarPayload = payload.calendar || { habits: [], weekday_labels: [] };
+            const moodProductivity = payload.mood_productivity || { labels: [], mood: [], tasks: [] };
 
             this.selectedMonth = calendarPayload.month;
             const monthlyConsistency = this.calculateMonthlyConsistency(calendarPayload.habits);

@@ -5,6 +5,8 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta
 import math
 
+from flask import current_app
+
 from database import execute_db, query_db
 from utils import parse_datetime, row_to_dict, rows_to_dicts
 
@@ -30,8 +32,25 @@ DEFAULT_SKILLS = [
     ("Git", "tool", 82, "advanced", "Branching, history control, and release workflows.", 5),
 ]
 
+_PROFILE_DEFAULTS_READY: set[str] = set()
 
-def seed_profile_defaults() -> None:
+
+def _profile_defaults_cache_key() -> str:
+    try:
+        return str(current_app.config["DATABASE"])
+    except RuntimeError:
+        return "__default__"
+
+
+def mark_profile_defaults_dirty() -> None:
+    _PROFILE_DEFAULTS_READY.discard(_profile_defaults_cache_key())
+
+
+def seed_profile_defaults(force: bool = False) -> None:
+    cache_key = _profile_defaults_cache_key()
+    if not force and cache_key in _PROFILE_DEFAULTS_READY:
+        return
+
     trait_count = query_db("SELECT COUNT(*) AS count FROM traits", one=True)["count"]
     if trait_count == 0:
         for trait in DEFAULT_TRAITS:
@@ -57,6 +76,7 @@ def seed_profile_defaults() -> None:
             )
 
     normalize_profile_orders()
+    _PROFILE_DEFAULTS_READY.add(cache_key)
 
 
 def normalize_profile_orders() -> None:
@@ -84,6 +104,10 @@ def _normalize_display_order(table_name: str, order_clause: str) -> None:
 
 def get_traits_payload() -> list[dict]:
     seed_profile_defaults()
+    return _get_traits_payload()
+
+
+def _get_traits_payload() -> list[dict]:
     rows = query_db(
         """
         SELECT *
@@ -96,6 +120,10 @@ def get_traits_payload() -> list[dict]:
 
 def get_beliefs_payload() -> list[dict]:
     seed_profile_defaults()
+    return _get_beliefs_payload()
+
+
+def _get_beliefs_payload() -> list[dict]:
     rows = query_db(
         """
         SELECT *
@@ -400,6 +428,10 @@ def build_habit_calendar_payload(month_value: str | None = None) -> dict:
 
 def get_skills_payload() -> list[dict]:
     seed_profile_defaults()
+    return _get_skills_payload()
+
+
+def _get_skills_payload() -> list[dict]:
     rows = query_db(
         """
         SELECT *
@@ -420,11 +452,21 @@ def get_skills_payload() -> list[dict]:
     return rows_to_dicts(rows)
 
 
+def get_profile_payload() -> dict[str, list[dict]]:
+    seed_profile_defaults()
+    return {
+        "traits": _get_traits_payload(),
+        "beliefs": _get_beliefs_payload(),
+        "skills": _get_skills_payload(),
+    }
+
+
 def reset_profile_defaults() -> dict[str, int]:
+    mark_profile_defaults_dirty()
     execute_db("DELETE FROM skills")
     execute_db("DELETE FROM beliefs")
     execute_db("DELETE FROM traits")
-    seed_profile_defaults()
+    seed_profile_defaults(force=True)
     return {
         "traits": int(query_db("SELECT COUNT(*) AS count FROM traits", one=True)["count"] or 0),
         "beliefs": int(query_db("SELECT COUNT(*) AS count FROM beliefs", one=True)["count"] or 0),
@@ -831,8 +873,7 @@ def weekly_completion_series(weeks: int = 4) -> dict[str, list]:
     return {"labels": labels, "values": values}
 
 
-def consistency_rate() -> int:
-    habits = build_habit_calendar_payload()["habits"]
+def _consistency_rate_from_calendar_habits(habits: list[dict]) -> int:
     if not habits:
         return 0
 
@@ -841,6 +882,52 @@ def consistency_rate() -> int:
     if total_target == 0:
         return 0
     return round((total_completed / total_target) * 100)
+
+
+def consistency_rate() -> int:
+    return _consistency_rate_from_calendar_habits(build_habit_calendar_payload()["habits"])
+
+
+def habits_monthly_report(calendar_habits: list[dict] | None = None) -> list[dict]:
+    habits = calendar_habits if calendar_habits is not None else build_habit_calendar_payload()["habits"]
+    return [
+        {
+            "id": habit["id"],
+            "name": habit["name"],
+            "completed_days": habit["month_completed_days"],
+            "target_days": habit["month_target_days"],
+            "completion_rate": habit["month_completion_rate"],
+        }
+        for habit in habits
+    ]
+
+
+def dashboard_overview_payload(calendar_habits: list[dict] | None = None) -> dict:
+    completed_tasks = query_db("SELECT COUNT(*) AS count FROM tasks WHERE status = 'completed'", one=True)["count"]
+    active_habits = query_db("SELECT COUNT(*) AS count FROM habits", one=True)["count"]
+    active_projects = query_db(
+        "SELECT COUNT(*) AS count FROM projects WHERE status NOT IN ('completed', 'archived')",
+        one=True,
+    )["count"]
+    active_goals = query_db(
+        "SELECT COUNT(*) AS count FROM goals WHERE status NOT IN ('completed', 'archived')",
+        one=True,
+    )["count"]
+
+    consistency = (
+        _consistency_rate_from_calendar_habits(calendar_habits)
+        if calendar_habits is not None
+        else consistency_rate()
+    )
+
+    return {
+        "completed_tasks": int(completed_tasks or 0),
+        "active_habits": int(active_habits or 0),
+        "active_projects": int(active_projects or 0),
+        "active_goals": int(active_goals or 0),
+        "consistency": consistency,
+        "system_status": "Nominal",
+    }
 
 
 def project_health(project: dict) -> str:
@@ -855,6 +942,41 @@ def project_health(project: dict) -> str:
     if (project.get("in_progress_task_count") or 0) > 0:
         return "on_track"
     return "planning"
+
+
+def dashboard_active_tasks_payload() -> list[dict]:
+    return rows_to_dicts(
+        query_db(
+            """
+            SELECT *
+            FROM tasks
+            WHERE status IN ('pending', 'in_progress', 'on_hold')
+            ORDER BY
+                CASE status
+                    WHEN 'pending' THEN 0
+                    WHEN 'in_progress' THEN 1
+                    ELSE 2
+                END,
+                priority ASC,
+                COALESCE(due_date, '9999-12-31') ASC,
+                created_at DESC,
+                id DESC
+            """
+        )
+    )
+
+
+def dashboard_payload() -> dict:
+    calendar_habits = build_habit_calendar_payload()["habits"]
+    return {
+        "tasks": dashboard_active_tasks_payload(),
+        "projects": fetch_project_metrics(),
+        "habits": serialize_habits_with_metrics(),
+        "overview": dashboard_overview_payload(calendar_habits),
+        "habits_monthly": habits_monthly_report(calendar_habits),
+        "task_velocity": weekly_completion_series(),
+        "today": dashboard_today_payload(),
+    }
 
 
 def dashboard_today_payload() -> dict:

@@ -66,6 +66,9 @@ def get_db() -> sqlite3.Connection:
         db = sqlite3.connect(database_path)
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA foreign_keys = ON")
+        db.execute("PRAGMA busy_timeout = 5000")
+        db.execute("PRAGMA temp_store = MEMORY")
+        db.execute("PRAGMA cache_size = -8192")
         g.db = db
     return db
 
@@ -130,12 +133,18 @@ def _backfill_completion_timestamps(db: sqlite3.Connection) -> None:
         WHERE status = 'completed' AND completed_at IS NULL
         """
     )
-    db.execute("UPDATE notes SET tags = COALESCE(tags, '')")
-    db.execute("UPDATE journal_entries SET title = COALESCE(title, '')")
-    db.execute("UPDATE journal_entries SET tags = COALESCE(tags, '')")
-    db.execute("UPDATE journal_entries SET updated_at = COALESCE(updated_at, entry_date, CURRENT_TIMESTAMP)")
+    db.execute("UPDATE notes SET tags = '' WHERE tags IS NULL")
+    db.execute("UPDATE journal_entries SET title = '' WHERE title IS NULL")
+    db.execute("UPDATE journal_entries SET tags = '' WHERE tags IS NULL")
+    db.execute(
+        """
+        UPDATE journal_entries
+        SET updated_at = COALESCE(entry_date, CURRENT_TIMESTAMP)
+        WHERE updated_at IS NULL
+        """
+    )
     if _column_exists(db, "traits", "display_order"):
-        db.execute("UPDATE traits SET display_order = COALESCE(NULLIF(display_order, 0), id)")
+        db.execute("UPDATE traits SET display_order = id WHERE display_order IS NULL OR display_order = 0")
 
 
 def _ensure_project_milestones_table(db: sqlite3.Connection) -> None:
@@ -317,7 +326,7 @@ def _seed_food_presets(db: sqlite3.Connection) -> None:
     for category, name, serving_label, calories, protein_g, carbs_g, fat_g, display_order in DEFAULT_FOOD_PRESETS:
         existing = db.execute(
             """
-            SELECT id
+            SELECT id, category, calories, protein_g, carbs_g, fat_g, display_order
             FROM food_presets
             WHERE name = ? AND serving_label = ?
             LIMIT 1
@@ -326,6 +335,25 @@ def _seed_food_presets(db: sqlite3.Connection) -> None:
         ).fetchone()
 
         if existing:
+            current_values = (
+                existing["category"],
+                float(existing["calories"] or 0),
+                float(existing["protein_g"] or 0),
+                float(existing["carbs_g"] or 0),
+                float(existing["fat_g"] or 0),
+                int(existing["display_order"] or 0),
+            )
+            desired_values = (
+                category,
+                float(calories),
+                float(protein_g),
+                float(carbs_g),
+                float(fat_g),
+                int(display_order),
+            )
+            if current_values == desired_values:
+                continue
+
             db.execute(
                 """
                 UPDATE food_presets

@@ -666,6 +666,29 @@ def test_settings_system_restore_and_maintenance_endpoints(client):
     assert vacuum_response.status_code == 200
 
 
+def test_aggregate_payloads_support_fast_page_loads(client):
+    dashboard_response = client.get("/api/analytics/dashboard")
+    assert dashboard_response.status_code == 200
+    dashboard = dashboard_response.get_json()
+    assert {"tasks", "projects", "habits", "overview", "habits_monthly", "task_velocity", "today"} <= set(dashboard)
+    assert isinstance(dashboard["tasks"], list)
+    assert isinstance(dashboard["overview"], dict)
+
+    profile_response = client.get("/api/profile/all")
+    assert profile_response.status_code == 200
+    profile = profile_response.get_json()
+    assert {"traits", "beliefs", "skills"} <= set(profile)
+    assert len(profile["traits"]) >= 1
+    assert len(profile["beliefs"]) >= 1
+    assert len(profile["skills"]) >= 1
+
+    analytics_response = client.get("/api/analytics/page")
+    assert analytics_response.status_code == 200
+    analytics = analytics_response.get_json()
+    assert {"overview", "velocity", "traits", "calendar", "mood_productivity"} <= set(analytics)
+    assert isinstance(analytics["calendar"]["habits"], list)
+
+
 def test_calendar_event_lifecycle_and_week_payload(client):
     create_response = client.post(
         "/api/calendar/events",

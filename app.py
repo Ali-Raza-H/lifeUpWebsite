@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+from functools import lru_cache
 
 from flask import Flask, jsonify, render_template, request, session, redirect, url_for
 
@@ -42,6 +43,8 @@ def create_app(test_config: dict | None = None) -> Flask:
     if test_config:
         app.config.update(test_config)
 
+    app.json.compact = True
+    app.json.sort_keys = False
     logging.basicConfig(level=logging.INFO)
 
     init_app(app)
@@ -168,14 +171,20 @@ def _register_routes(app: Flask) -> None:
 
 
 def _register_template_helpers(app: Flask) -> None:
+    @lru_cache(maxsize=128)
+    def cached_asset_version(relative_path: str) -> int:
+        asset_path = BASE_DIR / "static" / relative_path
+        try:
+            return int(asset_path.stat().st_mtime)
+        except FileNotFoundError:
+            return 0
+
     @app.context_processor
     def inject_asset_version():
         def asset_version(relative_path: str) -> int:
-            asset_path = BASE_DIR / "static" / relative_path
-            try:
-                return int(asset_path.stat().st_mtime)
-            except FileNotFoundError:
-                return 0
+            if app.debug:
+                cached_asset_version.cache_clear()
+            return cached_asset_version(relative_path)
 
         return {"asset_version": asset_version}
 

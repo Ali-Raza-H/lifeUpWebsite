@@ -8,29 +8,15 @@ const DashboardUI = {
         this.initClock();
 
         try {
-            const [
-                pendingTasks,
-                inProgressTasks,
-                onHoldTasks,
-                projects,
-                habits,
-                overview,
-                habitsMonthly,
-                taskVelocity,
-                todayPayload
-            ] = await Promise.all([
-                API.get('/api/tasks/?status=pending'),
-                API.get('/api/tasks/?status=in_progress'),
-                API.get('/api/tasks/?status=on_hold'),
-                API.get('/api/projects/'),
-                API.get('/api/habits/'),
-                API.get('/api/analytics/overview'),
-                API.get('/api/analytics/habits_monthly'),
-                API.get('/api/analytics/velocity'),
-                API.get('/api/analytics/today')
-            ]);
+            const payload = await API.get('/api/analytics/dashboard');
+            const tasks = payload.tasks || [];
+            const projects = payload.projects || [];
+            const habits = payload.habits || [];
+            const overview = payload.overview || {};
+            const habitsMonthly = payload.habits_monthly || [];
+            const taskVelocity = payload.task_velocity || {};
+            const todayPayload = payload.today || {};
 
-            const tasks = [...pendingTasks, ...inProgressTasks, ...onHoldTasks];
             this.renderOverview(overview, tasks, todayPayload);
             this.renderToday(todayPayload);
             this.renderTasks(tasks);

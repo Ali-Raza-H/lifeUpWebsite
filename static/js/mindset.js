@@ -5,14 +5,10 @@ const MindsetUI = {
 
     async init() {
         try {
-            const [traits, beliefs, skills] = await Promise.all([
-                API.get('/api/profile/traits'),
-                API.get('/api/profile/beliefs'),
-                API.get('/api/profile/skills')
-            ]);
-            this.traits = traits;
-            this.beliefs = beliefs;
-            this.skills = skills;
+            const profile = await API.get('/api/profile/all');
+            this.traits = profile.traits || [];
+            this.beliefs = profile.beliefs || [];
+            this.skills = profile.skills || [];
             this.render();
         } catch (error) {
             CoreUI.showError(error.message || 'Failed to load mindset profile.');

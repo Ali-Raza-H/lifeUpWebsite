@@ -8,7 +8,7 @@ from pathlib import Path
 from flask import Blueprint, current_app, jsonify, request, send_file
 
 from database import get_db, query_db
-from services import normalize_profile_orders, reset_profile_defaults
+from services import mark_profile_defaults_dirty, normalize_profile_orders, reset_profile_defaults
 from utils import ValidationError, require_object, rows_to_dicts
 
 bp = Blueprint("settings_api", __name__, url_prefix="/api/settings")
@@ -177,6 +177,7 @@ def _restore_from_export(data: dict[str, list[dict]]) -> dict[str, int]:
     finally:
         db.execute("PRAGMA foreign_keys = ON")
 
+    mark_profile_defaults_dirty()
     normalize_profile_orders()
     return {
         table_name: int(query_db(f"SELECT COUNT(*) AS count FROM {table_name}", one=True)["count"] or 0)

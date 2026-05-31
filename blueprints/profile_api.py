@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, request
 from database import execute_db, query_db
 from services import (
     get_beliefs_payload,
+    get_profile_payload,
     get_skills_payload,
     get_traits_payload,
     seed_profile_defaults,
@@ -21,6 +22,11 @@ from utils import (
 bp = Blueprint("profile_api", __name__, url_prefix="/api/profile")
 SKILL_CATEGORIES = {"language", "framework", "tool", "database", "platform", "other"}
 EXPERIENCE_LEVELS = {"beginner", "intermediate", "advanced", "expert"}
+
+
+@bp.route("/all", methods=["GET"])
+def get_profile():
+    return jsonify(get_profile_payload())
 
 
 @bp.route("/traits", methods=["GET"])
