@@ -323,6 +323,10 @@ input[type="file"].form-control::file-selector-button:hover {
     box-shadow: var(--glow-blue);
 }
 
+input[type="checkbox"] {
+    accent-color: var(--accent-blue);
+}
+
 /* Range Sliders */
 input[type="range"] {
     -webkit-appearance: none;
@@ -1266,10 +1270,10 @@ input[type="range"]:focus {
     background: var(--bg-surface-hover);
 }
 .tick-box.checked {
-    background: var(--accent-green);
-    border-color: var(--accent-green);
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
     color: #000;
-    box-shadow: var(--glow-green);
+    box-shadow: var(--glow-blue);
 }
 .tick-box i {
     font-size: 14px;
@@ -1342,9 +1346,10 @@ input[type="range"]:focus {
 }
 
 .month-day.is-completed {
-    background: var(--text-primary);
+    background: var(--accent-blue);
     color: var(--bg-base);
-    border-color: var(--text-primary);
+    border-color: var(--accent-blue);
+    box-shadow: var(--glow-blue);
 }
 
 .month-day.is-skipped {
@@ -1450,8 +1455,9 @@ input[type="range"]:focus {
 }
 
 .habit-cell.is-completed {
-    background: var(--text-primary);
+    background: var(--accent-blue);
     color: var(--bg-base);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.16), var(--glow-blue);
 }
 
 .habit-cell.is-skipped {
@@ -1717,6 +1723,307 @@ input[type="range"]:focus {
     color: var(--accent-blue);
 }
 
+/* Site-wide Mindset styling */
+.bento-grid,
+.section-grid-2,
+.section-grid-3,
+.section-grid-sidebar,
+.task-top-grid,
+.projects-top-grid,
+.task-board,
+.project-board,
+.metric-grid {
+    gap: var(--space-6);
+}
+
+.page-stack {
+    gap: var(--space-6);
+}
+
+.card {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: var(--space-4) 0;
+    box-shadow: none;
+}
+
+.card:hover {
+    border-color: transparent;
+}
+
+.card-header,
+.board-column-header,
+.section-toolbar,
+.note-editor-header,
+.project-notebook-sidebar-head,
+.project-notebook-editor-head,
+.project-modal-header,
+.project-modal-footer,
+.modal-footer {
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+.project-modal-footer,
+.modal-footer {
+    border-top: 1px solid var(--border-subtle);
+    border-bottom: 0;
+    padding-top: var(--space-3);
+    margin: var(--space-4) 0 0;
+}
+
+.card-title,
+.form-label,
+.calendar-month-label,
+.calendar-period-label,
+.board-column-header .badge {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.card-title {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.card-title i,
+.form-label i {
+    color: var(--accent-blue);
+    opacity: 0.72;
+}
+
+.compact-list,
+.project-notebook-list,
+.project-list-scroll,
+.library-status-body {
+    gap: var(--space-3);
+}
+
+.compact-item,
+.project-list-row,
+.project-note-item,
+.library-entry,
+.settings-action-row {
+    position: relative;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    padding: 10px 12px 10px 28px;
+}
+
+.compact-list > .compact-item:not(.metric-card)::before,
+.project-notebook-list > .project-note-item::before,
+.library-status-body > .library-entry::before {
+    content: "\2192";
+    position: absolute;
+    left: 8px;
+    top: 10px;
+    color: var(--accent-blue);
+    font-weight: 700;
+    opacity: 0.7;
+    transition: all var(--transition);
+}
+
+.compact-item:hover,
+.compact-item.active,
+.project-list-row:hover,
+.project-note-item:hover,
+.project-note-item.active,
+.library-entry:hover,
+.settings-action-row:hover {
+    background: rgba(0, 240, 255, 0.05);
+    border-color: transparent;
+}
+
+.compact-list > .compact-item:not(.metric-card):hover::before,
+.compact-list > .compact-item.active:not(.metric-card)::before,
+.project-notebook-list > .project-note-item:hover::before,
+.project-notebook-list > .project-note-item.active::before,
+.library-status-body > .library-entry:hover::before {
+    color: var(--accent-pink);
+    left: 12px;
+    opacity: 1;
+    text-shadow: var(--glow-pink);
+}
+
+.item-title,
+.note-list-title,
+.project-note-title-input,
+.library-entry-title {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.item-desc,
+.project-meta-chip,
+.library-entry-meta,
+.library-entry-notes,
+.calendar-month-more {
+    color: var(--text-secondary);
+}
+
+.btn {
+    border-radius: var(--radius-sm);
+    letter-spacing: 0.12em;
+}
+
+.btn:hover,
+.btn.active {
+    background: rgba(0, 240, 255, 0.05);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    box-shadow: var(--glow-blue);
+}
+
+.btn-primary {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: #000000;
+    box-shadow: var(--glow-blue);
+}
+
+.btn-icon {
+    min-width: 34px;
+    min-height: 34px;
+}
+
+.btn-icon:hover {
+    color: var(--accent-pink);
+    background: rgba(255, 0, 255, 0.08);
+    box-shadow: var(--glow-pink);
+}
+
+.badge,
+.library-pill,
+.project-meta-chip {
+    border-radius: 0;
+    background: transparent;
+    border-color: var(--border-subtle);
+}
+
+.form-control,
+.settings-import-preview,
+.life-diet-preview {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: var(--border-subtle);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+}
+
+.form-control:focus {
+    border-color: var(--accent-blue);
+    box-shadow: var(--glow-blue);
+}
+
+.metric-grid {
+    padding-bottom: var(--space-6);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.metric-card,
+.projects-summary-stat,
+.project-pulse-stat {
+    background: transparent;
+    border: 0;
+    padding: 0;
+}
+
+.stat-value,
+.projects-summary-value,
+.project-pulse-value,
+.life-metric-value {
+    font-family: "Bebas Neue", var(--font-sans);
+    font-size: 46px;
+    font-weight: 400;
+    line-height: 0.95;
+    letter-spacing: 0;
+    color: var(--accent-blue);
+    text-shadow: var(--glow-blue);
+}
+
+.board-column,
+.project-modal-section,
+.project-link-panel,
+.project-notebook-sidebar,
+.project-notebook-editor,
+.note-sidebar-card,
+.note-editor-card,
+.note-empty-card,
+.library-status-column,
+.profile-skill-chart-card {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: var(--space-3) 0;
+}
+
+.board-column {
+    border-top: 1px solid var(--border-subtle);
+}
+
+.task-card,
+.project-card,
+.profile-belief-item,
+.profile-skill-tile,
+.life-row,
+.life-resource {
+    background: transparent;
+}
+
+.progress-fill,
+.skill-meter-fill,
+.library-progress-fill {
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-pink));
+    box-shadow: var(--glow-blue);
+}
+
+.modal-overlay {
+    background: rgba(0, 0, 0, 0.86);
+    backdrop-filter: blur(8px);
+}
+
+.modal-content,
+.app-confirm-content {
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 0 0 1px rgba(0, 240, 255, 0.08), 0 26px 80px rgba(0, 0, 0, 0.64);
+}
+
+.month-day,
+.habit-cell,
+.calendar-month-day,
+.calendar-month-event-pill,
+.week-event,
+.timeline-scale {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: var(--radius-sm);
+}
+
+.month-day.is-completed,
+.habit-cell.is-completed {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: #000000;
+    box-shadow: var(--glow-blue);
+}
+
+.week-event {
+    border-color: var(--accent-blue);
+}
+
+.EasyMDEContainer .editor-toolbar,
+.EasyMDEContainer .CodeMirror,
+.EasyMDEContainer .editor-preview,
+.EasyMDEContainer .editor-preview-side {
+    background: var(--bg-base) !important;
+}
+
 @media (max-width: 1024px) {
     .bento-grid {
         grid-template-columns: repeat(6, 1fr);
@@ -1861,8 +2168,5 @@ input[type="range"]:focus {
 
     .habit-matrix {
         grid-template-columns: 220px 1fr;
-    }
-}
-0px 1fr;
     }
 }

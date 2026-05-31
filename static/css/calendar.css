@@ -241,3 +241,51 @@
         overflow-x: auto;
     }
 }
+
+/* Mindset-aligned calendar */
+.calendar-layout {
+    gap: var(--space-8);
+}
+
+.calendar-view-toggle {
+    background: transparent;
+    border-radius: 0;
+}
+
+.calendar-view-toggle .btn.active {
+    background: rgba(0, 240, 255, 0.08);
+    color: var(--accent-blue);
+}
+
+.calendar-period-label,
+.calendar-month-weekday,
+.calendar-month-day-head {
+    font-family: var(--font-mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.calendar-month-grid {
+    gap: var(--space-3);
+}
+
+.calendar-month-day {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: var(--radius-sm);
+}
+
+.calendar-month-day:hover,
+.calendar-month-day.is-selected,
+.calendar-month-day.is-today {
+    border-color: var(--accent-blue);
+    box-shadow: var(--glow-blue);
+}
+
+.calendar-month-event-pill {
+    background: transparent;
+    border-radius: 0;
+}
+
+.calendar-agenda-list {
+    gap: var(--space-3);
+}

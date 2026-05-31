@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Mindset Profile{% endblock %}
+{% block page_title %}Psychometric Profile{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='mindset.css', v=asset_version('css/mindset.css')) }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-stack mindset-page">
+    <section class="mindset-hero card">
+        <div class="mindset-hero-copy">
+            <div class="mindset-kicker">Live Profile Synthesis</div>
+            <h2 id="mindset-hero-title">Loading mindset profile...</h2>
+            <p id="mindset-hero-summary" class="mindset-summary">Building a synthesis from traits, beliefs, and skills.</p>
+            <div class="mindset-badges" id="mindset-hero-badges">
+                <span class="badge">Loading...</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="metric-grid cols-4" id="mindset-metrics">
+        <div class="compact-item metric-card">
+            <span class="item-desc">Traits</span>
+            <div class="stat-value" id="mindset-metric-traits">0</div>
+        </div>
+        <div class="compact-item metric-card">
+            <span class="item-desc">Beliefs</span>
+            <div class="stat-value" id="mindset-metric-beliefs">0</div>
+        </div>
+        <div class="compact-item metric-card">
+            <span class="item-desc">Skills</span>
+            <div class="stat-value" id="mindset-metric-skills">0</div>
+        </div>
+        <div class="compact-item metric-card">
+            <span class="item-desc">Average Skill</span>
+            <div class="stat-value" id="mindset-metric-skill-avg">0%</div>
+        </div>
+    </section>
+
+    <div class="bento-grid">
+        <section class="card" style="grid-column: span 6;">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-chart-polar"></i> Trait Hierarchy</span>
+            </div>
+            <div class="compact-list" id="mindset-traits-list">
+                <div class="compact-item"><span class="item-desc">Loading traits...</span></div>
+            </div>
+        </section>
+
+        <section class="card" style="grid-column: span 6;">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-scales"></i> Operating Principles</span>
+            </div>
+            <div class="compact-list" id="mindset-beliefs-list">
+                <div class="compact-item"><span class="item-desc">Loading beliefs...</span></div>
+            </div>
+        </section>
+
+        <section class="card" style="grid-column: span 4;">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-lightbulb"></i> Cognitive Strengths</span>
+            </div>
+            <div class="compact-list" id="mindset-strengths-list">
+                <div class="compact-item"><span class="item-desc">Loading strengths...</span></div>
+            </div>
+        </section>
+
+        <section class="card" style="grid-column: span 4;">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-warning"></i> Tension Points</span>
+            </div>
+            <div class="compact-list" id="mindset-risks-list">
+                <div class="compact-item"><span class="item-desc">Loading constraints...</span></div>
+            </div>
+        </section>
+
+        <section class="card" style="grid-column: span 4;">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-stack"></i> Skill Foundations</span>
+            </div>
+            <div class="compact-list" id="mindset-skills-list">
+                <div class="compact-item"><span class="item-desc">Loading skills...</span></div>
+            </div>
+        </section>
+
+        <section class="card" style="grid-column: span 12;">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-target"></i> Strategic Recommendations</span>
+            </div>
+            <div class="mindset-recommendations" id="mindset-recommendations">
+                <div class="compact-item"><span class="item-desc">Generating recommendations...</span></div>
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/mindset.js', v=asset_version('js/mindset.js')) }}"></script>
+{% endblock %}
+

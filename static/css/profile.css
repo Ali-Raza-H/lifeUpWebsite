@@ -154,3 +154,30 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Mindset-aligned profile */
+.profile-top-grid,
+.profile-skill-grid,
+.profile-skill-toolbar {
+    gap: var(--space-6);
+}
+
+.profile-skill-chart-card {
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--border-subtle);
+    border-radius: 0;
+    padding: var(--space-4) 0 0;
+}
+
+.profile-trait-row,
+.profile-skill-tile,
+.profile-belief-item {
+    background: transparent;
+}
+
+.profile-trait-state,
+.profile-skill-meta,
+.profile-section-desc {
+    color: var(--text-secondary);
+}

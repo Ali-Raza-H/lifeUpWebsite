@@ -1,5 +1,5 @@
 @import url('variables.css');
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;600;700;800&display=swap');
 
 * {
     box-sizing: border-box;
@@ -10,7 +10,7 @@
 body {
     background-color: var(--bg-base);
     color: var(--text-primary);
-    font-family: var(--font-sans);
+    font-family: var(--font-mono);
     font-size: 14px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
@@ -20,9 +20,11 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-    font-weight: 600;
+    font-family: var(--font-sans);
+    font-weight: 800;
     color: var(--text-primary);
-    letter-spacing: 0;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 a {
@@ -38,24 +40,24 @@ a:hover {
 /* App Shell */
 .sidebar {
     width: 220px;
-    background-color: var(--bg-panel);
+    background-color: var(--bg-base);
     border-right: 1px solid var(--border-subtle);
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    padding: var(--space-4) var(--space-3);
+    padding: var(--space-6) var(--space-3);
     z-index: 10;
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar.collapsed {
     width: 64px;
-    padding: var(--space-4) 8px;
+    padding: var(--space-6) 8px;
 }
 
 .sidebar.collapsed:hover {
     width: 220px;
-    padding: var(--space-4) var(--space-3);
+    padding: var(--space-6) var(--space-3);
 }
 
 .sidebar-header {
@@ -84,7 +86,7 @@ a:hover {
     transition: opacity 0.2s;
     font-family: var(--font-mono);
     text-transform: uppercase;
-    letter-spacing: 2px;
+    letter-spacing: 0.16em;
 }
 
 .sidebar.collapsed .sidebar-header h2 {
@@ -109,8 +111,12 @@ a:hover {
     align-items: center;
     padding: 9px var(--space-2);
     color: var(--text-secondary);
-    border-radius: var(--radius-md);
-    font-weight: 500;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     overflow: hidden;
     white-space: nowrap;
     transition: all var(--transition);
@@ -139,8 +145,8 @@ a:hover {
 }
 
 .nav-link:hover {
-    background-color: var(--bg-surface);
-    color: var(--text-primary);
+    background-color: rgba(0, 240, 255, 0.05);
+    color: var(--accent-blue);
 }
 
 .nav-link:hover i {
@@ -149,14 +155,14 @@ a:hover {
 }
 
 .nav-link.active {
-    background-color: var(--bg-surface);
-    color: var(--text-primary);
-    box-shadow: inset 3px 0 0 var(--accent-pink);
+    background-color: transparent;
+    color: var(--accent-blue);
+    box-shadow: inset 3px 0 0 var(--accent-blue);
 }
 
 .nav-link.active i {
-    color: var(--accent-pink);
-    text-shadow: var(--glow-pink);
+    color: var(--accent-blue);
+    text-shadow: var(--glow-blue);
 }
 
 /* Main Layout */
@@ -175,9 +181,11 @@ a:hover {
     justify-content: space-between;
     align-items: center;
     padding: 0 var(--space-5);
-    background-color: var(--bg-panel);
+    background-color: var(--bg-base);
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
     color: var(--text-secondary);
 }
 
@@ -207,12 +215,12 @@ a:hover {
 .content-scroll {
     flex: 1;
     overflow-y: auto;
-    padding: var(--space-5) var(--space-6);
+    padding: var(--space-8) var(--space-6);
     background-color: var(--bg-base);
 }
 
 .content-container {
-    max-width: 1280px;
+    max-width: 1400px;
     margin: 0 auto;
 }
 
@@ -221,13 +229,18 @@ a:hover {
     justify-content: space-between;
     align-items: center;
     gap: var(--space-3);
-    margin-bottom: var(--space-4);
+    margin-bottom: var(--space-8);
 }
 
 .page-title {
     min-width: 0;
-    font-size: 20px;
+    font-family: var(--font-sans);
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
     line-height: 1.25;
+    text-transform: uppercase;
+    text-shadow: var(--glow-blue);
 }
 
 .header-actions {
@@ -325,6 +338,4 @@ a:hover {
     .content-scroll {
         padding: var(--space-3);
     }
-}
-  }
 }

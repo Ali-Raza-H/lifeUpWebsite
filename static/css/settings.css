@@ -161,3 +161,28 @@
         width: 100%;
     }
 }
+
+/* Mindset-aligned settings */
+.settings-page,
+.settings-skills-grid,
+.settings-toolbar {
+    gap: var(--space-6);
+}
+
+.settings-action-row,
+.settings-import-preview {
+    background: transparent;
+    border-radius: var(--radius-sm);
+}
+
+.settings-action-row:hover {
+    background: rgba(0, 240, 255, 0.05);
+}
+
+.settings-divider {
+    background: var(--border-subtle);
+}
+
+.settings-record-list .compact-item {
+    margin-bottom: var(--space-3);
+}

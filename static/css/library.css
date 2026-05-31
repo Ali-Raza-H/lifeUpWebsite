@@ -144,3 +144,43 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Mindset-aligned library shelves */
+.library-status-grid {
+    padding: 0;
+    gap: var(--space-6);
+}
+
+.library-status-column {
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--border-subtle);
+    border-radius: 0;
+}
+
+.library-status-head {
+    background: transparent;
+    padding: var(--space-3) 0;
+}
+
+.library-status-title,
+.library-entry-title {
+    font-family: var(--font-sans);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.library-status-body {
+    padding: var(--space-3) 0 0;
+}
+
+.library-entry {
+    background: transparent;
+    border: 0;
+    border-radius: var(--radius-sm);
+}
+
+.library-pill {
+    border-radius: 0;
+    background: transparent;
+}

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mindset Version Gallery</title>
+  <link rel="stylesheet" href="../../static/css/variables.css" />
+  <link rel="stylesheet" href="../../static/css/base.css" />
+  <link rel="stylesheet" href="../../static/css/components.css" />
+  <style>
+    .gallery { display: grid; gap: 16px; }
+    .gallery a { text-decoration: none; }
+    .gallery .card { cursor: pointer; }
+    .gallery .meta { color: var(--text-secondary); font-size: 12px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <main class="main-wrapper" style="min-height: 100vh;">
+    <div class="content-scroll" style="overflow: auto; height: 100vh;">
+      <div class="content-container">
+        <header class="page-header">
+          <h1 class="page-title">Mindset Page Versions</h1>
+        </header>
+
+        <div class="gallery">
+          <a class="card" href="./2026-05-25_8895e4b/standalone.html">
+            <div class="card-header"><span class="card-title">2026-05-25 (8895e4b)</span></div>
+            <div class="meta">Original inline-CSS page (exported)</div>
+          </a>
+
+          <a class="card" href="./2026-05-30_3f32a1d/standalone.html">
+            <div class="card-header"><span class="card-title">2026-05-30 (3f32a1d)</span></div>
+            <div class="meta">Inline-CSS revision (exported)</div>
+          </a>
+
+          <a class="card" href="./2026-05-30_1bb6d10/standalone.html">
+            <div class="card-header"><span class="card-title">2026-05-30 (1bb6d10)</span></div>
+            <div class="meta">Early CSS-backed mindset layout</div>
+          </a>
+
+          <a class="card" href="./2026-05-31_e293f65/standalone.html">
+            <div class="card-header"><span class="card-title">2026-05-31 (e293f65)</span></div>
+            <div class="meta">Dossier theme version</div>
+          </a>
+
+          <a class="card" href="../mindset_first_version_standalone.html">
+            <div class="card-header"><span class="card-title">First Version (inline CSS extracted)</span></div>
+            <div class="meta">Legacy standalone copy (kept)</div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
