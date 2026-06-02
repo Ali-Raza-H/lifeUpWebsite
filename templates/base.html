@@ -44,7 +44,24 @@
             <div style="display: flex; align-items: center; gap: 12px;">
                 <div><i class="ph-fill ph-circle" style="color: var(--accent-blue); font-size: 8px; margin-right: 6px; text-shadow: var(--glow-blue);"></i> SYSTEM OPTIMAL</div>
             </div>
-            <div id="os-clock">00:00:00</div>
+            <div class="top-bar-actions">
+                <div class="notification-shell">
+                    <button type="button" class="notification-button" id="notification-toggle" onclick="CoreUI.toggleNotifications()" title="Notifications">
+                        <i class="ph ph-bell"></i>
+                        <span id="notification-count" class="notification-count" style="display:none;">0</span>
+                    </button>
+                    <div id="notification-panel" class="notification-panel" style="display:none;">
+                        <div class="notification-panel-head">
+                            <span>Notifications</span>
+                            <button type="button" class="btn btn-icon btn-sm" onclick="CoreUI.loadNotifications()" title="Refresh"><i class="ph ph-arrow-clockwise"></i></button>
+                        </div>
+                        <div id="notification-list" class="notification-list">
+                            <div class="item-desc">Loading notifications...</div>
+                        </div>
+                    </div>
+                </div>
+                <div id="os-clock">00:00:00</div>
+            </div>
         </div>
         <div id="app-alert-region" class="app-alert-region" aria-live="polite"></div>
 

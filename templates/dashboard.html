@@ -4,7 +4,7 @@
 {% block page_title %}<span id="greeting" style="font-weight: 500;">System Overview</span>{% endblock %}
 
 {% block header_actions %}
-<button type="button" class="btn btn-primary" onclick="DashboardUI.openQuickTaskModal()"><i class="ph ph-plus"></i> Quick Task</button>
+<button type="button" class="btn btn-primary" onclick="DashboardUI.openQuickAddModal()"><i class="ph ph-plus"></i> Quick Add</button>
 {% endblock %}
 
 {% block content %}
@@ -126,33 +126,118 @@
     </div>
 </div>
 
-<div id="dashboard-task-modal" class="modal-overlay">
+<div id="dashboard-quick-add-modal" class="modal-overlay">
     <div class="modal-content" style="width:min(520px, calc(100vw - 32px));">
         <div class="card-header">
-            <h3 class="card-title">Quick Task</h3>
-            <button type="button" class="btn btn-icon" onclick="DashboardUI.closeQuickTaskModal()"><i class="ph ph-x"></i></button>
+            <h3 class="card-title">Quick Add</h3>
+            <button type="button" class="btn btn-icon" onclick="DashboardUI.closeQuickAddModal()"><i class="ph ph-x"></i></button>
         </div>
-        <form id="dashboard-task-form" onsubmit="DashboardUI.submitQuickTask(event)">
+        <form id="dashboard-quick-add-form" onsubmit="DashboardUI.submitQuickAdd(event)">
             <div class="form-group">
-                <label class="form-label">Title</label>
-                <input type="text" id="dashboard-task-title" class="form-control" required>
+                <label class="form-label" for="dashboard-quick-add-type">Type</label>
+                <select id="dashboard-quick-add-type" class="form-control" onchange="DashboardUI.changeQuickAddType()">
+                    <option value="task">Task</option>
+                    <option value="event">Calendar Event</option>
+                    <option value="project">Project</option>
+                    <option value="goal">Goal</option>
+                    <option value="note">Note</option>
+                    <option value="journal">Journal Entry</option>
+                    <option value="resource">Resource</option>
+                </select>
             </div>
             <div class="form-group">
-                <label class="form-label">Priority</label>
-                <select id="dashboard-task-priority" class="form-control">
+                <label class="form-label" for="dashboard-quick-title">Title</label>
+                <input type="text" id="dashboard-quick-title" class="form-control" required>
+            </div>
+            <div class="form-group quick-add-field" data-types="task note journal project goal resource event">
+                <label class="form-label" for="dashboard-quick-notes">Notes</label>
+                <textarea id="dashboard-quick-notes" class="form-control" rows="3"></textarea>
+            </div>
+            <div class="form-group quick-add-field" data-types="task">
+                <label class="form-label" for="dashboard-quick-priority">Priority</label>
+                <select id="dashboard-quick-priority" class="form-control">
                     <option value="1">Highest</option>
                     <option value="2">High</option>
                     <option value="3" selected>Normal</option>
                     <option value="4">Low</option>
                 </select>
             </div>
-            <div class="form-group">
-                <label class="form-label">Due Date</label>
-                <input type="date" id="dashboard-task-due" class="form-control">
+            <div class="form-row quick-add-field" data-types="task">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-due">Due Date & Time</label>
+                    <input type="datetime-local" id="dashboard-quick-due" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-estimate">Estimate Minutes</label>
+                    <input type="number" id="dashboard-quick-estimate" class="form-control" min="1" step="5">
+                </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="task event resource">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-project">Project</label>
+                    <select id="dashboard-quick-project" class="form-control"></select>
+                </div>
+                <div class="form-group quick-add-field" data-types="task event">
+                    <label class="form-label" for="dashboard-quick-goal">Goal</label>
+                    <select id="dashboard-quick-goal" class="form-control"></select>
+                </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="event">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-start">Start</label>
+                    <input type="datetime-local" id="dashboard-quick-start" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-end">End</label>
+                    <input type="datetime-local" id="dashboard-quick-end" class="form-control">
+                </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="event">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-category">Category</label>
+                    <input type="text" id="dashboard-quick-category" class="form-control" placeholder="study, work, personal">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-location">Location</label>
+                    <input type="text" id="dashboard-quick-location" class="form-control">
+                </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="project goal">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-date">Target Date</label>
+                    <input type="date" id="dashboard-quick-date" class="form-control">
+                </div>
+                <div class="form-group quick-add-field" data-types="goal">
+                    <label class="form-label" for="dashboard-quick-goal-type">Goal Type</label>
+                    <select id="dashboard-quick-goal-type" class="form-control">
+                        <option value="short-term">Short Term</option>
+                        <option value="long-term">Long Term</option>
+                        <option value="identity">Identity</option>
+                        <option value="skill">Skill</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group quick-add-field" data-types="resource">
+                <label class="form-label" for="dashboard-quick-url">Url</label>
+                <input type="url" id="dashboard-quick-url" class="form-control" placeholder="https://example.com">
+            </div>
+            <label class="life-check quick-add-field" data-types="resource">
+                <input type="checkbox" id="dashboard-quick-favorite">
+                <span>Mark as favorite</span>
+            </label>
+            <div class="form-row quick-add-field" data-types="note journal">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-tags">Tags</label>
+                    <input type="text" id="dashboard-quick-tags" class="form-control" placeholder="study, idea">
+                </div>
+                <div class="form-group quick-add-field" data-types="journal">
+                    <label class="form-label" for="dashboard-quick-mood">Mood</label>
+                    <input type="number" id="dashboard-quick-mood" class="form-control" min="1" max="10" value="5">
+                </div>
             </div>
             <div style="display:flex; justify-content:flex-end; gap: var(--space-2);">
-                <button type="button" class="btn" onclick="DashboardUI.closeQuickTaskModal()">Cancel</button>
-                <button type="submit" class="btn btn-primary">Create Task</button>
+                <button type="button" class="btn" onclick="DashboardUI.closeQuickAddModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="dashboard-quick-submit">Create</button>
             </div>
         </form>
     </div>

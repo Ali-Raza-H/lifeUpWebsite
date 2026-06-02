@@ -33,6 +33,8 @@ DEFAULT_SKILLS = [
 ]
 
 _PROFILE_DEFAULTS_READY: set[str] = set()
+DEFAULT_TASK_EVENT_DURATION_MINUTES = 60
+TASK_ANALYTICS_DAYS = 14
 
 
 def _profile_defaults_cache_key() -> str:
@@ -100,6 +102,164 @@ def _normalize_display_order(table_name: str, order_clause: str) -> None:
         if int(row.get("display_order") or 0) == index:
             continue
         execute_db(f"UPDATE {table_name} SET display_order = ? WHERE id = ?", (index, row["id"]))
+
+
+def _task_event_duration_minutes(task: dict) -> int:
+    estimated_minutes = int(task.get("estimated_minutes") or 0)
+    if estimated_minutes <= 0:
+        return DEFAULT_TASK_EVENT_DURATION_MINUTES
+    return max(15, min(estimated_minutes, 24 * 60))
+
+
+def _task_calendar_window(task: dict) -> tuple[str, str] | tuple[None, None]:
+    due_dt = parse_datetime(task.get("due_date"))
+    if due_dt is None:
+        return None, None
+
+    start_dt = due_dt.replace(second=0, microsecond=0)
+    end_dt = start_dt + timedelta(minutes=_task_event_duration_minutes(task))
+    return start_dt.isoformat(sep=" "), end_dt.isoformat(sep=" ")
+
+
+def get_task_by_calendar_event_id(event_id: int) -> dict:
+    return row_to_dict(query_db("SELECT * FROM tasks WHERE calendar_event_id = ?", [event_id], one=True))
+
+
+def get_calendar_event_for_task(task: dict) -> dict:
+    event_id = task.get("calendar_event_id")
+    if not event_id:
+        return {}
+    return row_to_dict(query_db("SELECT * FROM calendar_events WHERE id = ?", [event_id], one=True))
+
+
+def delete_task_with_sync(task_id: int, *, delete_linked_event: bool = True) -> bool:
+    task = row_to_dict(query_db("SELECT * FROM tasks WHERE id = ?", [task_id], one=True))
+    if not task:
+        return False
+
+    event_id = task.get("calendar_event_id")
+    execute_db("DELETE FROM tasks WHERE id = ?", [task_id])
+
+    if delete_linked_event and event_id:
+        execute_db("DELETE FROM calendar_events WHERE id = ?", [event_id])
+    return True
+
+
+def delete_calendar_event_with_sync(event_id: int, *, delete_linked_task: bool = True) -> bool:
+    event = query_db("SELECT id FROM calendar_events WHERE id = ?", [event_id], one=True)
+    if not event:
+        return False
+
+    linked_task = get_task_by_calendar_event_id(event_id)
+    if linked_task:
+        if delete_linked_task:
+            execute_db("DELETE FROM tasks WHERE id = ?", [linked_task["id"]])
+        else:
+            execute_db("UPDATE tasks SET calendar_event_id = NULL WHERE id = ?", [linked_task["id"]])
+
+    execute_db("DELETE FROM calendar_events WHERE id = ?", [event_id])
+    return True
+
+
+def sync_calendar_event_for_task(task: dict) -> dict:
+    if not task:
+        return {}
+
+    event_id = task.get("calendar_event_id")
+    start_at, end_at = _task_calendar_window(task)
+    if start_at is None or end_at is None:
+        if event_id:
+            delete_calendar_event_with_sync(int(event_id), delete_linked_task=False)
+        return {}
+
+    current_event = get_calendar_event_for_task(task)
+    payload = (
+        task["title"],
+        task.get("description") or "",
+        current_event.get("category") or "task",
+        current_event.get("location") or "",
+        task.get("project_id"),
+        task.get("goal_id"),
+        start_at,
+        end_at,
+    )
+
+    if current_event:
+        execute_db(
+            """
+            UPDATE calendar_events
+            SET title = ?, description = ?, category = ?, location = ?, project_id = ?, goal_id = ?, start_at = ?, end_at = ?, recurrence = 'none', recurrence_until = NULL, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (*payload, current_event["id"]),
+        )
+        return row_to_dict(query_db("SELECT * FROM calendar_events WHERE id = ?", [current_event["id"]], one=True))
+
+    new_event_id = execute_db(
+        """
+        INSERT INTO calendar_events (title, description, category, location, project_id, goal_id, start_at, end_at, recurrence, recurrence_until, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'none', NULL, CURRENT_TIMESTAMP)
+        """,
+        payload,
+    )
+    execute_db("UPDATE tasks SET calendar_event_id = ? WHERE id = ?", [new_event_id, task["id"]])
+    return row_to_dict(query_db("SELECT * FROM calendar_events WHERE id = ?", [new_event_id], one=True))
+
+
+def sync_task_for_calendar_event(event: dict, sync_task: bool) -> dict:
+    if not event or not event.get("id"):
+        return {}
+
+    linked_task = get_task_by_calendar_event_id(int(event["id"]))
+    if not sync_task:
+        if linked_task:
+            execute_db("DELETE FROM tasks WHERE id = ?", [linked_task["id"]])
+        return {}
+
+    start_dt = parse_datetime(event.get("start_at"))
+    end_dt = parse_datetime(event.get("end_at"))
+    if start_dt is None or end_dt is None:
+        return linked_task
+
+    estimated_minutes = max(15, int((end_dt - start_dt).total_seconds() // 60 or DEFAULT_TASK_EVENT_DURATION_MINUTES))
+    due_date = start_dt.replace(second=0, microsecond=0).isoformat(sep=" ")
+    description = event.get("description") or ""
+    if linked_task:
+        execute_db(
+            """
+            UPDATE tasks
+            SET title = ?, description = ?, due_date = ?, estimated_minutes = ?, project_id = ?, goal_id = ?, calendar_event_id = ?
+            WHERE id = ?
+            """,
+            (
+                event["title"],
+                description,
+                due_date,
+                estimated_minutes,
+                event.get("project_id"),
+                event.get("goal_id"),
+                event["id"],
+                linked_task["id"],
+            ),
+        )
+        return row_to_dict(query_db("SELECT * FROM tasks WHERE id = ?", [linked_task["id"]], one=True))
+
+    task_id = execute_db(
+        """
+        INSERT INTO tasks (title, description, priority, due_date, estimated_minutes, status, project_id, goal_id, calendar_event_id)
+        VALUES (?, ?, 3, ?, ?, 'pending', ?, ?, ?)
+        """,
+        (
+            event["title"],
+            description,
+            due_date,
+            estimated_minutes,
+            event.get("project_id"),
+            event.get("goal_id"),
+            event["id"],
+        ),
+    )
+    return row_to_dict(query_db("SELECT * FROM tasks WHERE id = ?", [task_id], one=True))
 
 
 def get_traits_payload() -> list[dict]:
@@ -223,6 +383,29 @@ def _month_target_days(
     if track_end < track_start:
         return 0
     return (track_end - track_start).days + 1
+
+
+def _month_full_target_periods(
+    frequency: str,
+    month_start: date,
+    month_end: date,
+    created_at: str | None,
+    earliest_log_date: date | None = None,
+) -> int:
+    created_date = _coerce_date(created_at) or month_start
+    if earliest_log_date and earliest_log_date < created_date:
+        created_date = earliest_log_date
+
+    track_start = max(created_date, month_start)
+    if month_end < track_start:
+        return 0
+
+    active_days = (month_end - track_start).days + 1
+    if frequency == "weekly":
+        return max(1, math.ceil(active_days / 7))
+    if frequency == "monthly":
+        return 1
+    return active_days
 
 
 def _coerce_date(value: str | None) -> date | None:
@@ -395,12 +578,20 @@ def build_habit_calendar_payload(month_value: str | None = None) -> dict:
         earliest_log_date = min(valid_log_dates) if valid_log_dates else None
 
         target_days = _month_target_days(month_start, month_end, habit.get("created_at"), earliest_log_date)
+        full_target_days = _month_full_target_periods(
+            habit["frequency"],
+            month_start,
+            month_end,
+            habit.get("created_at"),
+            earliest_log_date,
+        )
         completed_days = sum(
             1
             for current_date, status in log_map.items()
             if status == "completed" and month_start.isoformat() <= current_date <= month_end.isoformat()
         )
         completion_rate = round((completed_days / target_days) * 100) if target_days else 0
+        full_completion_rate = round((completed_days / full_target_days) * 100) if full_target_days else 0
 
         enriched = {
             **habit,
@@ -408,6 +599,8 @@ def build_habit_calendar_payload(month_value: str | None = None) -> dict:
             "month_completed_days": completed_days,
             "month_target_days": target_days,
             "month_completion_rate": min(100, completion_rate),
+            "month_full_target_days": full_target_days,
+            "month_full_completion_rate": min(100, full_completion_rate),
             "calendar_cells": _build_calendar_cells(month_start, month_end, log_map, habit.get("created_at")),
         }
         enriched_habits.append(enriched)
@@ -509,10 +702,13 @@ def _fetch_calendar_base_rows(range_start: date, range_end: date) -> list[dict]:
         SELECT
             ce.*,
             p.name AS project_name,
-            g.title AS goal_title
+            g.title AS goal_title,
+            t.id AS linked_task_id,
+            t.status AS linked_task_status
         FROM calendar_events ce
         LEFT JOIN projects p ON p.id = ce.project_id
         LEFT JOIN goals g ON g.id = ce.goal_id
+        LEFT JOIN tasks t ON t.calendar_event_id = ce.id
         WHERE (ce.start_at <= ? AND ce.end_at >= ?)
            OR (
                 COALESCE(ce.recurrence, 'none') != 'none'
@@ -682,7 +878,87 @@ def fetch_project_metrics() -> list[dict]:
             """
         )
     )
+    next_action_rows = rows_to_dicts(
+        query_db(
+            """
+            SELECT
+                project_id,
+                action_type,
+                action_id,
+                title,
+                status,
+                due_date,
+                sort_group,
+                priority_rank
+            FROM (
+                SELECT
+                    project_id,
+                    'task' AS action_type,
+                    id AS action_id,
+                    title,
+                    status,
+                    due_date,
+                    CASE status
+                        WHEN 'in_progress' THEN 0
+                        WHEN 'pending' THEN 1
+                        ELSE 2
+                    END AS sort_group,
+                    priority AS priority_rank
+                FROM tasks
+                WHERE project_id IS NOT NULL AND status != 'completed'
+
+                UNION ALL
+
+                SELECT
+                    project_id,
+                    'milestone' AS action_type,
+                    id AS action_id,
+                    title,
+                    status,
+                    due_date,
+                    CASE status
+                        WHEN 'in_progress' THEN 0
+                        WHEN 'pending' THEN 1
+                        ELSE 2
+                    END AS sort_group,
+                    5 AS priority_rank
+                FROM project_milestones
+                WHERE project_id IS NOT NULL AND status != 'completed'
+            )
+            ORDER BY
+                project_id ASC,
+                sort_group ASC,
+                COALESCE(due_date, '9999-12-31') ASC,
+                priority_rank ASC,
+                action_id ASC
+            """
+        )
+    )
+    resource_rows = rows_to_dicts(
+        query_db(
+            """
+            SELECT entity_id AS project_id, COUNT(*) AS resource_count
+            FROM attachments
+            WHERE entity_type = 'project' AND entity_id IS NOT NULL
+            GROUP BY entity_id
+            """
+        )
+    )
     milestone_map = {row["project_id"]: row for row in milestone_rows}
+    resource_map = {row["project_id"]: int(row["resource_count"] or 0) for row in resource_rows}
+    next_action_map: dict[int, dict] = {}
+    for row in next_action_rows:
+        project_id = row.get("project_id")
+        if project_id is None or project_id in next_action_map:
+            continue
+        next_action_map[project_id] = {
+            "kind": row["action_type"],
+            "id": row["action_id"],
+            "title": row["title"],
+            "status": row["status"],
+            "due_date": row["due_date"],
+        }
+
     for project in projects:
         project["task_count"] = int(project["task_count"] or 0)
         project["completed_task_count"] = int(project["completed_task_count"] or 0)
@@ -698,6 +974,8 @@ def fetch_project_metrics() -> list[dict]:
             project["status"] == "completed",
         )
         project["health"] = project_health(project)
+        project["resource_count"] = resource_map.get(project["id"], 0)
+        project["next_action"] = next_action_map.get(project["id"])
     return projects
 
 
@@ -873,6 +1151,44 @@ def weekly_completion_series(weeks: int = 4) -> dict[str, list]:
     return {"labels": labels, "values": values}
 
 
+def task_analytics_series(days: int = TASK_ANALYTICS_DAYS) -> dict[str, list]:
+    safe_days = max(1, days)
+    today = date.today()
+    start_date = today - timedelta(days=safe_days - 1)
+    total_tasks = int(query_db("SELECT COUNT(*) AS count FROM tasks", one=True)["count"] or 0)
+
+    completed_rows = rows_to_dicts(
+        query_db(
+            """
+            SELECT DATE(completed_at) AS event_date, COUNT(*) AS count
+            FROM tasks
+            WHERE completed_at IS NOT NULL AND DATE(completed_at) >= ?
+            GROUP BY DATE(completed_at)
+            """,
+            [start_date.isoformat()],
+        )
+    )
+    completed_map = {row["event_date"]: int(row["count"] or 0) for row in completed_rows}
+
+    labels: list[str] = []
+    completed_values: list[int] = []
+    share_values: list[int] = []
+    for offset in range(safe_days):
+        current = start_date + timedelta(days=offset)
+        key = current.isoformat()
+        completed_count = completed_map.get(key, 0)
+        labels.append(current.strftime("%d %b"))
+        completed_values.append(completed_count)
+        share_values.append(round((completed_count / total_tasks) * 100) if total_tasks else 0)
+
+    return {
+        "labels": labels,
+        "completed": completed_values,
+        "share_of_total": share_values,
+        "total_tasks": total_tasks,
+    }
+
+
 def _consistency_rate_from_calendar_habits(habits: list[dict]) -> int:
     if not habits:
         return 0
@@ -897,12 +1213,15 @@ def habits_monthly_report(calendar_habits: list[dict] | None = None) -> list[dic
             "completed_days": habit["month_completed_days"],
             "target_days": habit["month_target_days"],
             "completion_rate": habit["month_completion_rate"],
+            "full_target_days": habit["month_full_target_days"],
+            "full_completion_rate": habit["month_full_completion_rate"],
         }
         for habit in habits
     ]
 
 
 def dashboard_overview_payload(calendar_habits: list[dict] | None = None) -> dict:
+    total_tasks = query_db("SELECT COUNT(*) AS count FROM tasks", one=True)["count"]
     completed_tasks = query_db("SELECT COUNT(*) AS count FROM tasks WHERE status = 'completed'", one=True)["count"]
     active_habits = query_db("SELECT COUNT(*) AS count FROM habits", one=True)["count"]
     active_projects = query_db(
@@ -921,7 +1240,9 @@ def dashboard_overview_payload(calendar_habits: list[dict] | None = None) -> dic
     )
 
     return {
+        "total_tasks": int(total_tasks or 0),
         "completed_tasks": int(completed_tasks or 0),
+        "task_completion_rate": round((int(completed_tasks or 0) / int(total_tasks or 0)) * 100) if total_tasks else 0,
         "active_habits": int(active_habits or 0),
         "active_projects": int(active_projects or 0),
         "active_goals": int(active_goals or 0),
@@ -975,6 +1296,7 @@ def dashboard_payload() -> dict:
         "overview": dashboard_overview_payload(calendar_habits),
         "habits_monthly": habits_monthly_report(calendar_habits),
         "task_velocity": weekly_completion_series(),
+        "task_analytics": task_analytics_series(),
         "today": dashboard_today_payload(),
     }
 
@@ -1069,6 +1391,148 @@ def dashboard_today_payload() -> dict:
         "open_habits": open_habit_count,
         "next_event": next_event,
         "focus_tasks": focus_tasks,
+    }
+
+
+def build_notifications_payload(limit: int = 12) -> dict:
+    now = datetime.now().replace(second=0, microsecond=0)
+    today = now.date()
+    task_rows = rows_to_dicts(
+        query_db(
+            """
+            SELECT
+                t.id,
+                t.title,
+                t.due_date,
+                t.status,
+                p.name AS project_name
+            FROM tasks t
+            LEFT JOIN projects p ON p.id = t.project_id
+            WHERE t.status != 'completed' AND t.due_date IS NOT NULL
+            ORDER BY t.due_date ASC, t.priority ASC, t.id ASC
+            """
+        )
+    )
+    event_rows = rows_to_dicts(
+        query_db(
+            """
+            SELECT
+                ce.id,
+                ce.title,
+                ce.start_at,
+                ce.end_at,
+                ce.category,
+                ce.location,
+                p.name AS project_name,
+                t.id AS linked_task_id
+            FROM calendar_events ce
+            LEFT JOIN projects p ON p.id = ce.project_id
+            LEFT JOIN tasks t ON t.calendar_event_id = ce.id
+            WHERE ce.start_at IS NOT NULL
+            ORDER BY ce.start_at ASC, ce.id ASC
+            """
+        )
+    )
+    contact_rows = rows_to_dicts(
+        query_db(
+            """
+            SELECT id, name, next_follow_up, priority
+            FROM contacts
+            WHERE next_follow_up IS NOT NULL
+            ORDER BY next_follow_up ASC, id ASC
+            """
+        )
+    )
+
+    items: list[dict] = []
+    for task in task_rows:
+        due_dt = parse_datetime(task.get("due_date"))
+        if due_dt is None:
+            continue
+        if due_dt < now:
+            items.append(
+                {
+                    "id": f"task-overdue-{task['id']}",
+                    "kind": "task",
+                    "severity": "high",
+                    "title": f"Overdue task: {task['title']}",
+                    "message": task.get("project_name") or "Task deadline has passed.",
+                    "when": due_dt.isoformat(sep=" "),
+                    "source_type": "task",
+                    "source_id": task["id"],
+                    "action_url": "/tasks",
+                }
+            )
+        elif due_dt.date() == today:
+            items.append(
+                {
+                    "id": f"task-today-{task['id']}",
+                    "kind": "task",
+                    "severity": "medium",
+                    "title": f"Due today: {task['title']}",
+                    "message": task.get("project_name") or "Task due later today.",
+                    "when": due_dt.isoformat(sep=" "),
+                    "source_type": "task",
+                    "source_id": task["id"],
+                    "action_url": "/tasks",
+                }
+            )
+
+    upcoming_boundary = now + timedelta(hours=2)
+    for event in event_rows:
+        start_dt = parse_datetime(event.get("start_at"))
+        if start_dt is None or start_dt < now or start_dt > upcoming_boundary:
+            continue
+
+        title_prefix = "Scheduled task" if event.get("linked_task_id") else "Upcoming event"
+        items.append(
+            {
+                "id": f"event-upcoming-{event['id']}",
+                "kind": "event",
+                "severity": "medium",
+                "title": f"{title_prefix}: {event['title']}",
+                "message": event.get("project_name") or event.get("location") or event.get("category") or "Starts soon.",
+                "when": start_dt.isoformat(sep=" "),
+                "source_type": "calendar_event",
+                "source_id": event["id"],
+                "action_url": "/calendar",
+            }
+        )
+
+    for contact in contact_rows:
+        follow_up = _coerce_date(contact.get("next_follow_up"))
+        if follow_up is None or follow_up > today:
+            continue
+
+        severity = "high" if contact.get("priority") == "high" or follow_up < today else "medium"
+        items.append(
+            {
+                "id": f"contact-follow-up-{contact['id']}",
+                "kind": "contact",
+                "severity": severity,
+                "title": f"Follow up with {contact['name']}",
+                "message": f"Follow-up date: {follow_up.isoformat()}",
+                "when": f"{follow_up.isoformat()} 00:00:00",
+                "source_type": "contact",
+                "source_id": contact["id"],
+                "action_url": "/life",
+            }
+        )
+
+    severity_rank = {"high": 0, "medium": 1, "low": 2}
+    items.sort(
+        key=lambda item: (
+            severity_rank.get(item["severity"], 3),
+            item.get("when") or "9999-12-31 23:59:59",
+            item["id"],
+        )
+    )
+    limited_items = items[:limit]
+    return {
+        "generated_at": now.isoformat(sep=" "),
+        "count": len(limited_items),
+        "high_priority_count": sum(1 for item in limited_items if item["severity"] == "high"),
+        "items": limited_items,
     }
 
 

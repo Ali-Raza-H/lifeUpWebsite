@@ -72,7 +72,12 @@ const HabitUI = {
                     <button class="btn btn-icon" onclick="HabitUI.openCreateModal(${habit.id})" title="Edit Habit"><i class="ph ph-pencil-simple"></i></button>
                     <div class="habit-meta-main">
                         <div class="item-title">${CoreUI.escapeHtml(habit.name)}</div>
-                        <div class="item-desc">${CoreUI.escapeHtml(habit.category || 'general')} • streak ${habit.current_streak} • ${habit.month_completion_rate}%</div>
+                        <div class="item-desc">
+                            ${CoreUI.escapeHtml(habit.category || 'general')} &middot;
+                            streak ${habit.current_streak} &middot;
+                            elapsed ${habit.month_completion_rate}% &middot;
+                            full month ${habit.month_full_completion_rate}%
+                        </div>
                     </div>
                 </div>
                 <div class="habit-days" ${dayCountStyle}>${dayCells}</div>

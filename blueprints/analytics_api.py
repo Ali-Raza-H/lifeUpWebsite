@@ -11,6 +11,7 @@ from services import (
     get_traits_payload,
     habits_monthly_report,
     mood_productivity_series,
+    task_analytics_series,
     weekly_completion_series,
 )
 from utils import ValidationError
@@ -45,6 +46,7 @@ def get_analytics_page_payload():
         {
             "overview": dashboard_overview_payload(calendar_payload["habits"]),
             "velocity": weekly_completion_series(),
+            "task_analytics": task_analytics_series(),
             "traits": get_traits_payload(),
             "calendar": calendar_payload,
             "mood_productivity": mood_productivity_series(),

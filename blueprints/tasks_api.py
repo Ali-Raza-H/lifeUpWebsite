@@ -3,6 +3,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from database import execute_db, query_db
+from services import delete_task_with_sync, sync_calendar_event_for_task
 from utils import (
     ValidationError,
     get_optional_choice,
@@ -107,11 +108,13 @@ def create_task():
 
     task_id = execute_db(
         """
-        INSERT INTO tasks (title, description, priority, due_date, estimated_minutes, status, project_id, goal_id, completed_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO tasks (title, description, priority, due_date, estimated_minutes, status, project_id, goal_id, completed_at, calendar_event_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
         """,
         (title, description, priority, due_date, estimated_minutes, status, project_id, goal_id, completed_at),
     )
+    task = query_db("SELECT * FROM tasks WHERE id = ?", [task_id], one=True)
+    sync_calendar_event_for_task(row_to_dict(task))
     task = query_db("SELECT * FROM tasks WHERE id = ?", [task_id], one=True)
     return jsonify({"task": row_to_dict(task), "message": "Task created."}), 201
 
@@ -165,6 +168,8 @@ def update_task(task_id: int):
         (title, description, priority, status, due_date, estimated_minutes, project_id, goal_id, completed_at, task_id),
     )
     updated_task = query_db("SELECT * FROM tasks WHERE id = ?", [task_id], one=True)
+    sync_calendar_event_for_task(row_to_dict(updated_task))
+    updated_task = query_db("SELECT * FROM tasks WHERE id = ?", [task_id], one=True)
     return jsonify({"task": row_to_dict(updated_task), "message": "Task updated."})
 
 
@@ -174,5 +179,5 @@ def delete_task(task_id: int):
     if not task:
         return jsonify({"error": "Task not found."}), 404
 
-    execute_db("DELETE FROM tasks WHERE id = ?", [task_id])
+    delete_task_with_sync(task_id)
     return jsonify({"message": "Task deleted."})

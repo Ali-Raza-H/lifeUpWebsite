@@ -58,6 +58,17 @@ def get_project(project_id: int):
         [project_id]
     )
     project_dict["milestones"] = [row_to_dict(item) for item in milestones]
+
+    resources = query_db(
+        """
+        SELECT *
+        FROM attachments
+        WHERE entity_type = 'project' AND entity_id = ?
+        ORDER BY is_favorite DESC, created_at DESC, id DESC
+        """,
+        [project_id]
+    )
+    project_dict["resources"] = [row_to_dict(item) for item in resources]
     
     return jsonify(project_dict)
 

@@ -2,6 +2,8 @@ const DashboardUI = {
     habitChartInstance: null,
     taskChartInstance: null,
     clockInterval: null,
+    projects: [],
+    goals: [],
 
     async loadData() {
         this.setGreeting();
@@ -14,9 +16,11 @@ const DashboardUI = {
             const habits = payload.habits || [];
             const overview = payload.overview || {};
             const habitsMonthly = payload.habits_monthly || [];
-            const taskVelocity = payload.task_velocity || {};
+            const taskAnalytics = payload.task_analytics || {};
             const todayPayload = payload.today || {};
 
+            this.projects = projects;
+            await this.loadQuickAddMeta();
             this.renderOverview(overview, tasks, todayPayload);
             this.renderToday(todayPayload);
             this.renderTasks(tasks);
@@ -24,9 +28,18 @@ const DashboardUI = {
             this.renderHabits(habits);
             this.renderNextEvent(todayPayload.next_event);
             this.initHabitChart(habitsMonthly);
-            this.initTaskChart(taskVelocity);
+            this.initTaskChart(taskAnalytics);
         } catch (error) {
             CoreUI.showError(error.message || 'Failed to load dashboard data.');
+        }
+    },
+
+    async loadQuickAddMeta() {
+        try {
+            this.goals = await API.get('/api/goals/');
+            this.populateQuickAddRelations();
+        } catch (error) {
+            this.goals = [];
         }
     },
 
@@ -211,6 +224,10 @@ const DashboardUI = {
         }
 
         activeProjects.forEach((project) => {
+            const nextAction = project.next_action;
+            const nextActionLabel = nextAction
+                ? `${nextAction.kind === 'milestone' ? 'Stage' : 'Task'}: ${nextAction.title}`
+                : 'No next action set';
             const div = document.createElement('div');
             div.className = 'compact-item';
             div.style.flexDirection = 'column';
@@ -228,6 +245,11 @@ const DashboardUI = {
                     <span>${project.completed_task_count}/${project.task_count} tasks</span>
                     <span>${project.health.replace('_', ' ')}</span>
                 </div>
+                <div class="item-desc" style="display:flex; align-items:center; gap:6px; width:100%;">
+                    <i class="ph ph-lightning"></i>
+                    <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${CoreUI.escapeHtml(nextActionLabel)}</span>
+                </div>
+                ${project.resource_count ? `<span class="badge"><i class="ph ph-paperclip"></i>${project.resource_count} resources</span>` : ''}
             `;
             projectList.appendChild(div);
         });
@@ -274,28 +296,167 @@ const DashboardUI = {
         }
     },
 
-    openQuickTaskModal() {
-        document.getElementById('dashboard-task-form').reset();
-        document.getElementById('dashboard-task-modal').style.display = 'flex';
-    },
-
-    closeQuickTaskModal() {
-        document.getElementById('dashboard-task-modal').style.display = 'none';
-    },
-
-    async submitQuickTask(event) {
-        event.preventDefault();
-        try {
-            await API.post('/api/tasks/', {
-                title: document.getElementById('dashboard-task-title').value,
-                priority: parseInt(document.getElementById('dashboard-task-priority').value, 10),
-                due_date: document.getElementById('dashboard-task-due').value || null
+    populateQuickAddRelations() {
+        const projectSelect = document.getElementById('dashboard-quick-project');
+        const goalSelect = document.getElementById('dashboard-quick-goal');
+        if (projectSelect) {
+            const current = projectSelect.value;
+            projectSelect.innerHTML = '<option value="">No project</option>';
+            this.projects.forEach((project) => {
+                projectSelect.innerHTML += `<option value="${project.id}">${CoreUI.escapeHtml(project.name)}</option>`;
             });
-            this.closeQuickTaskModal();
+            projectSelect.value = current;
+        }
+        if (goalSelect) {
+            const current = goalSelect.value;
+            goalSelect.innerHTML = '<option value="">No goal</option>';
+            this.goals.forEach((goal) => {
+                goalSelect.innerHTML += `<option value="${goal.id}">${CoreUI.escapeHtml(goal.title)}</option>`;
+            });
+            goalSelect.value = current;
+        }
+    },
+
+    openQuickAddModal() {
+        const form = document.getElementById('dashboard-quick-add-form');
+        if (form) form.reset();
+        this.populateQuickAddRelations();
+        this.setQuickAddDefaults();
+        this.changeQuickAddType();
+        document.getElementById('dashboard-quick-add-modal').style.display = 'flex';
+    },
+
+    closeQuickAddModal() {
+        document.getElementById('dashboard-quick-add-modal').style.display = 'none';
+    },
+
+    setQuickAddDefaults() {
+        const now = new Date();
+        now.setMinutes(Math.ceil(now.getMinutes() / 15) * 15, 0, 0);
+        const end = new Date(now.getTime() + (60 * 60 * 1000));
+        const toLocal = (date) => {
+            const pad = (value) => String(value).padStart(2, '0');
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+        };
+        const today = toLocal(now).slice(0, 10);
+        const due = document.getElementById('dashboard-quick-due');
+        const start = document.getElementById('dashboard-quick-start');
+        const eventEnd = document.getElementById('dashboard-quick-end');
+        const targetDate = document.getElementById('dashboard-quick-date');
+        if (due) due.value = toLocal(now);
+        if (start) start.value = toLocal(now);
+        if (eventEnd) eventEnd.value = toLocal(end);
+        if (targetDate) targetDate.value = today;
+    },
+
+    changeQuickAddType() {
+        const type = document.getElementById('dashboard-quick-add-type')?.value || 'task';
+        document.querySelectorAll('.quick-add-field').forEach((field) => {
+            const types = (field.dataset.types || '').split(/\s+/);
+            field.style.display = types.includes(type) ? '' : 'none';
+        });
+        const submit = document.getElementById('dashboard-quick-submit');
+        if (submit) {
+            submit.textContent = `Create ${this.quickAddLabel(type)}`;
+        }
+        const title = document.getElementById('dashboard-quick-title');
+        if (title) {
+            title.placeholder = type === 'resource' ? 'Resource title' : `${this.quickAddLabel(type)} title`;
+        }
+    },
+
+    quickAddLabel(type) {
+        const labels = {
+            task: 'Task',
+            event: 'Event',
+            project: 'Project',
+            goal: 'Goal',
+            note: 'Note',
+            journal: 'Journal Entry',
+            resource: 'Resource'
+        };
+        return labels[type] || 'Item';
+    },
+
+    intOrNull(id) {
+        const value = document.getElementById(id)?.value;
+        if (value == null || value === '') return null;
+        const parsed = parseInt(value, 10);
+        return Number.isNaN(parsed) ? null : parsed;
+    },
+
+    async submitQuickAdd(event) {
+        event.preventDefault();
+        const type = document.getElementById('dashboard-quick-add-type').value;
+        const title = document.getElementById('dashboard-quick-title').value;
+        const notes = document.getElementById('dashboard-quick-notes').value;
+
+        try {
+            if (type === 'task') {
+                await API.post('/api/tasks/', {
+                    title,
+                    description: notes,
+                    priority: parseInt(document.getElementById('dashboard-quick-priority').value, 10),
+                    due_date: document.getElementById('dashboard-quick-due').value || null,
+                    estimated_minutes: this.intOrNull('dashboard-quick-estimate'),
+                    project_id: this.intOrNull('dashboard-quick-project'),
+                    goal_id: this.intOrNull('dashboard-quick-goal')
+                });
+            } else if (type === 'event') {
+                await API.post('/api/calendar/events', {
+                    title,
+                    description: notes,
+                    category: document.getElementById('dashboard-quick-category').value || 'general',
+                    location: document.getElementById('dashboard-quick-location').value,
+                    start_at: document.getElementById('dashboard-quick-start').value,
+                    end_at: document.getElementById('dashboard-quick-end').value,
+                    project_id: this.intOrNull('dashboard-quick-project'),
+                    goal_id: this.intOrNull('dashboard-quick-goal'),
+                    sync_task: true
+                });
+            } else if (type === 'project') {
+                await API.post('/api/projects/', {
+                    name: title,
+                    description: notes,
+                    deadline: document.getElementById('dashboard-quick-date').value || null,
+                    status: 'planning'
+                });
+            } else if (type === 'goal') {
+                await API.post('/api/goals/', {
+                    title,
+                    notes,
+                    type: document.getElementById('dashboard-quick-goal-type').value,
+                    target_date: document.getElementById('dashboard-quick-date').value || null
+                });
+            } else if (type === 'note') {
+                await API.post('/api/notes/', {
+                    title,
+                    content: notes || title,
+                    tags: document.getElementById('dashboard-quick-tags').value
+                });
+            } else if (type === 'journal') {
+                await API.post('/api/journal/', {
+                    title,
+                    content: notes || title,
+                    tags: document.getElementById('dashboard-quick-tags').value,
+                    mood_score: this.intOrNull('dashboard-quick-mood') || 5
+                });
+            } else if (type === 'resource') {
+                await API.post('/api/life/attachments', {
+                    entity_type: this.intOrNull('dashboard-quick-project') ? 'project' : 'general',
+                    entity_id: this.intOrNull('dashboard-quick-project'),
+                    title,
+                    url: document.getElementById('dashboard-quick-url').value,
+                    notes,
+                    is_favorite: document.getElementById('dashboard-quick-favorite').checked
+                });
+            }
+
+            this.closeQuickAddModal();
             await this.loadData();
-            CoreUI.showError('Task created.', true);
+            CoreUI.showError(`${this.quickAddLabel(type)} created.`, true);
         } catch (error) {
-            CoreUI.showError(error.message || 'Failed to create task.');
+            CoreUI.showError(error.message || `Failed to create ${this.quickAddLabel(type).toLowerCase()}.`);
         }
     },
 
@@ -307,24 +468,35 @@ const DashboardUI = {
         Chart.defaults.borderColor = '#1f1f22';
         Chart.defaults.font.family = '"JetBrains Mono", monospace';
         const labels = habitsMonthly.map((habit) => habit.name.length > 15 ? `${habit.name.substring(0, 15)}...` : habit.name);
-        const data = habitsMonthly.map((habit) => habit.completion_rate);
+        const elapsedData = habitsMonthly.map((habit) => habit.completion_rate);
+        const fullMonthData = habitsMonthly.map((habit) => habit.full_completion_rate ?? habit.completion_rate);
         this.habitChartInstance = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels,
-                datasets: [{
-                    label: 'Completion Rate (%)',
-                    data,
-                    backgroundColor: 'rgba(0, 240, 255, 0.8)',
-                    borderColor: '#00f0ff',
-                    borderWidth: 1,
-                    borderRadius: 4
-                }]
+                datasets: [
+                    {
+                        label: 'Elapsed Month',
+                        data: elapsedData,
+                        backgroundColor: 'rgba(0, 240, 255, 0.8)',
+                        borderColor: '#00f0ff',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    },
+                    {
+                        label: 'Full Month',
+                        data: fullMonthData,
+                        backgroundColor: 'rgba(255, 0, 255, 0.45)',
+                        borderColor: '#ff00ff',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }
+                ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
+                plugins: { legend: { display: true } },
                 scales: {
                     y: { beginAtZero: true, max: 100, grid: { color: '#1f1f22' }, ticks: { callback: (value) => `${value}%` } },
                     x: { grid: { display: false } }
@@ -333,7 +505,7 @@ const DashboardUI = {
         });
     },
 
-    initTaskChart(taskVelocity) {
+    initTaskChart(taskAnalytics) {
         const ctx = document.getElementById('taskChart');
         if (!ctx) return;
         CoreUI.destroyChart(this.taskChartInstance);
@@ -341,29 +513,47 @@ const DashboardUI = {
         Chart.defaults.borderColor = '#1f1f22';
         Chart.defaults.font.family = '"JetBrains Mono", monospace';
         this.taskChartInstance = new Chart(ctx, {
-            type: 'line',
             data: {
-                labels: taskVelocity?.labels || [],
-                datasets: [{
-                    label: 'Tasks Completed',
-                    data: taskVelocity?.values || [],
-                    borderColor: '#00f0ff',
-                    borderWidth: 2,
-                    backgroundColor: 'rgba(0, 240, 255, 0.1)',
-                    pointBackgroundColor: '#00f0ff',
-                    pointBorderColor: '#000',
-                    pointBorderWidth: 2,
-                    pointRadius: 4,
-                    tension: 0.3,
-                    fill: true
-                }]
+                labels: taskAnalytics?.labels || [],
+                datasets: [
+                    {
+                        type: 'bar',
+                        label: 'Completed',
+                        data: taskAnalytics?.completed || [],
+                        backgroundColor: 'rgba(0, 240, 255, 0.45)',
+                        borderColor: '#00f0ff',
+                        borderWidth: 1,
+                        yAxisID: 'yTasks'
+                    },
+                    {
+                        type: 'line',
+                        label: `Share of Total${taskAnalytics?.total_tasks ? ` (${taskAnalytics.total_tasks})` : ''}`,
+                        data: taskAnalytics?.share_of_total || [],
+                        borderColor: '#ff00ff',
+                        borderWidth: 2,
+                        backgroundColor: 'rgba(255, 0, 255, 0.1)',
+                        pointBackgroundColor: '#ff00ff',
+                        pointBorderColor: '#000',
+                        pointBorderWidth: 2,
+                        pointRadius: 3,
+                        tension: 0.3,
+                        yAxisID: 'yShare'
+                    }
+                ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
+                plugins: { legend: { display: true } },
                 scales: {
-                    y: { beginAtZero: true, precision: 0, grid: { color: '#1f1f22' } },
+                    yTasks: { beginAtZero: true, precision: 0, grid: { color: '#1f1f22' } },
+                    yShare: {
+                        beginAtZero: true,
+                        max: 100,
+                        position: 'right',
+                        grid: { display: false },
+                        ticks: { callback: (value) => `${value}%` }
+                    },
                     x: { grid: { display: false } }
                 }
             }

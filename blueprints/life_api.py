@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify, request
 from database import execute_db, query_db
 from utils import (
     ValidationError,
+    get_optional_bool,
     get_optional_choice,
     get_optional_date,
     get_optional_int,
@@ -56,6 +57,31 @@ def _normalize_url(value: str) -> str:
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValidationError("Url must be a valid website link.", "url")
     return clean_value
+
+
+def _attachment_query(filters: list[str], params: list[object]) -> list[dict]:
+    query = """
+        SELECT
+            a.*,
+            CASE
+                WHEN a.entity_type = 'project' THEN p.name
+                WHEN a.entity_type = 'goal' THEN g.title
+                WHEN a.entity_type = 'task' THEN t.title
+                WHEN a.entity_type = 'note' THEN n.title
+                WHEN a.entity_type IN ('journal', 'journal_entry') THEN COALESCE(j.title, j.content)
+                ELSE NULL
+            END AS entity_title
+        FROM attachments a
+        LEFT JOIN projects p ON a.entity_type = 'project' AND p.id = a.entity_id
+        LEFT JOIN goals g ON a.entity_type = 'goal' AND g.id = a.entity_id
+        LEFT JOIN tasks t ON a.entity_type = 'task' AND t.id = a.entity_id
+        LEFT JOIN notes n ON a.entity_type = 'note' AND n.id = a.entity_id
+        LEFT JOIN journal_entries j ON a.entity_type IN ('journal', 'journal_entry') AND j.id = a.entity_id
+    """
+    if filters:
+        query += f" WHERE {' AND '.join(filters)}"
+    query += " ORDER BY a.is_favorite DESC, a.created_at DESC, a.id DESC LIMIT 200"
+    return rows_to_dicts(query_db(query, params))
 
 
 @bp.route("/summary", methods=["GET"])
@@ -398,15 +424,32 @@ def delete_review(review_id: int):
 
 @bp.route("/attachments", methods=["GET"])
 def get_attachments():
-    rows = query_db(
-        """
-        SELECT *
-        FROM attachments
-        ORDER BY created_at DESC, id DESC
-        LIMIT 120
-        """
-    )
-    return jsonify(rows_to_dicts(rows))
+    filters: list[str] = []
+    params: list[object] = []
+
+    entity_type = request.args.get("entity_type")
+    if entity_type:
+        entity_type = get_optional_choice({"entity_type": entity_type}, "entity_type", allowed=ATTACHMENT_ENTITIES)
+        filters.append("a.entity_type = ?")
+        params.append(entity_type)
+
+    entity_id = request.args.get("entity_id", type=int)
+    if entity_id is not None:
+        filters.append("a.entity_id = ?")
+        params.append(entity_id)
+
+    favorites = request.args.get("favorites")
+    if favorites == "1":
+        filters.append("a.is_favorite = 1")
+
+    query_text = request.args.get("q", "").strip().lower()
+    if query_text:
+        filters.append(
+            "LOWER(a.title || ' ' || COALESCE(a.notes, '') || ' ' || COALESCE(a.url, '') || ' ' || COALESCE(p.name, '') || ' ' || COALESCE(g.title, '') || ' ' || COALESCE(t.title, '') || ' ' || COALESCE(n.title, '') || ' ' || COALESCE(j.title, '')) LIKE ?"
+        )
+        params.append(f"%{query_text}%")
+
+    return jsonify(_attachment_query(filters, params))
 
 
 @bp.route("/attachments", methods=["POST"])
@@ -418,16 +461,50 @@ def create_attachment():
     raw_url = get_required_string(payload, "url", max_length=1000)
     url = _normalize_url(raw_url)
     notes = get_optional_string(payload, "notes", max_length=1000, default="") or ""
+    is_favorite = 1 if get_optional_bool(payload, "is_favorite", default=False) else 0
 
     attachment_id = execute_db(
         """
-        INSERT INTO attachments (entity_type, entity_id, title, url, notes)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO attachments (entity_type, entity_id, title, url, notes, is_favorite)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (entity_type, entity_id, title, url, notes),
+        (entity_type, entity_id, title, url, notes, is_favorite),
     )
-    attachment = query_db("SELECT * FROM attachments WHERE id = ?", [attachment_id], one=True)
-    return jsonify({"attachment": row_to_dict(attachment), "message": "Attachment saved."}), 201
+    attachment = _attachment_query(["a.id = ?"], [attachment_id])[0]
+    return jsonify({"attachment": attachment, "message": "Attachment saved."}), 201
+
+
+@bp.route("/attachments/<int:attachment_id>", methods=["PUT"])
+def update_attachment(attachment_id: int):
+    row = query_db("SELECT * FROM attachments WHERE id = ?", [attachment_id], one=True)
+    if not row:
+        return jsonify({"error": "Attachment not found."}), 404
+
+    current = row_to_dict(row)
+    payload = require_object(request.get_json(silent=True))
+    entity_type = (
+        get_optional_choice(payload, "entity_type", allowed=ATTACHMENT_ENTITIES, default=current["entity_type"])
+        or current["entity_type"]
+    )
+    entity_id = get_optional_int(payload, "entity_id", minimum=1) if "entity_id" in payload else current.get("entity_id")
+    title = get_optional_string(payload, "title", max_length=140, default=current["title"]) or current["title"]
+    raw_url = get_optional_string(payload, "url", max_length=1000, default=current["url"]) or current["url"]
+    url = _normalize_url(raw_url)
+    notes = get_optional_string(payload, "notes", max_length=1000, default=current.get("notes") or "") or ""
+    is_favorite = current.get("is_favorite", 0)
+    if "is_favorite" in payload:
+        is_favorite = 1 if get_optional_bool(payload, "is_favorite", default=bool(current.get("is_favorite"))) else 0
+
+    execute_db(
+        """
+        UPDATE attachments
+        SET entity_type = ?, entity_id = ?, title = ?, url = ?, notes = ?, is_favorite = ?
+        WHERE id = ?
+        """,
+        (entity_type, entity_id, title, url, notes, is_favorite, attachment_id),
+    )
+    attachment = _attachment_query(["a.id = ?"], [attachment_id])[0]
+    return jsonify({"attachment": attachment, "message": "Attachment updated."})
 
 
 @bp.route("/attachments/<int:attachment_id>", methods=["DELETE"])

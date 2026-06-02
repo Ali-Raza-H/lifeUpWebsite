@@ -41,6 +41,7 @@ DEFAULT_FOOD_PRESETS = (
 MIGRATIONS = (
     ("traits", "display_order", "ALTER TABLE traits ADD COLUMN display_order INTEGER NOT NULL DEFAULT 0"),
     ("tasks", "completed_at", "ALTER TABLE tasks ADD COLUMN completed_at DATETIME"),
+    ("tasks", "calendar_event_id", "ALTER TABLE tasks ADD COLUMN calendar_event_id INTEGER"),
     ("projects", "completed_at", "ALTER TABLE projects ADD COLUMN completed_at DATETIME"),
     ("goals", "completed_at", "ALTER TABLE goals ADD COLUMN completed_at DATETIME"),
     ("goals", "notes", "ALTER TABLE goals ADD COLUMN notes TEXT"),
@@ -55,6 +56,7 @@ MIGRATIONS = (
     ("calendar_events", "recurrence_until", "ALTER TABLE calendar_events ADD COLUMN recurrence_until DATE"),
     ("food_presets", "category", "ALTER TABLE food_presets ADD COLUMN category TEXT NOT NULL DEFAULT 'Uncategorized'"),
     ("diet_entries", "category", "ALTER TABLE diet_entries ADD COLUMN category TEXT DEFAULT ''"),
+    ("attachments", "is_favorite", "ALTER TABLE attachments ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0"),
 )
 
 
@@ -90,6 +92,7 @@ def init_db() -> None:
     _ensure_life_tables(db)
     _ensure_library_tables(db)
     _ensure_calendar_relation_indexes(db)
+    _ensure_task_sync_indexes(db)
     _backfill_completion_timestamps(db)
     db.commit()
 
@@ -136,6 +139,8 @@ def _backfill_completion_timestamps(db: sqlite3.Connection) -> None:
     db.execute("UPDATE notes SET tags = '' WHERE tags IS NULL")
     db.execute("UPDATE journal_entries SET title = '' WHERE title IS NULL")
     db.execute("UPDATE journal_entries SET tags = '' WHERE tags IS NULL")
+    if _column_exists(db, "attachments", "is_favorite"):
+        db.execute("UPDATE attachments SET is_favorite = 0 WHERE is_favorite IS NULL")
     db.execute(
         """
         UPDATE journal_entries
@@ -270,6 +275,7 @@ def _ensure_life_tables(db: sqlite3.Connection) -> None:
             title TEXT NOT NULL,
             url TEXT NOT NULL,
             notes TEXT,
+            is_favorite INTEGER NOT NULL DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -317,6 +323,7 @@ def _ensure_life_tables(db: sqlite3.Connection) -> None:
     db.execute("CREATE INDEX IF NOT EXISTS idx_contacts_follow_up ON contacts(next_follow_up)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_life_reviews_period ON life_reviews(period_type, period_start DESC)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, entity_id)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_attachments_favorite ON attachments(is_favorite, created_at DESC)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_food_presets_order ON food_presets(display_order, name)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_diet_entries_date ON diet_entries(entry_date DESC, meal_type, id DESC)")
     _seed_food_presets(db)
@@ -411,6 +418,11 @@ def _ensure_calendar_relation_indexes(db: sqlite3.Connection) -> None:
         db.execute("CREATE INDEX IF NOT EXISTS idx_calendar_events_project_id ON calendar_events(project_id)")
     if _column_exists(db, "calendar_events", "goal_id"):
         db.execute("CREATE INDEX IF NOT EXISTS idx_calendar_events_goal_id ON calendar_events(goal_id)")
+
+
+def _ensure_task_sync_indexes(db: sqlite3.Connection) -> None:
+    if _column_exists(db, "tasks", "calendar_event_id"):
+        db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_calendar_event_id ON tasks(calendar_event_id)")
 
 
 def query_db(query: str, args=(), one: bool = False):

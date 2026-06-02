@@ -6,13 +6,20 @@ const LifeUI = {
     contacts: [],
     reviews: [],
     attachments: [],
+    projects: [],
     summary: {},
     activePanel: 'health',
+    attachmentFilters: {
+        query: '',
+        favorites: false,
+        project: 'all'
+    },
 
     async init() {
         this.setDefaultDates();
         this.setupModalClosures();
         this.setupDietInteractions();
+        this.setupAttachmentInteractions();
         await this.loadAll();
     },
 
@@ -29,6 +36,31 @@ const LifeUI = {
         document.getElementById('diet-servings')?.addEventListener('input', () => this.updateDietPreview());
     },
 
+    setupAttachmentInteractions() {
+        document.getElementById('attachment-search')?.addEventListener('input', (event) => {
+            this.attachmentFilters.query = event.target.value.trim();
+            this.loadAttachments();
+        });
+        document.getElementById('attachment-favorites-filter')?.addEventListener('change', (event) => {
+            this.attachmentFilters.favorites = event.target.checked;
+            this.loadAttachments();
+        });
+        document.getElementById('attachment-project-filter')?.addEventListener('change', (event) => {
+            this.attachmentFilters.project = event.target.value;
+            this.loadAttachments();
+        });
+        document.getElementById('attachment-project')?.addEventListener('change', (event) => {
+            const typeSelect = document.getElementById('attachment-type');
+            if (typeSelect && event.target.value) typeSelect.value = 'project';
+        });
+        document.getElementById('attachment-type')?.addEventListener('change', (event) => {
+            if (event.target.value !== 'project') {
+                const projectSelect = document.getElementById('attachment-project');
+                if (projectSelect) projectSelect.value = '';
+            }
+        });
+    },
+
     setDefaultDates() {
         const today = new Date().toISOString().slice(0, 10);
         ['health-date', 'diet-date', 'finance-date', 'review-start', 'contact-last', 'contact-next'].forEach((id) => {
@@ -39,7 +71,7 @@ const LifeUI = {
 
     async loadAll() {
         try {
-            const [summary, health, dietEntries, foodPresets, finance, contacts, reviews, attachments] = await Promise.all([
+            const [summary, health, dietEntries, foodPresets, finance, contacts, reviews, attachments, projects] = await Promise.all([
                 API.get('/api/life/summary'),
                 API.get('/api/life/health'),
                 API.get('/api/life/diet'),
@@ -47,7 +79,8 @@ const LifeUI = {
                 API.get('/api/life/finance'),
                 API.get('/api/life/contacts'),
                 API.get('/api/life/reviews'),
-                API.get('/api/life/attachments')
+                API.get(this.getAttachmentEndpoint()),
+                API.get('/api/projects/')
             ]);
             this.summary = summary;
             this.health = health;
@@ -57,10 +90,33 @@ const LifeUI = {
             this.contacts = contacts;
             this.reviews = reviews;
             this.attachments = attachments;
+            this.projects = projects;
             this.render();
         } catch (error) {
             CoreUI.showError(error.message || 'Failed to load life tracker.');
         }
+    },
+
+    async loadAttachments() {
+        try {
+            this.attachments = await API.get(this.getAttachmentEndpoint());
+            this.renderAttachmentOptions();
+            this.renderAttachments();
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to load resources.');
+        }
+    },
+
+    getAttachmentEndpoint() {
+        const params = new URLSearchParams();
+        if (this.attachmentFilters.query) params.set('q', this.attachmentFilters.query);
+        if (this.attachmentFilters.favorites) params.set('favorites', '1');
+        if (this.attachmentFilters.project && this.attachmentFilters.project !== 'all') {
+            params.set('entity_type', 'project');
+            params.set('entity_id', this.attachmentFilters.project);
+        }
+        const suffix = params.toString();
+        return `/api/life/attachments${suffix ? `?${suffix}` : ''}`;
     },
 
     render() {
@@ -72,6 +128,7 @@ const LifeUI = {
         this.renderFinance();
         this.renderContacts();
         this.renderReviews();
+        this.renderAttachmentOptions();
         this.renderAttachments();
         this.updateDietPreview();
     },
@@ -321,18 +378,43 @@ const LifeUI = {
                 <div class="item-main">
                     <div class="life-resource-head">
                         <span class="badge">${CoreUI.escapeHtml(item.entity_type)}</span>
-                        ${item.entity_id ? `<span class="badge">#${item.entity_id}</span>` : ''}
+                        ${item.entity_title ? `<span class="badge"><i class="ph ph-link"></i>${CoreUI.escapeHtml(item.entity_title)}</span>` : item.entity_id ? `<span class="badge">#${item.entity_id}</span>` : ''}
+                        ${item.is_favorite ? '<span class="badge"><i class="ph-fill ph-star"></i>Favorite</span>' : ''}
                     </div>
                     <a class="item-title life-resource-link" href="${CoreUI.escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">
                         <i class="ph ph-arrow-square-out"></i> ${CoreUI.escapeHtml(item.title)}
                     </a>
                     ${item.notes ? `<div class="item-desc">${CoreUI.escapeHtml(item.notes)}</div>` : ''}
                 </div>
-                <div class="mt-3 d-flex justify-content-end">
+                <div class="mt-3 d-flex justify-content-end" style="gap: var(--space-2);">
+                    <button type="button" class="btn btn-icon btn-sm" onclick="LifeUI.toggleAttachmentFavorite(${item.id}, ${item.is_favorite ? 'false' : 'true'})" title="${item.is_favorite ? 'Remove favorite' : 'Favorite'}">
+                        <i class="ph ${item.is_favorite ? 'ph-star' : 'ph-star'}"></i>
+                    </button>
                     <button type="button" class="btn btn-icon btn-danger btn-sm" onclick="LifeUI.deleteItem('attachments', ${item.id})" title="Delete"><i class="ph ph-trash"></i></button>
                 </div>
             </div>
         `).join('');
+    },
+
+    renderAttachmentOptions() {
+        const projectSelect = document.getElementById('attachment-project');
+        const projectFilter = document.getElementById('attachment-project-filter');
+        if (projectSelect) {
+            const current = projectSelect.value;
+            projectSelect.innerHTML = '<option value="">No project link</option>';
+            this.projects.forEach((project) => {
+                projectSelect.innerHTML += `<option value="${project.id}">${CoreUI.escapeHtml(project.name)}</option>`;
+            });
+            projectSelect.value = current;
+        }
+        if (projectFilter) {
+            const current = projectFilter.value || this.attachmentFilters.project;
+            projectFilter.innerHTML = '<option value="all">All projects</option>';
+            this.projects.forEach((project) => {
+                projectFilter.innerHTML += `<option value="${project.id}">${CoreUI.escapeHtml(project.name)}</option>`;
+            });
+            projectFilter.value = current;
+        }
     },
 
     switchPanel(panelId) {
@@ -462,14 +544,27 @@ const LifeUI = {
 
     async saveAttachment(event) {
         event.preventDefault();
+        const projectId = this.intOrNull('attachment-project');
+        const entityType = projectId ? 'project' : document.getElementById('attachment-type').value;
         const payload = {
-            entity_type: document.getElementById('attachment-type').value,
-            entity_id: this.intOrNull('attachment-entity-id'),
+            entity_type: entityType,
+            entity_id: projectId,
             title: document.getElementById('attachment-title').value,
             url: document.getElementById('attachment-url').value,
-            notes: document.getElementById('attachment-notes').value
+            notes: document.getElementById('attachment-notes').value,
+            is_favorite: document.getElementById('attachment-favorite').checked
         };
         await this.postForm('/api/life/attachments', payload, 'Resource saved.', 'life-attachment-form', 'attachments');
+    },
+
+    async toggleAttachmentFavorite(attachmentId, isFavorite) {
+        try {
+            await API.put(`/api/life/attachments/${attachmentId}`, { is_favorite: Boolean(isFavorite) });
+            await this.loadAttachments();
+            CoreUI.showError(isFavorite ? 'Resource favorited.' : 'Resource removed from favorites.', true);
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to update favorite.');
+        }
     },
 
     async postForm(endpoint, payload, message, formId, modalId) {

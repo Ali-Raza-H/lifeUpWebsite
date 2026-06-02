@@ -131,6 +131,16 @@
                     <h2 class="life-section-title"><i class="ph ph-paperclip"></i> Resources & Links</h2>
                     <button class="btn btn-sm btn-primary" onclick="LifeUI.openModal('attachments')"><i class="ph ph-plus"></i> Save Link</button>
                 </div>
+                <div class="section-toolbar" style="margin-bottom: var(--space-4);">
+                    <div class="section-toolbar-actions" style="flex:1;">
+                        <input type="search" id="attachment-search" class="form-control" placeholder="Search resources" style="max-width: 320px;">
+                        <select id="attachment-project-filter" class="form-control form-control-compact" style="min-width: 180px;"></select>
+                        <label class="life-check" style="margin:0;">
+                            <input type="checkbox" id="attachment-favorites-filter">
+                            <span>Favorites</span>
+                        </label>
+                    </div>
+                </div>
                 <div id="life-attachment-list" class="life-resource-grid"></div>
             </section>
         </main>
@@ -385,19 +395,19 @@
         <form id="life-attachment-form" onsubmit="LifeUI.saveAttachment(event)">
             <div class="life-form-grid">
                 <div class="form-group">
+                    <label class="form-label" for="attachment-project">Project</label>
+                    <select id="attachment-project" class="form-control"></select>
+                </div>
+                <div class="form-group">
                     <label class="form-label" for="attachment-type">Area</label>
                     <select id="attachment-type" class="form-control">
                         <option value="general">General</option>
-                        <option value="goal">Goal</option>
                         <option value="project">Project</option>
+                        <option value="goal">Goal</option>
                         <option value="note">Note</option>
                         <option value="journal">Journal</option>
                         <option value="task">Task</option>
                     </select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="attachment-entity-id">Item Id</label>
-                    <input type="number" id="attachment-entity-id" class="form-control" min="1" placeholder="Optional">
                 </div>
                 <div class="form-group life-wide">
                     <label class="form-label" for="attachment-title">Title</label>
@@ -411,6 +421,10 @@
                     <label class="form-label" for="attachment-notes">Notes</label>
                     <input type="text" id="attachment-notes" class="form-control">
                 </div>
+                <label class="life-check life-wide">
+                    <input type="checkbox" id="attachment-favorite">
+                    <span>Favorite resource</span>
+                </label>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn" onclick="LifeUI.closeModal('attachments')">Cancel</button>

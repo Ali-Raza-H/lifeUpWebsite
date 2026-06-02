@@ -111,6 +111,20 @@ def get_optional_choice(
     return clean_value
 
 
+def get_optional_bool(
+    payload: dict[str, Any],
+    field: str,
+    *,
+    default: bool | None = None,
+) -> bool | None:
+    value = payload.get(field, default)
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    raise ValidationError(f"{field.replace('_', ' ').title()} must be true or false.", field)
+
+
 def get_optional_date(payload: dict[str, Any], field: str) -> str | None:
     value = payload.get(field)
     if value in (None, ""):

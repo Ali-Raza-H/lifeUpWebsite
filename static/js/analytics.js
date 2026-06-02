@@ -71,11 +71,18 @@ const AnalyticsUI = {
                 </div>
                 <div style="width:100%;">
                     <div style="display:flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">
-                        <span>${CoreUI.escapeHtml(payload.month_label)} Compliance</span>
+                        <span>Elapsed month compliance</span>
                         <span>${habit.month_completion_rate}%</span>
                     </div>
                     <div class="progress-track" style="height:3px;">
                         <div class="progress-fill" style="width:${habit.month_completion_rate}%;"></div>
+                    </div>
+                    <div style="display:flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); margin-top: 8px; margin-bottom: 4px;">
+                        <span>Full month target</span>
+                        <span>${habit.month_full_completion_rate}%</span>
+                    </div>
+                    <div class="progress-track" style="height:3px;">
+                        <div class="progress-fill" style="width:${habit.month_full_completion_rate}%; opacity:0.65;"></div>
                     </div>
                 </div>
             `;
@@ -100,9 +107,11 @@ const AnalyticsUI = {
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: var(--space-2); gap:12px;">
                     <div>
                         <div class="item-title" style="font-size:16px;">${CoreUI.escapeHtml(habit.name)}</div>
-                        <div class="item-desc" style="margin-top:4px;">${CoreUI.escapeHtml(payload.month_label)} completion: ${habit.month_completion_rate}%</div>
+                        <div class="item-desc" style="margin-top:4px;">
+                            elapsed ${habit.month_completion_rate}% &middot; full month ${habit.month_full_completion_rate}%
+                        </div>
                     </div>
-                    <span class="badge" style="background: transparent;">${habit.month_completed_days}/${habit.month_target_days}</span>
+                    <span class="badge" style="background: transparent;">${habit.month_completed_days}/${habit.month_full_target_days}</span>
                 </div>
                 ${this.renderCalendar(payload.weekday_labels, habit.calendar_cells)}
             `;

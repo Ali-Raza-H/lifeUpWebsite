@@ -3,9 +3,16 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from database import execute_db, query_db
-from services import build_month_schedule_payload, build_week_schedule_payload
+from services import (
+    build_month_schedule_payload,
+    build_week_schedule_payload,
+    delete_calendar_event_with_sync,
+    get_task_by_calendar_event_id,
+    sync_task_for_calendar_event,
+)
 from utils import (
     ValidationError,
+    get_optional_bool,
     get_optional_choice,
     get_optional_date,
     get_optional_datetime,
@@ -65,6 +72,7 @@ def create_event():
     recurrence_until = get_optional_date(payload, "recurrence_until")
     start_at = get_optional_datetime(payload, "start_at")
     end_at = get_optional_datetime(payload, "end_at")
+    sync_task = get_optional_bool(payload, "sync_task", default=True)
     if start_at is None or end_at is None:
         raise ValidationError("Start and end times are required.")
     start_at, end_at = _validate_event_window(start_at, end_at)
@@ -77,6 +85,8 @@ def create_event():
         (title, description, category, location, project_id, goal_id, start_at, end_at, recurrence, recurrence_until),
     )
     event = query_db("SELECT * FROM calendar_events WHERE id = ?", [event_id], one=True)
+    sync_task_for_calendar_event(dict(event), bool(sync_task))
+    event = query_db("SELECT * FROM calendar_events WHERE id = ?", [event_id], one=True)
     return jsonify({"event": dict(event), "message": "Event created."}), 201
 
 
@@ -87,6 +97,7 @@ def update_event(event_id: int):
         return jsonify({"error": "Event not found."}), 404
 
     current = dict(event)
+    linked_task = get_task_by_calendar_event_id(event_id)
     payload = require_object(request.get_json(silent=True))
     title = get_required_string({"title": payload.get("title", current["title"])}, "title", max_length=160)
     description = get_optional_string(payload, "description", max_length=2000, default=current["description"])
@@ -103,6 +114,7 @@ def update_event(event_id: int):
     recurrence_until = get_optional_date(payload, "recurrence_until") if "recurrence_until" in payload else current.get("recurrence_until")
     start_at = get_optional_datetime(payload, "start_at") if "start_at" in payload else current["start_at"]
     end_at = get_optional_datetime(payload, "end_at") if "end_at" in payload else current["end_at"]
+    sync_task = get_optional_bool(payload, "sync_task", default=bool(linked_task))
     start_at, end_at = _validate_event_window(start_at, end_at)
 
     execute_db(
@@ -114,6 +126,8 @@ def update_event(event_id: int):
         (title, description, category, location, project_id, goal_id, start_at, end_at, recurrence, recurrence_until, event_id),
     )
     updated = query_db("SELECT * FROM calendar_events WHERE id = ?", [event_id], one=True)
+    sync_task_for_calendar_event(dict(updated), bool(sync_task))
+    updated = query_db("SELECT * FROM calendar_events WHERE id = ?", [event_id], one=True)
     return jsonify({"event": dict(updated), "message": "Event updated."})
 
 
@@ -123,5 +137,5 @@ def delete_event(event_id: int):
     if not event:
         return jsonify({"error": "Event not found."}), 404
 
-    execute_db("DELETE FROM calendar_events WHERE id = ?", [event_id])
+    delete_calendar_event_with_sync(event_id)
     return jsonify({"message": "Event deleted."})

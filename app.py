@@ -18,6 +18,7 @@ import blueprints.journal_api as journal_api
 import blueprints.library_api as library_api
 import blueprints.life_api as life_api
 import blueprints.notes_api as notes_api
+import blueprints.notifications_api as notifications_api
 import blueprints.project_notes_api as project_notes_api
 import blueprints.profile_api as profile_api
 import blueprints.projects_api as projects_api
@@ -70,6 +71,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(library_api.bp)
     app.register_blueprint(life_api.bp)
     app.register_blueprint(notes_api.bp)
+    app.register_blueprint(notifications_api.bp)
     app.register_blueprint(project_notes_api.bp)
     app.register_blueprint(settings_api.bp)
 

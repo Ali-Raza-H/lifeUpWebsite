@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     status TEXT DEFAULT 'pending', -- pending, in_progress, on_hold, completed
     project_id INTEGER,
     goal_id INTEGER,
+    calendar_event_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     completed_at DATETIME
 );
@@ -230,6 +231,7 @@ CREATE TABLE IF NOT EXISTS attachments (
     title TEXT NOT NULL,
     url TEXT NOT NULL,
     notes TEXT,
+    is_favorite INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

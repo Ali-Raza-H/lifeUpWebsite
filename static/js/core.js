@@ -1,5 +1,6 @@
 const CoreUI = {
     sidebarStorageKey: 'lifeos.sidebar.collapsed',
+    notificationsLoaded: false,
 
     escapeHtml(value) {
         return String(value ?? '')
@@ -111,6 +112,47 @@ const CoreUI = {
             instance.destroy();
         }
     },
+
+    async loadNotifications() {
+        const countEl = document.getElementById('notification-count');
+        const listEl = document.getElementById('notification-list');
+        if (!countEl || !listEl || typeof API === 'undefined') return;
+
+        try {
+            const payload = await API.get('/api/notifications/');
+            const items = payload.items || [];
+            countEl.textContent = String(payload.count || items.length);
+            countEl.style.display = items.length ? 'inline-flex' : 'none';
+            if (!items.length) {
+                listEl.innerHTML = '<div class="notification-item"><span class="notification-item-meta">No active notifications.</span></div>';
+                this.notificationsLoaded = true;
+                return;
+            }
+            listEl.innerHTML = items.map((item) => `
+                <a class="notification-item is-${CoreUI.escapeHtml(item.severity || 'low')}" href="${CoreUI.escapeHtml(item.action_url || '#')}">
+                    <span class="notification-item-title">${CoreUI.escapeHtml(item.title)}</span>
+                    <span class="notification-item-meta">${CoreUI.escapeHtml(item.message || '')}</span>
+                    <span class="notification-item-meta">${CoreUI.escapeHtml(item.when ? CoreUI.formatDate(item.when) : '')}</span>
+                </a>
+            `).join('');
+            this.notificationsLoaded = true;
+        } catch (error) {
+            listEl.innerHTML = '<div class="notification-item"><span class="notification-item-meta">Notifications unavailable.</span></div>';
+        }
+    },
+
+    async toggleNotifications() {
+        const panel = document.getElementById('notification-panel');
+        const button = document.getElementById('notification-toggle');
+        if (!panel || !button) return;
+
+        const shouldOpen = panel.style.display === 'none';
+        panel.style.display = shouldOpen ? 'block' : 'none';
+        button.classList.toggle('is-active', shouldOpen);
+        if (shouldOpen && !this.notificationsLoaded) {
+            await this.loadNotifications();
+        }
+    },
     
     initClock() {
         const clockEl = document.getElementById('os-clock');
@@ -158,4 +200,13 @@ const CoreUI = {
 document.addEventListener('DOMContentLoaded', () => {
     CoreUI.initClock();
     CoreUI.initSidebarToggle();
+    CoreUI.loadNotifications();
+    document.addEventListener('click', (event) => {
+        const shell = event.target.closest?.('.notification-shell');
+        if (shell) return;
+        const panel = document.getElementById('notification-panel');
+        const button = document.getElementById('notification-toggle');
+        if (panel) panel.style.display = 'none';
+        if (button) button.classList.remove('is-active');
+    });
 });

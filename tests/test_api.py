@@ -284,6 +284,56 @@ def test_life_tracker_core_modules(client):
     assert update_contact.get_json()["contact"]["priority"] == "normal"
 
 
+def test_resource_search_favorites_and_project_links(client):
+    project = client.post("/api/projects/", json={"name": "Resource linked project"}).get_json()["project"]
+    first = client.post(
+        "/api/life/attachments",
+        json={
+            "entity_type": "project",
+            "entity_id": project["id"],
+            "title": "Project rubric",
+            "url": "rubric.example.com",
+            "notes": "Mark scheme",
+            "is_favorite": True,
+        },
+    )
+    assert first.status_code == 201
+    attachment = first.get_json()["attachment"]
+    assert attachment["entity_title"] == "Resource linked project"
+    assert attachment["is_favorite"] == 1
+
+    second = client.post(
+        "/api/life/attachments",
+        json={"entity_type": "general", "title": "Archive link", "url": "archive.example.com"},
+    )
+    assert second.status_code == 201
+
+    favorites = client.get("/api/life/attachments?favorites=1").get_json()
+    assert len(favorites) == 1
+    assert favorites[0]["id"] == attachment["id"]
+
+    filtered = client.get(f"/api/life/attachments?entity_type=project&entity_id={project['id']}&q=rubric").get_json()
+    assert len(filtered) == 1
+    assert filtered[0]["entity_title"] == "Resource linked project"
+
+    update = client.put(f"/api/life/attachments/{attachment['id']}", json={"is_favorite": False})
+    assert update.status_code == 200
+    assert update.get_json()["attachment"]["is_favorite"] == 0
+
+
+def test_habit_calendar_exposes_elapsed_and_full_month_rates(client):
+    habit = client.post("/api/habits/", json={"name": "Full month protocol"}).get_json()["habit"]
+    today = date.today()
+    client.post(f"/api/habits/{habit['id']}/log", json={"date": today.isoformat(), "status": "completed"})
+
+    payload = client.get(f"/api/habits/calendar?month={today.strftime('%Y-%m')}").get_json()
+    calendar_habit = next(item for item in payload["habits"] if item["id"] == habit["id"])
+    assert calendar_habit["month_completed_days"] == 1
+    assert calendar_habit["month_target_days"] <= calendar_habit["month_full_target_days"]
+    assert "month_completion_rate" in calendar_habit
+    assert "month_full_completion_rate" in calendar_habit
+
+
 def test_life_diet_tracker_uses_presets_and_calculates_macros(client):
     presets_response = client.get("/api/life/diet/presets")
     assert presets_response.status_code == 200
