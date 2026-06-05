@@ -220,6 +220,7 @@ const ProjectUI = {
                     <div class="project-card-meta">
                         <span class="project-meta-chip"><span class="project-status-dot" style="background:${this.getStatusColor(project.status)};"></span>${CoreUI.escapeHtml(statusLabel)}</span>
                         ${goal ? `<span class="project-meta-chip"><i class="ph ph-target"></i>${CoreUI.escapeHtml(goal.title)}</span>` : ''}
+                        ${project.linkedin_post_enabled ? '<span class="project-meta-chip"><i class="ph ph-linkedin-logo"></i>LinkedIn</span>' : ''}
                     </div>
                     <div class="item-title" style="${project.status === 'completed' ? 'text-decoration: line-through; color: var(--text-muted);' : ''}">${CoreUI.escapeHtml(project.name)}</div>
                 </div>
@@ -375,6 +376,7 @@ const ProjectUI = {
         document.getElementById('project-id').value = '';
         document.getElementById('project-status').value = 'planning';
         document.getElementById('project-notes').value = '';
+        document.getElementById('project-linkedin-enabled').checked = false;
         this.populateFilterOptions();
 
         document.getElementById('project-task-add').style.display = projectId ? 'flex' : 'none';
@@ -401,6 +403,7 @@ const ProjectUI = {
                 document.getElementById('project-status').value = projectDetail.status;
                 document.getElementById('project-goal').value = projectDetail.goal_id || '';
                 document.getElementById('project-notes').value = projectDetail.notes || '';
+                document.getElementById('project-linkedin-enabled').checked = Boolean(projectDetail.linkedin_post_enabled);
 
                 this.renderProjectPulse(projectDetail, tasks);
                 this.renderProjectTasks(tasksList, tasks);
@@ -554,7 +557,8 @@ const ProjectUI = {
             notes: document.getElementById('project-notes').value,
             deadline: document.getElementById('project-deadline').value || null,
             status: document.getElementById('project-status').value,
-            goal_id: document.getElementById('project-goal').value ? parseInt(document.getElementById('project-goal').value, 10) : null
+            goal_id: document.getElementById('project-goal').value ? parseInt(document.getElementById('project-goal').value, 10) : null,
+            linkedin_post_enabled: document.getElementById('project-linkedin-enabled').checked
         };
 
         try {

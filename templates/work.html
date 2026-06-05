@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Work{% endblock %}
+{% block page_title %}Jobs & Work Experience{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/work.css', v=asset_version('css/work.css')) }}">
+{% endblock %}
+
+{% block header_actions %}
+<button class="btn btn-primary" onclick="WorkUI.openModal()"><i class="ph ph-plus"></i> Add Experience</button>
+{% endblock %}
+
+{% block content %}
+<div class="page-stack work-page">
+    <section class="metric-grid cols-4" id="work-summary-grid">
+        <div class="compact-item metric-card"><span class="item-desc">Loading work overview...</span></div>
+    </section>
+
+    <section class="card">
+        <div class="section-toolbar work-toolbar">
+            <div>
+                <div class="card-title"><i class="ph ph-briefcase"></i> Opportunity Pipeline</div>
+                <div class="item-desc">Track job applications, placements, volunteering, and CV-ready outcomes.</div>
+            </div>
+            <div class="section-toolbar-actions">
+                <input type="search" id="work-search" class="form-control" placeholder="Search roles, skills, companies">
+                <select id="work-status-filter" class="form-control form-control-compact">
+                    <option value="">All statuses</option>
+                    <option value="saved">Saved</option>
+                    <option value="applied">Applied</option>
+                    <option value="interviewing">Interviewing</option>
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                    <option value="rejected">Rejected</option>
+                </select>
+                <select id="work-type-filter" class="form-control form-control-compact">
+                    <option value="">All types</option>
+                    <option value="job">Job</option>
+                    <option value="work_experience">Work Experience</option>
+                    <option value="internship">Internship</option>
+                    <option value="apprenticeship">Apprenticeship</option>
+                    <option value="volunteering">Volunteering</option>
+                    <option value="freelance">Freelance</option>
+                </select>
+            </div>
+        </div>
+        <div id="work-experience-grid" class="work-experience-grid">
+            <div class="compact-item"><span class="item-desc">Loading work records...</span></div>
+        </div>
+    </section>
+
+    <section class="card">
+        <div class="section-toolbar work-toolbar">
+            <div>
+                <div class="card-title"><i class="ph ph-linkedin-logo"></i> LinkedIn Draft Outbox</div>
+                <div class="item-desc" id="linkedin-outbox-description">Generated when flagged tasks or projects are completed. Emails go to khadamalihussain@gmail.com when SMTP is configured.</div>
+            </div>
+            <button type="button" class="btn" onclick="WorkUI.loadLinkedInDrafts()"><i class="ph ph-arrow-clockwise"></i> Refresh</button>
+        </div>
+        <div id="linkedin-draft-list" class="linkedin-draft-list">
+            <div class="compact-item"><span class="item-desc">Loading LinkedIn drafts...</span></div>
+        </div>
+    </section>
+</div>
+
+<div id="work-modal" class="modal-overlay">
+    <div class="modal-content work-modal-content">
+        <div class="card-header">
+            <h3 class="card-title" id="work-modal-title">Add Experience</h3>
+            <button class="btn btn-icon" onclick="WorkUI.closeModal()"><i class="ph ph-x"></i></button>
+        </div>
+        <form id="work-form" onsubmit="WorkUI.saveExperience(event)">
+            <input type="hidden" id="work-id">
+            <div class="work-form-grid">
+                <div class="form-group">
+                    <label class="form-label" for="work-title">Role Title</label>
+                    <input type="text" id="work-title" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="work-organization">Organisation</label>
+                    <input type="text" id="work-organization" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="work-type">Type</label>
+                    <select id="work-type" class="form-control">
+                        <option value="job">Job</option>
+                        <option value="work_experience">Work Experience</option>
+                        <option value="internship">Internship</option>
+                        <option value="apprenticeship">Apprenticeship</option>
+                        <option value="volunteering">Volunteering</option>
+                        <option value="freelance">Freelance</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="work-status">Status</label>
+                    <select id="work-status" class="form-control">
+                        <option value="saved">Saved</option>
+                        <option value="applied">Applied</option>
+                        <option value="interviewing">Interviewing</option>
+                        <option value="active">Active</option>
+                        <option value="completed">Completed</option>
+                        <option value="rejected">Rejected</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="work-location">Location</label>
+                    <input type="text" id="work-location" class="form-control" placeholder="Bolton, remote, hybrid">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="work-hours">Hours Per Week</label>
+                    <input type="number" id="work-hours" class="form-control" min="0" max="168">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="work-start">Start Date</label>
+                    <input type="date" id="work-start" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="work-end">End Date</label>
+                    <input type="date" id="work-end" class="form-control">
+                </div>
+                <div class="form-group work-wide">
+                    <label class="form-label" for="work-skills">Skills</label>
+                    <input type="text" id="work-skills" class="form-control" placeholder="Python, communication, teamwork">
+                </div>
+                <div class="form-group work-wide">
+                    <label class="form-label" for="work-responsibilities">Responsibilities</label>
+                    <textarea id="work-responsibilities" class="form-control" rows="4" placeholder="What you were responsible for."></textarea>
+                </div>
+                <div class="form-group work-wide">
+                    <label class="form-label" for="work-achievements">Achievements</label>
+                    <textarea id="work-achievements" class="form-control" rows="4" placeholder="Measurable outcomes, wins, feedback, projects."></textarea>
+                </div>
+                <div class="form-group work-wide">
+                    <label class="form-label" for="work-url">Application Or Evidence Link</label>
+                    <input type="url" id="work-url" class="form-control" placeholder="https://example.com">
+                </div>
+                <div class="form-group work-wide">
+                    <label class="form-label" for="work-notes">Notes</label>
+                    <textarea id="work-notes" class="form-control" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" id="work-delete-btn" onclick="WorkUI.deleteCurrentExperience()" style="display:none;">Delete</button>
+                <div class="modal-footer-actions">
+                    <button type="button" class="btn" onclick="WorkUI.closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Experience</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/work.js', v=asset_version('js/work.js')) }}"></script>
+{% endblock %}

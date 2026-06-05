@@ -114,6 +114,79 @@ def test_project_progress_combines_stages_and_tasks(client):
     assert project["progress"] == 75
 
 
+def test_completed_flagged_task_creates_linkedin_email_draft(client):
+    project = client.post(
+        "/api/projects/",
+        json={"name": "Portfolio Builder", "description": "A system for showcasing useful work."},
+    ).get_json()["project"]
+    task = client.post(
+        "/api/tasks/",
+        json={
+            "title": "Build LinkedIn draft workflow",
+            "description": "Generate a post draft when meaningful work is completed.",
+            "project_id": project["id"],
+            "linkedin_post_enabled": True,
+        },
+    ).get_json()["task"]
+
+    update_response = client.put(f"/api/tasks/{task['id']}", json={"status": "completed"})
+    assert update_response.status_code == 200
+    updated = update_response.get_json()["task"]
+    assert updated["linkedin_post_enabled"] == 1
+
+    drafts_response = client.get("/api/linkedin/drafts")
+    assert drafts_response.status_code == 200
+    drafts = drafts_response.get_json()
+    assert len(drafts) == 1
+    draft = drafts[0]
+    assert draft["source_type"] == "task"
+    assert draft["source_id"] == task["id"]
+    assert "Build LinkedIn draft workflow" in draft["post_body"]
+    assert "Portfolio Builder" in draft["post_body"]
+    assert draft["email_to"] == "khadamalihussain@gmail.com"
+    assert draft["email_status"] == "pending_generation"
+
+    duplicate_update = client.put(f"/api/tasks/{task['id']}", json={"status": "completed"})
+    assert duplicate_update.status_code == 200
+    assert len(client.get("/api/linkedin/drafts").get_json()) == 1
+
+    generated_response = client.post(
+        f"/api/linkedin/drafts/{draft['id']}/generation",
+        json={"post_body": "I built a LinkedIn draft workflow that turns completed work into useful public updates."},
+    )
+    assert generated_response.status_code == 200
+    generated_draft = generated_response.get_json()["draft"]
+    assert "turns completed work" in generated_draft["post_body"]
+    assert generated_draft["email_status"] == "not_configured"
+
+
+def test_completed_flagged_project_creates_linkedin_email_draft(client):
+    project = client.post(
+        "/api/projects/",
+        json={
+            "name": "Study Automation Dashboard",
+            "description": "A dashboard that turns study work into visible progress.",
+            "linkedin_post_enabled": True,
+        },
+    ).get_json()["project"]
+    client.post("/api/tasks/", json={"title": "Design progress cards", "project_id": project["id"], "status": "completed"})
+    client.post(f"/api/projects/{project['id']}/milestones", json={"title": "Prototype complete", "status": "completed"})
+
+    update_response = client.put(f"/api/projects/{project['id']}", json={"status": "completed"})
+    assert update_response.status_code == 200
+    updated = update_response.get_json()["project"]
+    assert updated["linkedin_post_enabled"] == 1
+
+    drafts = client.get("/api/linkedin/drafts").get_json()
+    assert len(drafts) == 1
+    draft = drafts[0]
+    assert draft["source_type"] == "project"
+    assert draft["source_id"] == project["id"]
+    assert "Study Automation Dashboard" in draft["post_body"]
+    assert "Design progress cards" in draft["context_summary"]
+    assert draft["email_status"] == "pending_generation"
+
+
 def test_task_and_project_links_can_be_cleared(client):
     project = client.post("/api/projects/", json={"name": "Linked project"}).get_json()["project"]
     goal = client.post("/api/goals/", json={"title": "Linked goal"}).get_json()["goal"]
@@ -389,6 +462,128 @@ def test_life_diet_tracker_validates_preset_presence(client):
     )
     assert response.status_code == 400
     assert response.get_json()["error"] == "Preset food is required."
+
+
+def test_food_preset_management_supports_crud_and_delete_guard(client):
+    create_response = client.post(
+        "/api/life/diet/presets",
+        json={
+            "name": "Protein Porridge",
+            "category": "Breakfast",
+            "serving_label": "1 bowl",
+            "calories": 420,
+            "protein_g": 32,
+            "carbs_g": 48,
+            "fat_g": 9,
+        },
+    )
+    assert create_response.status_code == 201
+    preset = create_response.get_json()["preset"]
+    assert preset["name"] == "Protein Porridge"
+
+    update_response = client.put(
+        f"/api/life/diet/presets/{preset['id']}",
+        json={"calories": 440, "protein_g": 34},
+    )
+    assert update_response.status_code == 200
+    updated = update_response.get_json()["preset"]
+    assert updated["calories"] == 440
+    assert updated["protein_g"] == 34
+
+    all_presets = client.get("/api/life/diet/presets").get_json()
+    reorder_ids = [preset["id"], *[item["id"] for item in all_presets if item["id"] != preset["id"]]]
+    reorder_response = client.post("/api/life/diet/presets/reorder", json={"ids": reorder_ids})
+    assert reorder_response.status_code == 200
+    assert client.get("/api/life/diet/presets").get_json()[0]["id"] == preset["id"]
+
+    diet_response = client.post(
+        "/api/life/diet",
+        json={"entry_date": date.today().isoformat(), "preset_id": preset["id"], "meal_type": "breakfast", "servings": 1},
+    )
+    assert diet_response.status_code == 201
+
+    blocked_delete = client.delete(f"/api/life/diet/presets/{preset['id']}")
+    assert blocked_delete.status_code == 409
+    assert blocked_delete.get_json()["error"] == "Food preset is used by diet entries and cannot be deleted."
+
+
+def test_food_preset_can_be_deleted_when_unused(client):
+    create_response = client.post(
+        "/api/life/diet/presets",
+        json={
+            "name": "Unused Snack",
+            "category": "Snacks",
+            "serving_label": "1 pack",
+            "calories": 100,
+            "protein_g": 1,
+            "carbs_g": 20,
+            "fat_g": 2,
+        },
+    )
+    assert create_response.status_code == 201
+    preset = create_response.get_json()["preset"]
+
+    delete_response = client.delete(f"/api/life/diet/presets/{preset['id']}")
+    assert delete_response.status_code == 200
+    assert all(item["id"] != preset["id"] for item in client.get("/api/life/diet/presets").get_json())
+
+
+def test_work_experience_tracker_supports_crud_summary_and_filters(client):
+    create_response = client.post(
+        "/api/work/experiences",
+        json={
+            "title": "Junior Web Developer",
+            "organization": "Example Studio",
+            "experience_type": "job",
+            "status": "applied",
+            "location": "Remote",
+            "start_date": "2026-07-01",
+            "hours_per_week": 12,
+            "skills": "Flask, JavaScript",
+            "responsibilities": "Build small internal tools.",
+            "achievements": "Prepared portfolio evidence for applications.",
+            "application_url": "example.com/job",
+        },
+    )
+    assert create_response.status_code == 201
+    experience = create_response.get_json()["experience"]
+    assert experience["application_url"] == "https://example.com/job"
+
+    summary = client.get("/api/work/summary").get_json()
+    assert summary["total"] == 1
+    assert summary["pipeline_count"] == 1
+
+    filtered = client.get("/api/work/experiences?status=applied&q=flask")
+    assert filtered.status_code == 200
+    assert filtered.get_json()[0]["id"] == experience["id"]
+
+    update_response = client.put(
+        f"/api/work/experiences/{experience['id']}",
+        json={"status": "completed", "end_date": "2026-08-01", "achievements": "Delivered two features."},
+    )
+    assert update_response.status_code == 200
+    updated = update_response.get_json()["experience"]
+    assert updated["status"] == "completed"
+    assert updated["end_date"] == "2026-08-01"
+
+    delete_response = client.delete(f"/api/work/experiences/{experience['id']}")
+    assert delete_response.status_code == 200
+    assert client.get("/api/work/summary").get_json()["total"] == 0
+
+
+def test_work_experience_validates_date_order(client):
+    response = client.post(
+        "/api/work/experiences",
+        json={
+            "title": "Placement",
+            "organization": "Local Business",
+            "experience_type": "work_experience",
+            "start_date": "2026-08-01",
+            "end_date": "2026-07-01",
+        },
+    )
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "End date cannot be before start date."
 
 
 def test_library_tracker_supports_crud_summary_and_filters(client):

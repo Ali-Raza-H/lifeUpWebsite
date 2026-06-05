@@ -3,7 +3,13 @@ from __future__ import annotations
 import calendar
 from collections import defaultdict
 from datetime import date, datetime, timedelta
+from email.message import EmailMessage
+import json
 import math
+import smtplib
+import sqlite3
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from flask import current_app
 
@@ -260,6 +266,420 @@ def sync_task_for_calendar_event(event: dict, sync_task: bool) -> dict:
         ),
     )
     return row_to_dict(query_db("SELECT * FROM tasks WHERE id = ?", [task_id], one=True))
+
+
+def maybe_create_linkedin_draft_for_task(task_id: int) -> dict:
+    task = row_to_dict(
+        query_db(
+            """
+            SELECT
+                t.*,
+                p.name AS project_name,
+                p.description AS project_description,
+                p.notes AS project_notes,
+                p.status AS project_status,
+                p.deadline AS project_deadline,
+                g.title AS goal_title
+            FROM tasks t
+            LEFT JOIN projects p ON p.id = t.project_id
+            LEFT JOIN goals g ON g.id = t.goal_id
+            WHERE t.id = ?
+            """,
+            [task_id],
+            one=True,
+        )
+    )
+    if not task or task.get("status") != "completed" or not int(task.get("linkedin_post_enabled") or 0):
+        return {}
+
+    existing = row_to_dict(
+        query_db("SELECT * FROM linkedin_drafts WHERE source_type = 'task' AND source_id = ?", [task_id], one=True)
+    )
+    if existing:
+        return existing
+
+    title = f"LinkedIn draft: {task['title']}"
+    context = _task_context_summary(task)
+    fallback_body = _build_task_linkedin_post(task)
+    mode = _linkedin_generation_mode()
+    draft, created = _create_linkedin_draft_record(
+        "task",
+        task_id,
+        title,
+        fallback_body,
+        context,
+        email_status="pending_generation" if mode == "client" else "pending",
+        email_error=_pending_client_generation_message() if mode == "client" else "",
+    )
+    if not created:
+        return draft
+    if mode == "client":
+        return draft
+
+    body = _generate_task_linkedin_post(task) or fallback_body
+    return _finalize_linkedin_draft(draft["id"], body)
+
+
+def maybe_create_linkedin_draft_for_project(project_id: int) -> dict:
+    project = row_to_dict(query_db("SELECT * FROM projects WHERE id = ?", [project_id], one=True))
+    if not project or project.get("status") != "completed" or not int(project.get("linkedin_post_enabled") or 0):
+        return {}
+
+    existing = row_to_dict(
+        query_db("SELECT * FROM linkedin_drafts WHERE source_type = 'project' AND source_id = ?", [project_id], one=True)
+    )
+    if existing:
+        return existing
+
+    tasks = rows_to_dicts(
+        query_db(
+            """
+            SELECT *
+            FROM tasks
+            WHERE project_id = ?
+            ORDER BY
+                CASE status WHEN 'completed' THEN 0 ELSE 1 END,
+                completed_at DESC,
+                created_at DESC,
+                id DESC
+            LIMIT 12
+            """,
+            [project_id],
+        )
+    )
+    milestones = rows_to_dicts(
+        query_db(
+            """
+            SELECT *
+            FROM project_milestones
+            WHERE project_id = ?
+            ORDER BY
+                CASE status WHEN 'completed' THEN 0 ELSE 1 END,
+                completed_at DESC,
+                created_at DESC,
+                id DESC
+            LIMIT 8
+            """,
+            [project_id],
+        )
+    )
+    title = f"LinkedIn draft: {project['name']}"
+    context = _project_context_summary(project, tasks, milestones)
+    fallback_body = _build_project_linkedin_post(project, tasks, milestones)
+    mode = _linkedin_generation_mode()
+    draft, created = _create_linkedin_draft_record(
+        "project",
+        project_id,
+        title,
+        fallback_body,
+        context,
+        email_status="pending_generation" if mode == "client" else "pending",
+        email_error=_pending_client_generation_message() if mode == "client" else "",
+    )
+    if not created:
+        return draft
+    if mode == "client":
+        return draft
+
+    body = _generate_project_linkedin_post(project, tasks, milestones) or fallback_body
+    return _finalize_linkedin_draft(draft["id"], body)
+
+
+def resend_linkedin_draft_email(draft_id: int) -> dict:
+    draft = row_to_dict(query_db("SELECT * FROM linkedin_drafts WHERE id = ?", [draft_id], one=True))
+    if not draft:
+        return {}
+    _attempt_send_linkedin_draft(draft)
+    return row_to_dict(query_db("SELECT * FROM linkedin_drafts WHERE id = ?", [draft_id], one=True))
+
+
+def finalize_linkedin_draft_generation(draft_id: int, post_body: str) -> dict:
+    draft = row_to_dict(query_db("SELECT * FROM linkedin_drafts WHERE id = ?", [draft_id], one=True))
+    if not draft:
+        return {}
+
+    cleaned = _clean_generated_linkedin_post(post_body)
+    if not cleaned:
+        return draft
+    return _finalize_linkedin_draft(draft_id, cleaned)
+
+
+def _create_linkedin_draft_record(
+    source_type: str,
+    source_id: int,
+    title: str,
+    post_body: str,
+    context_summary: str,
+    *,
+    email_status: str = "pending",
+    email_error: str = "",
+) -> tuple[dict, bool]:
+    email_to = current_app.config.get("LINKEDIN_EMAIL_TO", "khadamalihussain@gmail.com")
+    existing = row_to_dict(
+        query_db(
+            "SELECT * FROM linkedin_drafts WHERE source_type = ? AND source_id = ?",
+            [source_type, source_id],
+            one=True,
+        )
+    )
+    if existing:
+        return existing, False
+
+    try:
+        draft_id = execute_db(
+            """
+            INSERT INTO linkedin_drafts (
+                source_type, source_id, title, post_body, context_summary, email_to, email_status, email_error, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (source_type, source_id, title, post_body, context_summary, email_to, email_status, email_error),
+        )
+    except sqlite3.IntegrityError:
+        return (
+            row_to_dict(
+                query_db(
+                    "SELECT * FROM linkedin_drafts WHERE source_type = ? AND source_id = ?",
+                    [source_type, source_id],
+                    one=True,
+                )
+            ),
+            False,
+        )
+
+    return row_to_dict(query_db("SELECT * FROM linkedin_drafts WHERE id = ?", [draft_id], one=True)), True
+
+
+def _linkedin_generation_mode() -> str:
+    mode = str(current_app.config.get("OLLAMA_GENERATION_MODE", "client")).strip().lower()
+    return mode if mode in {"client", "server"} else "client"
+
+
+def _pending_client_generation_message() -> str:
+    return "Waiting for your browser to generate the final post using local Ollama."
+
+
+def _finalize_linkedin_draft(draft_id: int, post_body: str) -> dict:
+    execute_db(
+        """
+        UPDATE linkedin_drafts
+        SET post_body = ?, email_status = 'pending', email_error = '', updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        (post_body, draft_id),
+    )
+    draft = row_to_dict(query_db("SELECT * FROM linkedin_drafts WHERE id = ?", [draft_id], one=True))
+    _attempt_send_linkedin_draft(draft)
+    return row_to_dict(query_db("SELECT * FROM linkedin_drafts WHERE id = ?", [draft_id], one=True))
+
+
+def _attempt_send_linkedin_draft(draft: dict) -> None:
+    host = current_app.config.get("SMTP_HOST", "")
+    sender = current_app.config.get("SMTP_FROM", "")
+    recipient = draft.get("email_to") or current_app.config.get("LINKEDIN_EMAIL_TO", "khadamalihussain@gmail.com")
+    if not host or not sender:
+        execute_db(
+            """
+            UPDATE linkedin_drafts
+            SET email_status = 'not_configured', email_error = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            ("SMTP_HOST and SMTP_FROM must be configured before email delivery can run.", draft["id"]),
+        )
+        return
+
+    message = EmailMessage()
+    message["Subject"] = draft["title"]
+    message["From"] = sender
+    message["To"] = recipient
+    message.set_content(
+        "\n".join(
+            [
+                "LinkedIn post draft",
+                "",
+                draft.get("post_body") or "",
+                "",
+                "--- Context ---",
+                draft.get("context_summary") or "",
+            ]
+        )
+    )
+
+    try:
+        with smtplib.SMTP(host, int(current_app.config.get("SMTP_PORT", 587)), timeout=15) as smtp:
+            if current_app.config.get("SMTP_USE_TLS", True):
+                smtp.starttls()
+            username = current_app.config.get("SMTP_USERNAME", "")
+            password = current_app.config.get("SMTP_PASSWORD", "")
+            if username:
+                smtp.login(username, password)
+            smtp.send_message(message)
+    except Exception as exc:
+        execute_db(
+            """
+            UPDATE linkedin_drafts
+            SET email_status = 'failed', email_error = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (str(exc)[:1000], draft["id"]),
+        )
+        return
+
+    execute_db(
+        """
+        UPDATE linkedin_drafts
+        SET email_status = 'sent', email_error = '', sent_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        [draft["id"]],
+    )
+
+
+def _task_context_summary(task: dict) -> str:
+    lines = [
+        f"Task: {task.get('title')}",
+        f"Completed: {task.get('completed_at') or 'Unknown'}",
+    ]
+    if task.get("description"):
+        lines.append(f"Task details: {task['description']}")
+    if task.get("project_name"):
+        lines.append(f"Project: {task['project_name']}")
+    if task.get("project_description"):
+        lines.append(f"Project context: {task['project_description']}")
+    if task.get("goal_title"):
+        lines.append(f"Linked goal: {task['goal_title']}")
+    if task.get("estimated_minutes"):
+        lines.append(f"Estimated work: {task['estimated_minutes']} minutes")
+    return "\n".join(lines)
+
+
+def _project_context_summary(project: dict, tasks: list[dict], milestones: list[dict]) -> str:
+    completed_tasks = [task for task in tasks if task.get("status") == "completed"]
+    completed_milestones = [milestone for milestone in milestones if milestone.get("status") == "completed"]
+    lines = [
+        f"Project: {project.get('name')}",
+        f"Completed: {project.get('completed_at') or 'Unknown'}",
+    ]
+    if project.get("description"):
+        lines.append(f"Description: {project['description']}")
+    if project.get("notes"):
+        lines.append(f"Notes: {project['notes']}")
+    if completed_tasks:
+        lines.append("Completed tasks: " + "; ".join(task["title"] for task in completed_tasks[:6]))
+    if completed_milestones:
+        lines.append("Completed stages: " + "; ".join(item["title"] for item in completed_milestones[:5]))
+    return "\n".join(lines)
+
+
+def _generate_task_linkedin_post(task: dict) -> str:
+    context = _task_context_summary(task)
+    prompt = (
+        "Write a LinkedIn post for a student/developer who wants to get noticed for practical project work.\n"
+        "Use the context below. Make it specific, confident, and natural. Avoid fake metrics, cringe hype, and buzzword spam.\n"
+        "Mention what was built or completed, why it matters, and what was learned. Keep it under 180 words.\n"
+        "End with 2-4 relevant hashtags.\n\n"
+        f"Context:\n{context}\n\n"
+        "Return only the post text."
+    )
+    generated = _generate_linkedin_post_with_ollama(prompt)
+    return generated or _build_task_linkedin_post(task)
+
+
+def _generate_project_linkedin_post(project: dict, tasks: list[dict], milestones: list[dict]) -> str:
+    context = _project_context_summary(project, tasks, milestones)
+    prompt = (
+        "Write a LinkedIn post for a student/developer announcing a completed project.\n"
+        "Use the context below. Make it specific, credible, and useful for building visibility on LinkedIn.\n"
+        "Talk about the project, the work completed, and the skill signal it gives. Avoid inventing facts.\n"
+        "Keep it under 200 words and end with 2-4 relevant hashtags.\n\n"
+        f"Context:\n{context}\n\n"
+        "Return only the post text."
+    )
+    generated = _generate_linkedin_post_with_ollama(prompt)
+    return generated or _build_project_linkedin_post(project, tasks, milestones)
+
+
+def _generate_linkedin_post_with_ollama(prompt: str) -> str:
+    if current_app.config.get("TESTING") or not current_app.config.get("OLLAMA_ENABLED", True):
+        return ""
+
+    base_url = str(current_app.config.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")).rstrip("/")
+    model = str(current_app.config.get("OLLAMA_MODEL", "dolphin3:8b"))
+    timeout = float(current_app.config.get("OLLAMA_TIMEOUT_SECONDS", 45))
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "options": {
+            "temperature": 0.72,
+            "top_p": 0.9,
+            "num_predict": 420,
+        },
+    }
+    request = Request(
+        f"{base_url}/api/generate",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, OSError):
+        return ""
+
+    text = str(data.get("response") or "").strip()
+    return _clean_generated_linkedin_post(text)
+
+
+def _clean_generated_linkedin_post(text: str) -> str:
+    if not text:
+        return ""
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.strip("`").strip()
+    for prefix in ("LinkedIn post:", "Post:", "Draft:"):
+        if cleaned.lower().startswith(prefix.lower()):
+            cleaned = cleaned[len(prefix):].strip()
+    return cleaned[:2500]
+
+
+def _build_task_linkedin_post(task: dict) -> str:
+    project_line = f" as part of {task['project_name']}" if task.get("project_name") else ""
+    goal_line = f"\n\nThis connects to my broader goal: {task['goal_title']}." if task.get("goal_title") else ""
+    description = task.get("description") or "This was a focused build task with a clear outcome."
+    project_context = ""
+    if task.get("project_description"):
+        project_context = f"\n\nProject context: {task['project_description']}"
+
+    return (
+        f"I just completed: {task['title']}{project_line}.\n\n"
+        f"What I worked on:\n{description}"
+        f"{project_context}"
+        f"{goal_line}\n\n"
+        "The main value was turning an idea into something concrete, testable, and easier to build on. "
+        "I am trying to document more of the practical work behind each project, not just the finished result.\n\n"
+        "#buildinpublic #softwaredevelopment #learning"
+    )
+
+
+def _build_project_linkedin_post(project: dict, tasks: list[dict], milestones: list[dict]) -> str:
+    completed_tasks = [task["title"] for task in tasks if task.get("status") == "completed"][:5]
+    completed_milestones = [item["title"] for item in milestones if item.get("status") == "completed"][:4]
+    task_block = "\n".join(f"- {title}" for title in completed_tasks) or "- Planned, built, and completed the core work."
+    milestone_block = "\n".join(f"- {title}" for title in completed_milestones)
+    milestone_section = f"\n\nKey stages completed:\n{milestone_block}" if milestone_block else ""
+    description = project.get("description") or "This project helped me practise turning requirements into a working system."
+
+    return (
+        f"I just completed a project: {project['name']}.\n\n"
+        f"What it was about:\n{description}\n\n"
+        f"Some of the work involved:\n{task_block}"
+        f"{milestone_section}\n\n"
+        "The useful part was not only finishing it, but capturing the process: planning the work, breaking it into tasks, "
+        "and shipping something that can be improved further.\n\n"
+        "#buildinpublic #projects #softwaredevelopment"
+    )
 
 
 def get_traits_payload() -> list[dict]:

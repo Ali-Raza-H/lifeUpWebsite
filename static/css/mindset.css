@@ -264,40 +264,159 @@
 
 @media (max-width: 768px) {
     .mindset-page {
-        padding: var(--space-4) 0;
+        width: 100%;
+        padding: var(--space-3) 0 var(--space-5);
         gap: var(--space-5);
+        overflow-x: hidden;
     }
 
     .mindset-page-title {
-        font-size: clamp(1.25rem, 7vw, 1.9rem);
-        line-height: 1.1;
+        font-size: clamp(1.15rem, 5.8vw, 1.65rem);
+        line-height: 1.18;
+        letter-spacing: 0.06em;
         margin-bottom: 0;
         max-width: 100%;
-        overflow-wrap: anywhere;
+        overflow-wrap: break-word;
     }
 
     .mindset-hero {
         margin-bottom: var(--space-5);
     }
 
+    .mindset-kicker {
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        line-height: 1.4;
+    }
+
+    #mindset-hero-title {
+        font-size: clamp(2rem, 13vw, 3.1rem);
+        line-height: 0.98;
+        overflow-wrap: break-word;
+        text-wrap: balance;
+    }
+
     .mindset-summary {
-        font-size: 14px;
+        font-size: 13px;
+        line-height: 1.65;
         max-width: 100%;
+        overflow-wrap: break-word;
+    }
+
+    .mindset-badges {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: var(--space-2);
+    }
+
+    .mindset-page .badge {
+        width: fit-content;
+        max-width: 100%;
+        line-height: 1.35;
+        white-space: normal;
+        overflow-wrap: break-word;
     }
 
     .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: var(--space-5);
         margin-bottom: var(--space-5);
         padding-bottom: var(--space-5) !important;
+    }
+
+    .metric-card .stat-value {
+        font-size: clamp(2rem, 13vw, 2.6rem);
+    }
+
+    .metric-card .item-desc {
+        line-height: 1.35;
+        overflow-wrap: break-word;
     }
 
     .mindset-panels {
         gap: var(--space-6);
     }
 
+    .mindset-page .card-header {
+        margin-bottom: var(--space-3);
+    }
+
+    .mindset-page .card-title {
+        font-size: 12px;
+        line-height: 1.35;
+        letter-spacing: 0.09em;
+        align-items: flex-start;
+    }
+
+    .mindset-page .compact-list {
+        gap: var(--space-3);
+    }
+
+    .mindset-page .compact-item:not(.metric-card) {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--space-2);
+        padding-left: 24px !important;
+        padding-right: 0 !important;
+        margin-bottom: 0;
+    }
+
+    .mindset-page .compact-item:not(.metric-card):hover {
+        padding-left: 24px !important;
+    }
+
+    .mindset-page .compact-item:not(.metric-card)::before {
+        font-size: 15px;
+        top: 2px;
+    }
+
+    .mindset-page .item-main,
+    .mindset-page .item-title,
+    .mindset-page .item-desc {
+        min-width: 0;
+        max-width: 100%;
+        overflow-wrap: break-word;
+    }
+
+    .mindset-page .item-title {
+        font-size: 14px;
+        line-height: 1.35;
+    }
+
+    .mindset-page .item-desc {
+        font-size: 12px;
+        line-height: 1.6;
+    }
+
+    .mindset-trait-row .skill-meter {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .mindset-trait-row > .badge {
+        align-self: flex-start;
+    }
+
     .mindset-skill-head {
         align-items: flex-start;
         flex-direction: column;
         gap: var(--space-1);
+    }
+
+    .mindset-recommendations {
+        grid-template-columns: 1fr;
+        gap: var(--space-4);
+    }
+}
+
+@media (max-width: 420px) {
+    .metric-grid {
+        grid-template-columns: 1fr;
+    }
+
+    #mindset-hero-title {
+        font-size: clamp(1.8rem, 12vw, 2.5rem);
     }
 }

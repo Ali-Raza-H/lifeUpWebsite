@@ -131,6 +131,28 @@
         </div>
     </section>
 
+    <section class="card">
+        <div class="card-header">
+            <span class="card-title"><i class="ph ph-bowl-food"></i> Food Preset Management</span>
+            <button class="btn btn-primary" onclick="SettingsUI.openFoodModal()"><i class="ph ph-plus"></i> Add Food</button>
+        </div>
+        <div class="item-desc settings-section-desc">These foods power the diet tracker preset dropdown and macro calculations.</div>
+        <div class="settings-toolbar settings-food-toolbar">
+            <input type="text" id="settings-food-search" class="form-control" placeholder="Search foods">
+            <input type="text" id="settings-food-category-filter" class="form-control" placeholder="Filter category">
+            <select id="settings-food-sort" class="form-control">
+                <option value="manual">Manual order</option>
+                <option value="name">Name</option>
+                <option value="category">Category</option>
+                <option value="calories_desc">Highest calories</option>
+                <option value="protein_desc">Highest protein</option>
+            </select>
+        </div>
+        <div id="settings-food-grid" class="settings-food-grid">
+            <div class="compact-item"><span class="item-desc">Loading foods...</span></div>
+        </div>
+    </section>
+
     <section class="section-grid-2">
         <div class="card">
             <div class="card-header">
@@ -170,6 +192,55 @@
             </div>
         </div>
     </section>
+</div>
+
+<div id="settings-food-modal" class="modal-overlay">
+    <div class="modal-content settings-modal">
+        <div class="card-header">
+            <h3 class="card-title" id="settings-food-modal-title">Add Food</h3>
+            <button class="btn btn-icon" onclick="SettingsUI.closeFoodModal()"><i class="ph ph-x"></i></button>
+        </div>
+        <form id="settings-food-form" onsubmit="SettingsUI.submitFood(event)">
+            <input type="hidden" id="settings-food-id">
+            <div class="form-group">
+                <label class="form-label">Name</label>
+                <input type="text" id="settings-food-name" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Category</label>
+                <input type="text" id="settings-food-category" class="form-control" value="Uncategorized">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Serving Label</label>
+                <input type="text" id="settings-food-serving" class="form-control" placeholder="100 g, 1 bowl, 1 medium" required>
+            </div>
+            <div class="settings-food-macro-grid">
+                <div class="form-group">
+                    <label class="form-label">Calories</label>
+                    <input type="number" id="settings-food-calories" class="form-control" min="0" step="0.01" value="0" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Protein (g)</label>
+                    <input type="number" id="settings-food-protein" class="form-control" min="0" step="0.01" value="0" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Carbs (g)</label>
+                    <input type="number" id="settings-food-carbs" class="form-control" min="0" step="0.01" value="0" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Fat (g)</label>
+                    <input type="number" id="settings-food-fat" class="form-control" min="0" step="0.01" value="0" required>
+                </div>
+            </div>
+            <div class="settings-modal-actions">
+                <button type="button" class="btn" id="settings-food-delete-btn" onclick="SettingsUI.deleteCurrentFood()" style="display:none;">Delete</button>
+                <div class="settings-inline-actions">
+                    <button type="button" class="btn" onclick="SettingsUI.closeFoodModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Food</button>
+                </div>
+            </div>
+        </form>
+    </div>
 </div>
 
 <div id="settings-trait-modal" class="modal-overlay">

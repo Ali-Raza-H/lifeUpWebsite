@@ -17,6 +17,7 @@ import blueprints.habits_api as habits_api
 import blueprints.journal_api as journal_api
 import blueprints.library_api as library_api
 import blueprints.life_api as life_api
+import blueprints.linkedin_api as linkedin_api
 import blueprints.notes_api as notes_api
 import blueprints.notifications_api as notifications_api
 import blueprints.project_notes_api as project_notes_api
@@ -24,8 +25,32 @@ import blueprints.profile_api as profile_api
 import blueprints.projects_api as projects_api
 import blueprints.settings_api as settings_api
 import blueprints.tasks_api as tasks_api
+import blueprints.work_api as work_api
 
 BASE_DIR = Path(__file__).resolve().parent
+
+
+def _load_env_file(path: Path) -> None:
+    if not path.exists():
+        return
+
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not key or key in os.environ:
+            continue
+
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        os.environ[key] = value
+
+
+_load_env_file(BASE_DIR / ".env")
 
 
 def create_app(test_config: dict | None = None) -> Flask:
@@ -39,6 +64,18 @@ def create_app(test_config: dict | None = None) -> Flask:
         # Security Credentials
         AUTH_USERNAME=os.environ.get("AUTH_USERNAME", "admin"),
         AUTH_PASSWORD=os.environ.get("AUTH_PASSWORD", "2008Ali2008uk##"),
+        LINKEDIN_EMAIL_TO=os.environ.get("LINKEDIN_EMAIL_TO", "khadamalihussain@gmail.com"),
+        SMTP_HOST=os.environ.get("SMTP_HOST", ""),
+        SMTP_PORT=int(os.environ.get("SMTP_PORT", "587")),
+        SMTP_USERNAME=os.environ.get("SMTP_USERNAME", ""),
+        SMTP_PASSWORD=os.environ.get("SMTP_PASSWORD", ""),
+        SMTP_FROM=os.environ.get("SMTP_FROM", os.environ.get("SMTP_USERNAME", "")),
+        SMTP_USE_TLS=os.environ.get("SMTP_USE_TLS", "1") != "0",
+        OLLAMA_GENERATION_MODE=os.environ.get("OLLAMA_GENERATION_MODE", "client"),
+        OLLAMA_ENABLED=os.environ.get("OLLAMA_ENABLED", "1") != "0",
+        OLLAMA_BASE_URL=os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
+        OLLAMA_MODEL=os.environ.get("OLLAMA_MODEL", "qwen2.5:7b-instruct"),
+        OLLAMA_TIMEOUT_SECONDS=float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "45")),
     )
 
     if test_config:
@@ -70,10 +107,12 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(journal_api.bp)
     app.register_blueprint(library_api.bp)
     app.register_blueprint(life_api.bp)
+    app.register_blueprint(linkedin_api.bp)
     app.register_blueprint(notes_api.bp)
     app.register_blueprint(notifications_api.bp)
     app.register_blueprint(project_notes_api.bp)
     app.register_blueprint(settings_api.bp)
+    app.register_blueprint(work_api.bp)
 
 
 def _register_routes(app: Flask) -> None:
@@ -144,6 +183,10 @@ def _register_routes(app: Flask) -> None:
     @app.route("/library")
     def library():
         return render_template("library.html")
+
+    @app.route("/work")
+    def work():
+        return render_template("work.html")
 
     @app.route("/calendar")
     def calendar():

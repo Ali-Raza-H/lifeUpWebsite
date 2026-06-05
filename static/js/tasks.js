@@ -213,6 +213,7 @@ const TaskUI = {
                         ${CoreUI.getStatusBadge(task.status)}
                         ${project ? `<span class="badge"><i class="ph ph-kanban"></i>${CoreUI.escapeHtml(project.name)}</span>` : ''}
                         ${goal ? `<span class="badge"><i class="ph ph-target"></i>${CoreUI.escapeHtml(goal.title)}</span>` : ''}
+                        ${task.linkedin_post_enabled ? '<span class="badge"><i class="ph ph-linkedin-logo"></i>LinkedIn</span>' : ''}
                     </div>
                 </div>
                 ${CoreUI.getPriorityLabel(task.priority)}
@@ -265,6 +266,7 @@ const TaskUI = {
         form.reset();
         document.getElementById('task-id').value = '';
         document.getElementById('task-status').value = 'pending';
+        document.getElementById('task-linkedin-enabled').checked = false;
         deleteBtn.style.display = 'none';
         this.populateRelationOptions();
 
@@ -280,6 +282,7 @@ const TaskUI = {
                 document.getElementById('task-est').value = task.estimated_minutes || '';
                 document.getElementById('task-project').value = task.project_id || '';
                 document.getElementById('task-goal').value = task.goal_id || '';
+                document.getElementById('task-linkedin-enabled').checked = Boolean(task.linkedin_post_enabled);
                 if (task.due_date) {
                     document.getElementById('task-due-date').value = task.due_date.replace(' ', 'T').substring(0, 16);
                 }
@@ -308,7 +311,8 @@ const TaskUI = {
             estimated_minutes: parseInt(document.getElementById('task-est').value, 10) || null,
             due_date: document.getElementById('task-due-date').value || null,
             project_id: document.getElementById('task-project').value ? parseInt(document.getElementById('task-project').value, 10) : null,
-            goal_id: document.getElementById('task-goal').value ? parseInt(document.getElementById('task-goal').value, 10) : null
+            goal_id: document.getElementById('task-goal').value ? parseInt(document.getElementById('task-goal').value, 10) : null,
+            linkedin_post_enabled: document.getElementById('task-linkedin-enabled').checked
         };
 
         try {

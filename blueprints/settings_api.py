@@ -35,6 +35,10 @@ EXPORT_TABLES = (
     ("contacts", "id ASC"),
     ("life_reviews", "id ASC"),
     ("attachments", "id ASC"),
+    ("food_presets", "display_order ASC, id ASC"),
+    ("diet_entries", "id ASC"),
+    ("work_experiences", "id ASC"),
+    ("linkedin_drafts", "id ASC"),
 )
 IMPORT_TABLE_ORDER = [table_name for table_name, _order_clause in EXPORT_TABLES]
 ATTACHMENT_ENTITY_TABLES = {

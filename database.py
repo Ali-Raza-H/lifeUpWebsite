@@ -42,7 +42,9 @@ MIGRATIONS = (
     ("traits", "display_order", "ALTER TABLE traits ADD COLUMN display_order INTEGER NOT NULL DEFAULT 0"),
     ("tasks", "completed_at", "ALTER TABLE tasks ADD COLUMN completed_at DATETIME"),
     ("tasks", "calendar_event_id", "ALTER TABLE tasks ADD COLUMN calendar_event_id INTEGER"),
+    ("tasks", "linkedin_post_enabled", "ALTER TABLE tasks ADD COLUMN linkedin_post_enabled INTEGER NOT NULL DEFAULT 0"),
     ("projects", "completed_at", "ALTER TABLE projects ADD COLUMN completed_at DATETIME"),
+    ("projects", "linkedin_post_enabled", "ALTER TABLE projects ADD COLUMN linkedin_post_enabled INTEGER NOT NULL DEFAULT 0"),
     ("goals", "completed_at", "ALTER TABLE goals ADD COLUMN completed_at DATETIME"),
     ("goals", "notes", "ALTER TABLE goals ADD COLUMN notes TEXT"),
     ("notes", "tags", "ALTER TABLE notes ADD COLUMN tags TEXT DEFAULT ''"),
@@ -91,6 +93,8 @@ def init_db() -> None:
     _ensure_goal_milestones_table(db)
     _ensure_life_tables(db)
     _ensure_library_tables(db)
+    _ensure_work_tables(db)
+    _ensure_linkedin_tables(db)
     _ensure_calendar_relation_indexes(db)
     _ensure_task_sync_indexes(db)
     _backfill_completion_timestamps(db)
@@ -411,6 +415,57 @@ def _ensure_library_tables(db: sqlite3.Connection) -> None:
         """
     )
     db.execute("CREATE INDEX IF NOT EXISTS idx_media_items_type_status ON media_items(media_type, status, updated_at DESC)")
+
+
+def _ensure_work_tables(db: sqlite3.Connection) -> None:
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS work_experiences (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            organization TEXT NOT NULL,
+            experience_type TEXT NOT NULL DEFAULT 'job',
+            status TEXT NOT NULL DEFAULT 'saved',
+            location TEXT,
+            start_date DATE,
+            end_date DATE,
+            hours_per_week INTEGER,
+            skills TEXT DEFAULT '',
+            responsibilities TEXT DEFAULT '',
+            achievements TEXT DEFAULT '',
+            application_url TEXT DEFAULT '',
+            notes TEXT DEFAULT '',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    db.execute("CREATE INDEX IF NOT EXISTS idx_work_experiences_status ON work_experiences(status, updated_at DESC)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_work_experiences_dates ON work_experiences(start_date DESC, end_date DESC)")
+
+
+def _ensure_linkedin_tables(db: sqlite3.Connection) -> None:
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS linkedin_drafts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_type TEXT NOT NULL,
+            source_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            post_body TEXT NOT NULL,
+            context_summary TEXT DEFAULT '',
+            email_to TEXT NOT NULL,
+            email_status TEXT NOT NULL DEFAULT 'pending',
+            email_error TEXT DEFAULT '',
+            sent_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(source_type, source_id)
+        )
+        """
+    )
+    db.execute("CREATE INDEX IF NOT EXISTS idx_linkedin_drafts_status ON linkedin_drafts(email_status, created_at DESC)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_linkedin_drafts_source ON linkedin_drafts(source_type, source_id)")
 
 
 def _ensure_calendar_relation_indexes(db: sqlite3.Connection) -> None:

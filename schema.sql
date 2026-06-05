@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     project_id INTEGER,
     goal_id INTEGER,
     calendar_event_id INTEGER,
+    linkedin_post_enabled INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     completed_at DATETIME
 );
@@ -68,6 +69,7 @@ CREATE TABLE IF NOT EXISTS projects (
     goal_id INTEGER,
     status TEXT DEFAULT 'planning', -- planning, active, paused, completed
     deadline DATETIME,
+    linkedin_post_enabled INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     completed_at DATETIME
 );
@@ -284,6 +286,41 @@ CREATE TABLE IF NOT EXISTS media_items (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS work_experiences (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    organization TEXT NOT NULL,
+    experience_type TEXT NOT NULL DEFAULT 'job',
+    status TEXT NOT NULL DEFAULT 'saved',
+    location TEXT,
+    start_date DATE,
+    end_date DATE,
+    hours_per_week INTEGER,
+    skills TEXT DEFAULT '',
+    responsibilities TEXT DEFAULT '',
+    achievements TEXT DEFAULT '',
+    application_url TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS linkedin_drafts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_type TEXT NOT NULL,
+    source_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    post_body TEXT NOT NULL,
+    context_summary TEXT DEFAULT '',
+    email_to TEXT NOT NULL,
+    email_status TEXT NOT NULL DEFAULT 'pending',
+    email_error TEXT DEFAULT '',
+    sent_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(source_type, source_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_habit_logs_habit_date ON habit_logs(habit_id, log_date DESC);
 CREATE INDEX IF NOT EXISTS idx_habit_logs_date_status ON habit_logs(log_date DESC, status);
 CREATE INDEX IF NOT EXISTS idx_tasks_status_due_date ON tasks(status, due_date);
@@ -306,3 +343,7 @@ CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, en
 CREATE INDEX IF NOT EXISTS idx_food_presets_order ON food_presets(display_order, name);
 CREATE INDEX IF NOT EXISTS idx_diet_entries_date ON diet_entries(entry_date DESC, meal_type, id DESC);
 CREATE INDEX IF NOT EXISTS idx_media_items_type_status ON media_items(media_type, status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_work_experiences_status ON work_experiences(status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_work_experiences_dates ON work_experiences(start_date DESC, end_date DESC);
+CREATE INDEX IF NOT EXISTS idx_linkedin_drafts_status ON linkedin_drafts(email_status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_linkedin_drafts_source ON linkedin_drafts(source_type, source_id);

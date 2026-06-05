@@ -130,11 +130,16 @@ Each feature normally has three pieces:
 | `snapshots/` | Mindset design/version reference snapshots. Useful for visual history, not loaded by the app. |
 | `.pytest_cache/` | Pytest cache. Not source code. |
 
-## Optional Environment Variables
+## Environment Variables
 
-```powershell
-$env:SECRET_KEY = "replace-this"
-$env:LIFEUP_DATABASE = "lifeup.db"
-$env:APP_VERSION = "1.0.0"
-$env:PORT = "5000"
+The app loads `.env` automatically on startup. Keep real secrets in `.env`; use `.env.example` as the template.
+
+```text
+OLLAMA_GENERATION_MODE=client
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=qwen2.5:7b-instruct
 ```
+
+LinkedIn draft generation uses client-side Ollama by default with `qwen2.5:7b-instruct`, so a PythonAnywhere deployment can ask your own PC to generate drafts from the Work page. Pull it with `ollama pull qwen2.5:7b-instruct`, run Ollama locally, and set `OLLAMA_ORIGINS` to allow your app origin if the browser blocks the request.
+
+Set `OLLAMA_GENERATION_MODE=server` only if the server itself can run Ollama.

@@ -19,8 +19,42 @@
     gap: var(--space-3);
 }
 
+.settings-food-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
 .settings-skill-card {
     grid-column: span 4;
+}
+
+.settings-food-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+}
+
+.settings-food-head,
+.settings-food-macros {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.settings-food-macros {
+    flex-wrap: wrap;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+}
+
+.settings-food-macro-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0 var(--space-3);
 }
 
 .settings-entity-row {
@@ -28,6 +62,10 @@
     grid-template-columns: minmax(0, 1.1fr) minmax(320px, 1fr) auto;
     gap: var(--space-3);
     align-items: center;
+}
+
+.settings-entity-main {
+    min-width: 0;
 }
 
 .settings-row-controls {
@@ -115,14 +153,50 @@
     text-align: right;
 }
 
+.settings-skill-head,
+.settings-skill-foot {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.settings-skill-head {
+    align-items: flex-start;
+    margin-bottom: var(--space-3);
+}
+
+.settings-skill-main {
+    min-width: 0;
+}
+
+.settings-skill-title {
+    font-size: 16px;
+}
+
+.settings-skill-foot {
+    align-items: center;
+    margin-top: 8px;
+}
+
+.settings-skill-notes {
+    margin-top: var(--space-3);
+    min-height: 36px;
+    overflow-wrap: anywhere;
+}
+
 @media (max-width: 1100px) {
     .settings-skill-card {
         grid-column: span 6;
+    }
+
+    .settings-food-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 900px) {
     .settings-toolbar,
+    .settings-food-macro-grid,
     .settings-entity-row {
         grid-template-columns: 1fr;
     }
@@ -141,12 +215,67 @@
 }
 
 @media (max-width: 768px) {
+    .settings-page {
+        gap: var(--space-5);
+        overflow-x: hidden;
+    }
+
+    .settings-page .card-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        align-items: stretch;
+        gap: var(--space-3);
+    }
+
+    .settings-page .card-header .btn {
+        width: 100%;
+    }
+
+    .settings-page .card-title {
+        font-size: 12px;
+        line-height: 1.35;
+        letter-spacing: 0.09em;
+        align-items: flex-start;
+    }
+
+    .settings-section-desc,
+    .settings-page .item-title,
+    .settings-page .item-desc,
+    .settings-page .badge {
+        min-width: 0;
+        max-width: 100%;
+        overflow-wrap: break-word;
+    }
+
+    .settings-page .compact-item,
+    .settings-action-row {
+        padding-left: 24px;
+        padding-right: 0;
+    }
+
     .settings-skill-card {
         grid-column: span 12;
     }
 
+    .settings-food-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .settings-entity-row {
+        align-items: stretch;
+        gap: var(--space-3);
+    }
+
+    .settings-entity-main {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
     .settings-row-controls {
-        grid-template-columns: minmax(0, 1fr) 76px;
+        grid-template-columns: minmax(0, 1fr) 72px;
+        align-items: center;
+        width: 100%;
     }
 
     .settings-row-controls .btn {
@@ -156,6 +285,7 @@
 
     .settings-state {
         text-align: left;
+        min-width: 0;
     }
 
     .settings-action-row,
@@ -166,12 +296,65 @@
 
     .settings-inline-actions {
         justify-content: stretch;
+        width: 100%;
     }
 
     .settings-inline-actions .btn,
     .settings-modal-actions .btn,
     .settings-action-row .btn {
         width: 100%;
+    }
+
+    .settings-row-actions {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        justify-content: stretch;
+        width: 100%;
+    }
+
+    .settings-row-actions .settings-state {
+        grid-column: 1 / -1;
+    }
+
+    .settings-row-actions .btn-icon {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .settings-belief-meta {
+        order: 2;
+    }
+
+    .settings-skill-head,
+    .settings-skill-foot {
+        align-items: stretch;
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+
+    .settings-skill-head .settings-row-actions {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .settings-skill-title {
+        font-size: 15px;
+        line-height: 1.35;
+    }
+
+    .settings-skill-card .skill-meter {
+        width: 100%;
+        min-width: 0;
+    }
+
+    input[type="file"].form-control {
+        min-height: auto;
+        line-height: 1.5;
+    }
+
+    input[type="file"].form-control::file-selector-button {
+        display: block;
+        width: 100%;
+        margin: 0 0 var(--space-2);
     }
 }
 

@@ -3,9 +3,10 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from database import execute_db, query_db
-from services import delete_task_with_sync, sync_calendar_event_for_task
+from services import delete_task_with_sync, maybe_create_linkedin_draft_for_task, sync_calendar_event_for_task
 from utils import (
     ValidationError,
+    get_optional_bool,
     get_optional_choice,
     get_optional_datetime,
     get_optional_int,
@@ -104,18 +105,35 @@ def create_task():
     status = get_optional_choice(payload, "status", allowed=TASK_STATUSES, default="pending") or "pending"
     project_id = get_optional_int(payload, "project_id", minimum=1)
     goal_id = get_optional_int(payload, "goal_id", minimum=1)
+    linkedin_post_enabled = 1 if get_optional_bool(payload, "linkedin_post_enabled", default=False) else 0
     completed_at = iso_now() if status == "completed" else None
 
     task_id = execute_db(
         """
-        INSERT INTO tasks (title, description, priority, due_date, estimated_minutes, status, project_id, goal_id, completed_at, calendar_event_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+        INSERT INTO tasks (
+            title, description, priority, due_date, estimated_minutes, status, project_id, goal_id,
+            linkedin_post_enabled, completed_at, calendar_event_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
         """,
-        (title, description, priority, due_date, estimated_minutes, status, project_id, goal_id, completed_at),
+        (
+            title,
+            description,
+            priority,
+            due_date,
+            estimated_minutes,
+            status,
+            project_id,
+            goal_id,
+            linkedin_post_enabled,
+            completed_at,
+        ),
     )
     task = query_db("SELECT * FROM tasks WHERE id = ?", [task_id], one=True)
     sync_calendar_event_for_task(row_to_dict(task))
     task = query_db("SELECT * FROM tasks WHERE id = ?", [task_id], one=True)
+    if status == "completed" and linkedin_post_enabled:
+        maybe_create_linkedin_draft_for_task(task_id)
     return jsonify({"task": row_to_dict(task), "message": "Task created."}), 201
 
 
@@ -152,6 +170,9 @@ def update_task(task_id: int):
         if "goal_id" in payload
         else current_task["goal_id"]
     )
+    linkedin_post_enabled = (
+        1 if get_optional_bool(payload, "linkedin_post_enabled", default=bool(current_task.get("linkedin_post_enabled"))) else 0
+    )
 
     completed_at = current_task.get("completed_at")
     if status == "completed" and current_task["status"] != "completed":
@@ -162,14 +183,28 @@ def update_task(task_id: int):
     execute_db(
         """
         UPDATE tasks
-        SET title = ?, description = ?, priority = ?, status = ?, due_date = ?, estimated_minutes = ?, project_id = ?, goal_id = ?, completed_at = ?
+        SET title = ?, description = ?, priority = ?, status = ?, due_date = ?, estimated_minutes = ?, project_id = ?, goal_id = ?, linkedin_post_enabled = ?, completed_at = ?
         WHERE id = ?
         """,
-        (title, description, priority, status, due_date, estimated_minutes, project_id, goal_id, completed_at, task_id),
+        (
+            title,
+            description,
+            priority,
+            status,
+            due_date,
+            estimated_minutes,
+            project_id,
+            goal_id,
+            linkedin_post_enabled,
+            completed_at,
+            task_id,
+        ),
     )
     updated_task = query_db("SELECT * FROM tasks WHERE id = ?", [task_id], one=True)
     sync_calendar_event_for_task(row_to_dict(updated_task))
     updated_task = query_db("SELECT * FROM tasks WHERE id = ?", [task_id], one=True)
+    if status == "completed" and linkedin_post_enabled:
+        maybe_create_linkedin_draft_for_task(task_id)
     return jsonify({"task": row_to_dict(updated_task), "message": "Task updated."})
 
 

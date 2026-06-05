@@ -3,8 +3,9 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from database import execute_db, query_db
-from services import fetch_project_metrics
+from services import fetch_project_metrics, maybe_create_linkedin_draft_for_project
 from utils import (
+    get_optional_bool,
     get_optional_choice,
     get_optional_date,
     get_optional_int,
@@ -82,16 +83,19 @@ def create_project():
     goal_id = get_optional_int(payload, "goal_id", minimum=1)
     deadline = get_optional_date(payload, "deadline")
     status = get_optional_choice(payload, "status", allowed=PROJECT_STATUSES, default="planning") or "planning"
+    linkedin_post_enabled = 1 if get_optional_bool(payload, "linkedin_post_enabled", default=False) else 0
     completed_at = iso_now() if status == "completed" else None
 
     project_id = execute_db(
         """
-        INSERT INTO projects (name, description, notes, goal_id, status, deadline, completed_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO projects (name, description, notes, goal_id, status, deadline, linkedin_post_enabled, completed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (name, description, notes, goal_id, status, deadline, completed_at),
+        (name, description, notes, goal_id, status, deadline, linkedin_post_enabled, completed_at),
     )
     project = query_db("SELECT * FROM projects WHERE id = ?", [project_id], one=True)
+    if status == "completed" and linkedin_post_enabled:
+        maybe_create_linkedin_draft_for_project(project_id)
     return jsonify({"project": row_to_dict(project), "message": "Project created."}), 201
 
 
@@ -125,6 +129,11 @@ def update_project(project_id: int):
         get_optional_choice(payload, "status", allowed=PROJECT_STATUSES, default=current_project["status"])
         or current_project["status"]
     )
+    linkedin_post_enabled = (
+        1
+        if get_optional_bool(payload, "linkedin_post_enabled", default=bool(current_project.get("linkedin_post_enabled")))
+        else 0
+    )
 
     completed_at = current_project.get("completed_at")
     if status == "completed" and current_project["status"] != "completed":
@@ -135,12 +144,14 @@ def update_project(project_id: int):
     execute_db(
         """
         UPDATE projects
-        SET name = ?, description = ?, notes = ?, goal_id = ?, status = ?, deadline = ?, completed_at = ?
+        SET name = ?, description = ?, notes = ?, goal_id = ?, status = ?, deadline = ?, linkedin_post_enabled = ?, completed_at = ?
         WHERE id = ?
         """,
-        (name, description, notes, goal_id, status, deadline, completed_at, project_id),
+        (name, description, notes, goal_id, status, deadline, linkedin_post_enabled, completed_at, project_id),
     )
     updated = query_db("SELECT * FROM projects WHERE id = ?", [project_id], one=True)
+    if status == "completed" and linkedin_post_enabled:
+        maybe_create_linkedin_draft_for_project(project_id)
     return jsonify({"project": row_to_dict(updated), "message": "Project updated."})
 
 

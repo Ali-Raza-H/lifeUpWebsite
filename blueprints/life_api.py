@@ -180,6 +180,120 @@ def get_food_presets():
     return jsonify(rows_to_dicts(rows))
 
 
+@bp.route("/diet/presets", methods=["POST"])
+def create_food_preset():
+    payload = require_object(request.get_json(silent=True))
+    data = _validate_food_preset_payload(payload)
+    display_order = get_optional_int(payload, "display_order", minimum=1) or _next_food_preset_order()
+
+    preset_id = execute_db(
+        """
+        INSERT INTO food_presets (
+            name, category, serving_label, calories, protein_g, carbs_g, fat_g, display_order, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """,
+        (
+            data["name"],
+            data["category"],
+            data["serving_label"],
+            data["calories"],
+            data["protein_g"],
+            data["carbs_g"],
+            data["fat_g"],
+            display_order,
+        ),
+    )
+    _normalize_food_preset_order()
+    preset = query_db("SELECT * FROM food_presets WHERE id = ?", [preset_id], one=True)
+    return jsonify({"preset": row_to_dict(preset), "message": "Food preset saved."}), 201
+
+
+@bp.route("/diet/presets/reorder", methods=["POST"])
+def reorder_food_presets():
+    payload = require_object(request.get_json(silent=True))
+    ids = payload.get("ids")
+    if not isinstance(ids, list) or not ids:
+        raise ValidationError("Ids must be a non-empty list.", "ids")
+
+    normalized_ids: list[int] = []
+    for item in ids:
+        try:
+            normalized_ids.append(int(item))
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("Ids must contain only integers.", "ids") from exc
+
+    if len(set(normalized_ids)) != len(normalized_ids):
+        raise ValidationError("Ids must be unique.", "ids")
+
+    existing_ids = {int(row["id"]) for row in query_db("SELECT id FROM food_presets")}
+    if set(normalized_ids) != existing_ids:
+        raise ValidationError("Ids must include every existing preset exactly once.", "ids")
+
+    for index, preset_id in enumerate(normalized_ids, start=1):
+        execute_db("UPDATE food_presets SET display_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (index, preset_id))
+    return jsonify({"presets": rows_to_dicts(query_db("SELECT * FROM food_presets ORDER BY display_order, name, id")), "message": "Food order updated."})
+
+
+@bp.route("/diet/presets/<int:preset_id>", methods=["PUT"])
+def update_food_preset(preset_id: int):
+    row = query_db("SELECT * FROM food_presets WHERE id = ?", [preset_id], one=True)
+    if not row:
+        return jsonify({"error": "Food preset not found."}), 404
+
+    current = row_to_dict(row)
+    payload = require_object(request.get_json(silent=True))
+    merged = {**current, **payload}
+    data = _validate_food_preset_payload(merged)
+    display_order = get_optional_int(merged, "display_order", default=current["display_order"], minimum=1)
+
+    execute_db(
+        """
+        UPDATE food_presets
+        SET
+            name = ?,
+            category = ?,
+            serving_label = ?,
+            calories = ?,
+            protein_g = ?,
+            carbs_g = ?,
+            fat_g = ?,
+            display_order = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        (
+            data["name"],
+            data["category"],
+            data["serving_label"],
+            data["calories"],
+            data["protein_g"],
+            data["carbs_g"],
+            data["fat_g"],
+            display_order,
+            preset_id,
+        ),
+    )
+    _normalize_food_preset_order()
+    preset = query_db("SELECT * FROM food_presets WHERE id = ?", [preset_id], one=True)
+    return jsonify({"preset": row_to_dict(preset), "message": "Food preset updated."})
+
+
+@bp.route("/diet/presets/<int:preset_id>", methods=["DELETE"])
+def delete_food_preset(preset_id: int):
+    row = query_db("SELECT id FROM food_presets WHERE id = ?", [preset_id], one=True)
+    if not row:
+        return jsonify({"error": "Food preset not found."}), 404
+
+    usage = query_db("SELECT COUNT(*) AS count FROM diet_entries WHERE preset_id = ?", [preset_id], one=True)
+    if int(usage["count"] or 0) > 0:
+        return jsonify({"error": "Food preset is used by diet entries and cannot be deleted."}), 409
+
+    execute_db("DELETE FROM food_presets WHERE id = ?", [preset_id])
+    _normalize_food_preset_order()
+    return jsonify({"message": "Food preset deleted."})
+
+
 @bp.route("/diet", methods=["GET"])
 def get_diet_entries():
     rows = query_db(
@@ -514,3 +628,34 @@ def delete_attachment(attachment_id: int):
         return jsonify({"error": "Attachment not found."}), 404
     execute_db("DELETE FROM attachments WHERE id = ?", [attachment_id])
     return jsonify({"message": "Attachment deleted."})
+
+
+def _validate_food_preset_payload(payload: dict) -> dict[str, object]:
+    return {
+        "name": get_required_string(payload, "name", max_length=140),
+        "category": get_optional_string(payload, "category", max_length=100, default="Uncategorized") or "Uncategorized",
+        "serving_label": get_required_string(payload, "serving_label", max_length=120),
+        "calories": _required_float(payload, "calories", minimum=0),
+        "protein_g": _required_float(payload, "protein_g", minimum=0),
+        "carbs_g": _required_float(payload, "carbs_g", minimum=0),
+        "fat_g": _required_float(payload, "fat_g", minimum=0),
+    }
+
+
+def _next_food_preset_order() -> int:
+    row = query_db("SELECT COALESCE(MAX(display_order), 0) + 1 AS next_order FROM food_presets", one=True)
+    return int(row["next_order"] or 1)
+
+
+def _normalize_food_preset_order() -> None:
+    rows = query_db(
+        """
+        SELECT id, display_order
+        FROM food_presets
+        ORDER BY COALESCE(display_order, 0) ASC, name COLLATE NOCASE ASC, id ASC
+        """
+    )
+    for index, row in enumerate(rows, start=1):
+        if int(row["display_order"] or 0) == index:
+            continue
+        execute_db("UPDATE food_presets SET display_order = ? WHERE id = ?", (index, row["id"]))

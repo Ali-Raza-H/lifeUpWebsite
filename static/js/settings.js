@@ -2,6 +2,7 @@ const SettingsUI = {
     skills: [],
     traits: [],
     beliefs: [],
+    foodPresets: [],
     system: null,
     importedBackup: null,
     importedBackupName: '',
@@ -19,6 +20,9 @@ const SettingsUI = {
         document.getElementById('settings-skill-search')?.addEventListener('input', () => this.renderSkills());
         document.getElementById('settings-skill-filter-category')?.addEventListener('change', () => this.renderSkills());
         document.getElementById('settings-skill-sort')?.addEventListener('change', () => this.renderSkills());
+        document.getElementById('settings-food-search')?.addEventListener('input', () => this.renderFoods());
+        document.getElementById('settings-food-category-filter')?.addEventListener('input', () => this.renderFoods());
+        document.getElementById('settings-food-sort')?.addEventListener('change', () => this.renderFoods());
         document.getElementById('settings-import-file')?.addEventListener('change', (event) => this.handleImportFile(event));
 
         document.querySelectorAll('.modal-overlay').forEach((modal) => {
@@ -32,7 +36,8 @@ const SettingsUI = {
     async loadAll() {
         await Promise.all([
             this.loadSystemSummary(),
-            this.loadProfileData()
+            this.loadProfileData(),
+            this.loadFoodPresets()
         ]);
     },
 
@@ -137,7 +142,7 @@ const SettingsUI = {
 
         list.innerHTML = this.traits.map((trait, index) => `
             <div class="compact-item settings-entity-row" data-trait-id="${trait.id}">
-                <div>
+                <div class="settings-entity-main">
                     <div class="item-title">${CoreUI.escapeHtml(trait.name)}</div>
                     <div class="item-desc">${CoreUI.escapeHtml(this.labelize(trait.category || 'general'))}</div>
                 </div>
@@ -322,11 +327,11 @@ const SettingsUI = {
 
         list.innerHTML = this.beliefs.map((belief, index) => `
             <div class="compact-item settings-entity-row" data-belief-id="${belief.id}">
-                <div>
+                <div class="settings-entity-main">
                     <div class="item-title">${CoreUI.escapeHtml(belief.title)}</div>
                     <div class="item-desc">${CoreUI.escapeHtml(belief.text)}</div>
                 </div>
-                <div class="item-desc">${belief.text.length} chars</div>
+                <div class="item-desc settings-belief-meta">${belief.text.length} chars</div>
                 <div class="settings-row-actions">
                     <button type="button" class="btn btn-icon" data-action="move-up" ${index === 0 ? 'disabled' : ''}><i class="ph ph-arrow-up"></i></button>
                     <button type="button" class="btn btn-icon" data-action="move-down" ${index === this.beliefs.length - 1 ? 'disabled' : ''}><i class="ph ph-arrow-down"></i></button>
@@ -448,9 +453,9 @@ const SettingsUI = {
 
         grid.innerHTML = visibleSkills.map((skill, index) => `
             <div class="card settings-skill-card">
-                <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom: var(--space-3);">
-                    <div>
-                        <div class="item-title" style="font-size: 16px;">${CoreUI.escapeHtml(skill.name)}</div>
+                <div class="settings-skill-head">
+                    <div class="settings-skill-main">
+                        <div class="item-title settings-skill-title">${CoreUI.escapeHtml(skill.name)}</div>
                         <div class="item-desc">${CoreUI.escapeHtml(this.labelize(skill.category))} - ${CoreUI.escapeHtml(this.labelize(skill.experience_level))}</div>
                     </div>
                     <div class="settings-row-actions">
@@ -462,11 +467,11 @@ const SettingsUI = {
                 <div class="skill-meter">
                     <div class="skill-meter-fill" style="width:${skill.proficiency}%;"></div>
                 </div>
-                <div style="display:flex; justify-content:space-between; margin-top: 8px;">
+                <div class="settings-skill-foot">
                     <span class="item-desc">Proficiency</span>
                     <span class="badge">${skill.proficiency}%</span>
                 </div>
-                <div class="item-desc" style="margin-top: var(--space-3); min-height: 36px;">${CoreUI.escapeHtml(skill.notes || 'No notes')}</div>
+                <div class="item-desc settings-skill-notes">${CoreUI.escapeHtml(skill.notes || 'No notes')}</div>
             </div>
         `).join('');
     },
@@ -578,11 +583,173 @@ const SettingsUI = {
         }
     },
 
+    async loadFoodPresets() {
+        try {
+            this.foodPresets = await API.get('/api/life/diet/presets');
+            this.renderFoods();
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to load food presets.');
+        }
+    },
+
+    renderFoods() {
+        const grid = document.getElementById('settings-food-grid');
+        if (!grid) return;
+
+        const visibleFoods = this.getVisibleFoods();
+        if (!visibleFoods.length) {
+            CoreUI.setEmptyState(grid, 'No matching food presets found.');
+            return;
+        }
+
+        const searchQuery = (document.getElementById('settings-food-search')?.value || '').trim();
+        const category = (document.getElementById('settings-food-category-filter')?.value || '').trim();
+        const sort = document.getElementById('settings-food-sort')?.value || 'manual';
+        const allowReorder = sort === 'manual' && !searchQuery && !category;
+
+        grid.innerHTML = visibleFoods.map((food, index) => `
+            <div class="compact-item settings-food-card">
+                <div class="settings-food-head">
+                    <div class="settings-entity-main">
+                        <div class="item-title">${CoreUI.escapeHtml(food.name)}</div>
+                        <div class="item-desc">${CoreUI.escapeHtml(food.category || 'Uncategorized')} - ${CoreUI.escapeHtml(food.serving_label)}</div>
+                    </div>
+                    <span class="badge">${this.formatNumber(food.calories)} kcal</span>
+                </div>
+                <div class="settings-food-macros">
+                    <span>Protein ${this.formatNumber(food.protein_g)}g</span>
+                    <span>Carbs ${this.formatNumber(food.carbs_g)}g</span>
+                    <span>Fat ${this.formatNumber(food.fat_g)}g</span>
+                </div>
+                <div class="settings-row-actions">
+                    ${allowReorder ? `<button type="button" class="btn btn-icon" onclick="SettingsUI.moveEntity('food', ${food.id}, -1)" ${index === 0 ? 'disabled' : ''}><i class="ph ph-arrow-up"></i></button>` : ''}
+                    ${allowReorder ? `<button type="button" class="btn btn-icon" onclick="SettingsUI.moveEntity('food', ${food.id}, 1)" ${index === visibleFoods.length - 1 ? 'disabled' : ''}><i class="ph ph-arrow-down"></i></button>` : ''}
+                    <button type="button" class="btn btn-icon" onclick="SettingsUI.openFoodModal(${food.id})"><i class="ph ph-pencil-simple"></i></button>
+                </div>
+            </div>
+        `).join('');
+    },
+
+    getVisibleFoods() {
+        const query = (document.getElementById('settings-food-search')?.value || '').trim().toLowerCase();
+        const category = (document.getElementById('settings-food-category-filter')?.value || '').trim().toLowerCase();
+        const sort = document.getElementById('settings-food-sort')?.value || 'manual';
+
+        let items = this.foodPresets.filter((food) => {
+            const foodCategory = String(food.category || '').toLowerCase();
+            if (category && !foodCategory.includes(category)) return false;
+            if (!query) return true;
+            const haystack = `${food.name} ${food.category} ${food.serving_label}`.toLowerCase();
+            return haystack.includes(query);
+        });
+
+        if (sort === 'name') {
+            items = [...items].sort((left, right) => left.name.localeCompare(right.name));
+        } else if (sort === 'category') {
+            items = [...items].sort((left, right) => `${left.category}${left.name}`.localeCompare(`${right.category}${right.name}`));
+        } else if (sort === 'calories_desc') {
+            items = [...items].sort((left, right) => Number(right.calories || 0) - Number(left.calories || 0));
+        } else if (sort === 'protein_desc') {
+            items = [...items].sort((left, right) => Number(right.protein_g || 0) - Number(left.protein_g || 0));
+        }
+
+        return items;
+    },
+
+    openFoodModal(foodId = null) {
+        const modal = document.getElementById('settings-food-modal');
+        const title = document.getElementById('settings-food-modal-title');
+        const deleteBtn = document.getElementById('settings-food-delete-btn');
+        const form = document.getElementById('settings-food-form');
+        if (!modal || !title || !deleteBtn || !form) return;
+
+        form.reset();
+        document.getElementById('settings-food-id').value = '';
+        document.getElementById('settings-food-category').value = 'Uncategorized';
+        document.getElementById('settings-food-calories').value = 0;
+        document.getElementById('settings-food-protein').value = 0;
+        document.getElementById('settings-food-carbs').value = 0;
+        document.getElementById('settings-food-fat').value = 0;
+
+        if (foodId) {
+            const food = this.foodPresets.find((item) => item.id === foodId);
+            if (!food) return;
+            title.textContent = 'Edit Food';
+            document.getElementById('settings-food-id').value = food.id;
+            document.getElementById('settings-food-name').value = food.name;
+            document.getElementById('settings-food-category').value = food.category || 'Uncategorized';
+            document.getElementById('settings-food-serving').value = food.serving_label;
+            document.getElementById('settings-food-calories').value = food.calories;
+            document.getElementById('settings-food-protein').value = food.protein_g;
+            document.getElementById('settings-food-carbs').value = food.carbs_g;
+            document.getElementById('settings-food-fat').value = food.fat_g;
+            deleteBtn.style.display = 'inline-flex';
+        } else {
+            title.textContent = 'Add Food';
+            deleteBtn.style.display = 'none';
+        }
+
+        modal.style.display = 'flex';
+    },
+
+    closeFoodModal() {
+        const modal = document.getElementById('settings-food-modal');
+        if (modal) modal.style.display = 'none';
+    },
+
+    async submitFood(event) {
+        event.preventDefault();
+        const foodId = document.getElementById('settings-food-id').value;
+        const payload = {
+            name: document.getElementById('settings-food-name').value,
+            category: document.getElementById('settings-food-category').value,
+            serving_label: document.getElementById('settings-food-serving').value,
+            calories: Number(document.getElementById('settings-food-calories').value || 0),
+            protein_g: Number(document.getElementById('settings-food-protein').value || 0),
+            carbs_g: Number(document.getElementById('settings-food-carbs').value || 0),
+            fat_g: Number(document.getElementById('settings-food-fat').value || 0)
+        };
+
+        try {
+            if (foodId) {
+                await API.put(`/api/life/diet/presets/${foodId}`, payload);
+            } else {
+                await API.post('/api/life/diet/presets', payload);
+            }
+            this.closeFoodModal();
+            await Promise.all([this.loadFoodPresets(), this.loadSystemSummary()]);
+            CoreUI.showError('Food preset saved.', true);
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to save food preset.');
+        }
+    },
+
+    async deleteCurrentFood() {
+        const foodId = document.getElementById('settings-food-id').value;
+        if (!foodId) return;
+        const confirmed = await CoreUI.confirm({
+            title: 'Delete food preset?',
+            message: 'Food presets used by logged meals cannot be deleted.',
+            confirmText: 'Delete'
+        });
+        if (!confirmed) return;
+
+        try {
+            await API.delete(`/api/life/diet/presets/${foodId}`);
+            this.closeFoodModal();
+            await Promise.all([this.loadFoodPresets(), this.loadSystemSummary()]);
+            CoreUI.showError('Food preset deleted.', true);
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to delete food preset.');
+        }
+    },
+
     async moveEntity(type, entityId, direction) {
         const map = {
             trait: { key: 'traits', endpoint: '/api/profile/traits/reorder', reload: () => this.loadTraits() },
             belief: { key: 'beliefs', endpoint: '/api/profile/beliefs/reorder', reload: () => this.loadBeliefs() },
-            skill: { key: 'skills', endpoint: '/api/profile/skills/reorder', reload: () => this.loadSkills() }
+            skill: { key: 'skills', endpoint: '/api/profile/skills/reorder', reload: () => this.loadSkills() },
+            food: { key: 'foodPresets', endpoint: '/api/life/diet/presets/reorder', reload: () => this.loadFoodPresets() }
         };
         const config = map[type];
         if (!config) return;
@@ -636,7 +803,8 @@ const SettingsUI = {
             'tasks', 'habits', 'habit_logs', 'projects', 'project_milestones', 'project_notes',
             'project_habits', 'goals', 'goal_links', 'goal_milestones', 'journal_entries', 'notes',
             'traits', 'beliefs', 'skills', 'calendar_events', 'health_logs', 'finance_entries',
-            'contacts', 'life_reviews', 'attachments'
+            'contacts', 'life_reviews', 'attachments', 'food_presets', 'diet_entries', 'work_experiences',
+            'linkedin_drafts'
         ];
         const counts = keys
             .filter((key) => Array.isArray(this.importedBackup[key]))
@@ -744,6 +912,12 @@ const SettingsUI = {
         if (value < 1024) return `${value} B`;
         if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
         return `${(value / (1024 * 1024)).toFixed(2)} MB`;
+    },
+
+    formatNumber(value) {
+        const number = Number(value || 0);
+        if (Number.isInteger(number)) return String(number);
+        return number.toFixed(1);
     }
 };
 
