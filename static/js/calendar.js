@@ -255,7 +255,9 @@ const CalendarUI = {
         const timeLabels = payload.time_labels.map((label) => `<div class="week-time-label">${label}</div>`).join('');
         const columns = payload.days.map((day) => {
             const grid = payload.time_labels.map(() => '<div class="week-grid-cell"></div>').join('');
-            const events = this.filterEvents(day.events).map((event) => this.renderEventBlock(event)).join('');
+            const events = this.layoutDayEvents(this.filterEvents(day.events))
+                .map((event) => this.renderEventBlock(event))
+                .join('');
             return `<div class="week-day-column ${day.date === this.selectedDate ? 'is-selected' : ''}" data-date="${day.date}">${grid}${events}</div>`;
         }).join('');
 
@@ -371,18 +373,65 @@ const CalendarUI = {
         return Math.max(360, Math.min(1440, snapped));
     },
 
+    layoutDayEvents(events) {
+        const sortedEvents = [...events].sort((left, right) => {
+            return (left.start_minutes - right.start_minutes) || (left.end_minutes - right.end_minutes) || (left.id - right.id);
+        });
+        const groups = [];
+        let currentGroup = null;
+
+        sortedEvents.forEach((event) => {
+            const start = Number(event.start_minutes) || 0;
+            const end = Math.max(start + 1, Number(event.end_minutes) || start + 1);
+            if (!currentGroup || start >= currentGroup.end) {
+                currentGroup = { events: [], end };
+                groups.push(currentGroup);
+            }
+            currentGroup.events.push(event);
+            currentGroup.end = Math.max(currentGroup.end, end);
+        });
+
+        return groups.flatMap((group) => {
+            const laneEnds = [];
+            const laidOut = group.events.map((event) => {
+                const start = Number(event.start_minutes) || 0;
+                const end = Math.max(start + 1, Number(event.end_minutes) || start + 1);
+                let lane = laneEnds.findIndex((laneEnd) => laneEnd <= start);
+                if (lane === -1) {
+                    lane = laneEnds.length;
+                    laneEnds.push(end);
+                } else {
+                    laneEnds[lane] = end;
+                }
+                return { ...event, layoutLane: lane };
+            });
+            const laneCount = Math.max(1, laneEnds.length);
+            return laidOut.map((event) => ({
+                ...event,
+                layoutLaneCount: laneCount
+            }));
+        });
+    },
+
     renderEventBlock(event) {
         const startMinutes = Math.max(event.start_minutes, 360);
         const endMinutes = Math.min(event.end_minutes, 1440);
         const top = ((startMinutes - 360) / 60) * 56;
         const height = Math.max(30, ((endMinutes - startMinutes) / 60) * 56);
         const meta = [event.category || 'general', event.project_name, event.goal_title].filter(Boolean).join(' - ');
+        const laneCount = Math.max(1, event.layoutLaneCount || 1);
+        const lane = Math.min(Math.max(0, event.layoutLane || 0), laneCount - 1);
+        const width = 100 / laneCount;
+        const left = lane * width;
+        const overlapClass = laneCount > 1 ? ' is-overlapping' : '';
+        const compressedClass = width < 48 ? ' is-compressed' : '';
         return `
             <button
                 type="button"
-                class="week-event"
-                style="top:${top}px; height:${height}px;"
+                class="week-event${overlapClass}${compressedClass}"
+                style="top:${top}px; height:${height}px; --event-left:${left}%; --event-width:${width}%;"
                 onclick="CalendarUI.openEventModal(${event.id})"
+                title="${CoreUI.escapeHtml(`${event.title} | ${event.start_time} - ${event.end_time}`)}"
             >
                 <div class="week-event-title">${CoreUI.escapeHtml(event.title)}</div>
                 <div class="week-event-meta">

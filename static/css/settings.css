@@ -145,6 +145,19 @@
         grid-column: span 12;
     }
 
+    .settings-row-controls {
+        grid-template-columns: minmax(0, 1fr) 76px;
+    }
+
+    .settings-row-controls .btn {
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+
+    .settings-state {
+        text-align: left;
+    }
+
     .settings-action-row,
     .settings-modal-actions {
         flex-direction: column;

@@ -3,6 +3,12 @@
     grid-template-columns: 240px 1fr;
     gap: var(--space-5);
     align-items: stretch;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.life-main {
+    min-width: 0;
 }
 
 .life-nav-card {
@@ -13,12 +19,16 @@
     height: fit-content;
     position: sticky;
     top: var(--space-4);
+    min-width: 0;
+    max-width: 100%;
 }
 
 .life-nav-list {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+    min-width: 0;
+    max-width: 100%;
 }
 
 .life-nav-item {
@@ -63,6 +73,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
+    min-width: 0;
 }
 
 @keyframes fadeIn {
@@ -171,21 +182,28 @@
 @media (max-width: 900px) {
     .life-workspace {
         grid-template-columns: 1fr;
+        gap: var(--space-4);
+        overflow: hidden;
     }
     
     .life-nav-card {
         position: static;
         margin-bottom: var(--space-4);
+        overflow: hidden;
     }
     
     .life-nav-list {
         flex-direction: row;
         overflow-x: auto;
+        overflow-y: hidden;
+        max-width: 100%;
         padding-bottom: var(--space-2);
+        -webkit-overflow-scrolling: touch;
     }
     
     .life-nav-item {
         white-space: nowrap;
+        flex: 0 0 auto;
     }
 }
 
@@ -262,5 +280,68 @@
         border-right: 0;
         border-bottom: 1px solid var(--border-subtle);
         padding: 0 0 var(--space-3);
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .life-section-header,
+    .life-list-header {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+
+    .life-summary-cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .life-nav-card {
+        margin-bottom: 0;
+    }
+
+    .life-nav-item {
+        padding: 9px 10px 9px 24px;
+        font-size: 11px;
+    }
+
+    .life-row {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 10px 0;
+    }
+
+    .life-row-actions {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .life-row-actions .btn {
+        flex: 0 1 auto;
+    }
+
+    .life-resource-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .life-resource-head,
+    .library-entry-top {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .library-entry-actions {
+        flex-wrap: wrap;
+    }
+
+    .life-modal-content {
+        width: calc(100vw - 16px);
+    }
+}
+
+@media (max-width: 480px) {
+    .life-summary-cards {
+        grid-template-columns: 1fr;
     }
 }

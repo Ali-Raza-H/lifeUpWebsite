@@ -119,7 +119,7 @@ Each feature normally has three pieces:
 - Do not rename CSS classes used by JavaScript for panel switching, especially `life-nav-item`, `life-content-panel`, `active`, `compact-item`, and board/list container IDs.
 - Prefer visual changes in CSS first. Only edit templates when adding/removing real controls or changing structure.
 - Shared styling should go in `components.css`; shell/sidebar styling should go in `base.css`; page-specific exceptions should go in that page's CSS file.
-- After menu/template changes, run `python -m pytest -q` and smoke test the affected route in the browser.
+- After menu/template changes, run `python -m pytest -q` and check the affected route in the browser.
 
 ## Runtime And Generated Files
 

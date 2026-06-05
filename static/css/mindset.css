@@ -14,6 +14,9 @@
     background: var(--bg);
     color: var(--text);
     padding: var(--space-8) var(--space-4);
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
 }
 
 .mindset-page::before {
@@ -142,12 +145,14 @@
 
 #mindset-hero-title {
     font-family: 'Bebas Neue', sans-serif;
-    font-size: 6rem;
+    font-size: clamp(2.9rem, 10vw, 6rem);
     line-height: 0.85;
     letter-spacing: 0;
     margin: 0;
     color: var(--text);
     text-shadow: var(--glow-blue);
+    max-width: 100%;
+    overflow-wrap: anywhere;
 }
 
 .mindset-summary {
@@ -161,6 +166,7 @@
 
 .mindset-badges {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-3);
     margin-top: var(--space-2);
 }
@@ -241,7 +247,7 @@
 
 .mindset-recommendations {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
     gap: var(--space-6);
 }
 
@@ -255,3 +261,43 @@
 #tension-points .card-title { color: var(--accent-warn); }
 #skill-foundations .card-title { color: var(--accent-success); }
 #strategic-recommendations .card-title { color: var(--text); }
+
+@media (max-width: 768px) {
+    .mindset-page {
+        padding: var(--space-4) 0;
+        gap: var(--space-5);
+    }
+
+    .mindset-page-title {
+        font-size: clamp(1.25rem, 7vw, 1.9rem);
+        line-height: 1.1;
+        margin-bottom: 0;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+    }
+
+    .mindset-hero {
+        margin-bottom: var(--space-5);
+    }
+
+    .mindset-summary {
+        font-size: 14px;
+        max-width: 100%;
+    }
+
+    .metric-grid {
+        gap: var(--space-5);
+        margin-bottom: var(--space-5);
+        padding-bottom: var(--space-5) !important;
+    }
+
+    .mindset-panels {
+        gap: var(--space-6);
+    }
+
+    .mindset-skill-head {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: var(--space-1);
+    }
+}

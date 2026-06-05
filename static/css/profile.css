@@ -137,12 +137,25 @@
 }
 
 @media (max-width: 768px) {
+    .profile-chart-shell {
+        height: 240px;
+    }
+
+    .profile-beliefs-list {
+        max-height: 260px;
+    }
+
     .profile-trait-row {
         grid-template-columns: 1fr;
     }
 
     .profile-trait-controls {
-        grid-template-columns: 1fr 82px auto;
+        grid-template-columns: 1fr 76px;
+    }
+
+    .profile-trait-controls .btn {
+        grid-column: 1 / -1;
+        width: 100%;
     }
 
     .profile-trait-state {
@@ -152,6 +165,12 @@
     .profile-skill-toolbar,
     .profile-skill-grid {
         grid-template-columns: 1fr;
+    }
+
+    .profile-skill-head,
+    .profile-skill-meta {
+        align-items: flex-start;
+        flex-wrap: wrap;
     }
 }
 
