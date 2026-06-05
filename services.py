@@ -459,6 +459,14 @@ def _pending_client_generation_message() -> str:
     return "Waiting for your browser to generate the final post using local Ollama."
 
 
+def _smtp_not_enabled_message() -> str:
+    return "SMTP not enabled."
+
+
+def _smtp_delivery_failed_message() -> str:
+    return "SMTP delivery failed."
+
+
 def _finalize_linkedin_draft(draft_id: int, post_body: str) -> dict:
     execute_db(
         """
@@ -484,7 +492,7 @@ def _attempt_send_linkedin_draft(draft: dict) -> None:
             SET email_status = 'not_configured', email_error = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
             """,
-            ("SMTP_HOST and SMTP_FROM must be configured before email delivery can run.", draft["id"]),
+            (_smtp_not_enabled_message(), draft["id"]),
         )
         return
 
@@ -514,6 +522,16 @@ def _attempt_send_linkedin_draft(draft: dict) -> None:
             if username:
                 smtp.login(username, password)
             smtp.send_message(message)
+    except smtplib.SMTPAuthenticationError:
+        execute_db(
+            """
+            UPDATE linkedin_drafts
+            SET email_status = 'not_configured', email_error = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (_smtp_not_enabled_message(), draft["id"]),
+        )
+        return
     except Exception as exc:
         execute_db(
             """
@@ -521,7 +539,7 @@ def _attempt_send_linkedin_draft(draft: dict) -> None:
             SET email_status = 'failed', email_error = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
             """,
-            (str(exc)[:1000], draft["id"]),
+            (_smtp_delivery_failed_message(), draft["id"]),
         )
         return
 

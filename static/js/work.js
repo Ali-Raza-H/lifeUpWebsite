@@ -160,7 +160,7 @@ const WorkUI = {
                     <span class="badge linkedin-email-${CoreUI.escapeHtml(draft.email_status)}">${CoreUI.escapeHtml(this.labelize(draft.email_status))}</span>
                 </div>
                 <pre class="linkedin-draft-body">${CoreUI.escapeHtml(draft.post_body)}</pre>
-                ${draft.email_error ? `<div class="item-desc linkedin-draft-error">${CoreUI.escapeHtml(draft.email_error)}</div>` : ''}
+                ${this.displayLinkedInDraftError(draft) ? `<div class="item-desc linkedin-draft-error">${CoreUI.escapeHtml(this.displayLinkedInDraftError(draft))}</div>` : ''}
                 <div class="linkedin-draft-actions">
                     <button type="button" class="btn btn-sm" onclick="WorkUI.copyLinkedInDraft(${draft.id})"><i class="ph ph-copy"></i> Copy</button>
                     ${draft.email_status === 'pending_generation'
@@ -279,6 +279,14 @@ const WorkUI = {
             }
         });
         return cleaned.slice(0, 2500);
+    },
+
+    displayLinkedInDraftError(draft) {
+        const error = String(draft.email_error || '').trim();
+        if (!error) return '';
+        if (draft.email_status === 'not_configured') return 'SMTP not enabled.';
+        if (error.includes('5.7.8 Username and Password not accepted')) return 'SMTP not enabled.';
+        return error;
     },
 
     async copyLinkedInDraft(draftId) {
