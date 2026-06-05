@@ -57,6 +57,49 @@ const CoreUI = {
         }, 4000);
     },
 
+    async copyText(text) {
+        const value = String(text ?? '');
+        if (!value) {
+            throw new Error('Nothing to copy.');
+        }
+
+        if (navigator.clipboard && window.isSecureContext) {
+            try {
+                await navigator.clipboard.writeText(value);
+                return true;
+            } catch (error) {
+                console.warn('Clipboard API copy failed, falling back.', error);
+            }
+        }
+
+        const textarea = document.createElement('textarea');
+        textarea.value = value;
+        textarea.setAttribute('readonly', '');
+        textarea.setAttribute('aria-hidden', 'true');
+        textarea.style.position = 'fixed';
+        textarea.style.top = '0';
+        textarea.style.left = '0';
+        textarea.style.opacity = '0';
+        textarea.style.pointerEvents = 'none';
+
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        textarea.setSelectionRange(0, textarea.value.length);
+
+        let copied = false;
+        try {
+            copied = document.execCommand('copy');
+        } finally {
+            textarea.remove();
+        }
+
+        if (!copied) {
+            throw new Error('Copy command failed.');
+        }
+        return true;
+    },
+
     confirm({ title = 'Confirm action', message = 'Are you sure?', confirmText = 'Confirm', cancelText = 'Cancel', danger = true } = {}) {
         const modal = document.getElementById('app-confirm-modal');
         const titleEl = document.getElementById('app-confirm-title');

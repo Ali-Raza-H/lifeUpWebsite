@@ -293,7 +293,7 @@ const WorkUI = {
         const draft = this.linkedinDrafts.find((item) => item.id === draftId);
         if (!draft) return;
         try {
-            await navigator.clipboard.writeText(draft.post_body);
+            await CoreUI.copyText(draft.post_body);
             CoreUI.showError('LinkedIn draft copied.', true);
         } catch (error) {
             CoreUI.showError('Copy failed. Select the draft text manually.');
