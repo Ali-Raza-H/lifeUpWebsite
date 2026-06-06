@@ -561,7 +561,8 @@ input[type="range"]:focus {
 }
 
 .project-linked-grid {
-    display: grid;
+    display: flex;
+    flex-direction: column;
     grid-template-columns: 1fr;
     gap: var(--space-3);
     margin-top: var(--space-4);
