@@ -1,5 +1,12 @@
 const API = {
     async request(endpoint, method = 'GET', data = null) {
+        const session = window.LifeOSSession || {};
+        if (session.is_guest && method !== 'GET') {
+            const error = new Error('Guest access is read-only.');
+            error.status = 403;
+            throw error;
+        }
+
         const options = {
             method,
             headers: {

@@ -165,6 +165,7 @@ const CoreUI = {
     },
 
     async openCommandPalette() {
+        if (window.LifeOSSession?.is_guest) return;
         const overlay = document.getElementById('command-palette-overlay');
         const input = document.getElementById('command-palette-input');
         const button = document.querySelector('.command-button');
@@ -353,6 +354,7 @@ const CoreUI = {
     },
 
     async loadNotifications() {
+        if (window.LifeOSSession?.is_guest) return;
         const countEl = document.getElementById('notification-count');
         const listEl = document.getElementById('notification-list');
         if (!countEl || !listEl || typeof API === 'undefined') return;
@@ -439,8 +441,10 @@ const CoreUI = {
 document.addEventListener('DOMContentLoaded', () => {
     CoreUI.initClock();
     CoreUI.initSidebarToggle();
-    CoreUI.initCommandPalette();
-    CoreUI.loadNotifications();
+    if (!window.LifeOSSession?.is_guest) {
+        CoreUI.initCommandPalette();
+        CoreUI.loadNotifications();
+    }
     document.addEventListener('click', (event) => {
         const shell = event.target.closest?.('.notification-shell');
         if (shell) return;

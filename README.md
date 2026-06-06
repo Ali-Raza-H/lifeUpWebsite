@@ -137,9 +137,9 @@ The app loads `.env` automatically on startup. Keep real secrets in `.env`; use 
 ```text
 OLLAMA_GENERATION_MODE=client
 OLLAMA_BASE_URL=http://127.0.0.1:11434
-OLLAMA_MODEL=qwen2.5:7b-instruct
+OLLAMA_MODEL=llama3.2:3b
 ```
 
-LinkedIn draft generation uses client-side Ollama by default with `qwen2.5:7b-instruct`, so a PythonAnywhere deployment can ask your own PC to generate drafts from the Work page. Pull it with `ollama pull qwen2.5:7b-instruct`, run Ollama locally, and set `OLLAMA_ORIGINS` to allow your app origin if the browser blocks the request.
+LinkedIn draft generation uses client-side Ollama by default with `llama3.2:3b`, so a PythonAnywhere deployment can ask your own PC to generate drafts from the Work page. Pull it with `ollama pull llama3.2:3b`, run Ollama locally, and set `OLLAMA_ORIGINS` to allow your app origin if the browser blocks the request.
 
 Set `OLLAMA_GENERATION_MODE=server` only if the server itself can run Ollama.

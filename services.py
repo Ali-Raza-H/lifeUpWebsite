@@ -622,7 +622,7 @@ def _generate_linkedin_post_with_ollama(prompt: str) -> str:
         return ""
 
     base_url = str(current_app.config.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")).rstrip("/")
-    model = str(current_app.config.get("OLLAMA_MODEL", "dolphin3:8b"))
+    model = str(current_app.config.get("OLLAMA_MODEL", "llama3.2:3b"))
     timeout = float(current_app.config.get("OLLAMA_TIMEOUT_SECONDS", 45))
     payload = {
         "model": model,

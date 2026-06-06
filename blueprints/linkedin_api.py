@@ -16,7 +16,7 @@ def get_linkedin_config():
             "email_to": current_app.config.get("LINKEDIN_EMAIL_TO", "khadamalihussain@gmail.com"),
             "generation_mode": current_app.config.get("OLLAMA_GENERATION_MODE", "client"),
             "ollama_base_url": current_app.config.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
-            "ollama_model": current_app.config.get("OLLAMA_MODEL", "qwen2.5:7b-instruct"),
+            "ollama_model": current_app.config.get("OLLAMA_MODEL", "llama3.2:3b"),
         }
     )
 

@@ -35,6 +35,53 @@ def test_login_logout_and_security_headers(anon_client):
     assert logout_response.headers["Location"].endswith("/login")
 
 
+def test_guest_login_redirects_to_guest_home(anon_client):
+    login_response = anon_client.post(
+        "/login",
+        data={
+            "username": anon_client.application.config["GUEST_AUTH_USERNAME"],
+            "password": anon_client.application.config["GUEST_AUTH_PASSWORD"],
+        },
+        follow_redirects=False,
+    )
+    assert login_response.status_code == 302
+    assert login_response.headers["Location"].endswith("/library")
+
+
+def test_guest_access_is_limited_to_read_only_demo_sections(anon_client):
+    login_response = anon_client.post(
+        "/login",
+        data={
+            "username": anon_client.application.config["GUEST_AUTH_USERNAME"],
+            "password": anon_client.application.config["GUEST_AUTH_PASSWORD"],
+        },
+        follow_redirects=False,
+    )
+    assert login_response.status_code == 302
+
+    assert anon_client.get("/library").status_code == 200
+    assert anon_client.get("/projects").status_code == 200
+    assert anon_client.get("/work").status_code == 200
+    assert anon_client.get("/profile").status_code == 200
+
+    blocked_page = anon_client.get("/tasks", follow_redirects=False)
+    assert blocked_page.status_code == 302
+    assert blocked_page.headers["Location"].endswith("/library")
+
+    assert anon_client.get("/api/library/summary").status_code == 200
+    assert anon_client.get("/api/work/summary").status_code == 200
+    assert anon_client.get("/api/projects/").status_code == 200
+    assert anon_client.get("/api/profile/all").status_code == 200
+
+    blocked_api = anon_client.get("/api/tasks/")
+    assert blocked_api.status_code == 403
+    assert blocked_api.get_json()["error"] == "Guest access is read-only and limited to public demo data."
+
+    blocked_write = anon_client.post("/api/library/items", json={"title": "Should fail", "type": "book"})
+    assert blocked_write.status_code == 403
+    assert blocked_write.get_json()["error"] == "Guest access is read-only and limited to public demo data."
+
+
 def test_task_lifecycle_sets_completed_timestamp(client):
     response = client.post(
         "/api/tasks/",

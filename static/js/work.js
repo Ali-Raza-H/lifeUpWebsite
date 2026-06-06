@@ -23,7 +23,13 @@ const WorkUI = {
     },
 
     async loadAll() {
-        await Promise.all([this.loadSummary(), this.loadExperiences(), this.loadLinkedInConfig()]);
+        await Promise.all([this.loadSummary(), this.loadExperiences()]);
+        if (window.LifeOSSession?.is_guest) {
+            this.linkedinDrafts = [];
+            this.renderLinkedInDrafts();
+            return;
+        }
+        await this.loadLinkedInConfig();
         await this.loadLinkedInDrafts();
     },
 
@@ -35,7 +41,7 @@ const WorkUI = {
             this.linkedinConfig = {
                 generation_mode: 'client',
                 ollama_base_url: 'http://127.0.0.1:11434',
-                ollama_model: 'qwen2.5:7b-instruct',
+                ollama_model: 'llama3.2:3b',
                 email_to: 'khadamalihussain@gmail.com'
             };
             this.renderLinkedInConfig();
@@ -123,7 +129,7 @@ const WorkUI = {
                 ${item.achievements ? `<p class="item-desc work-card-note">${CoreUI.escapeHtml(item.achievements)}</p>` : ''}
                 <div class="work-card-actions">
                     ${item.application_url ? `<a class="btn btn-sm" href="${CoreUI.escapeHtml(item.application_url)}" target="_blank" rel="noopener"><i class="ph ph-arrow-square-out"></i> Link</a>` : ''}
-                    <button type="button" class="btn btn-sm" onclick="WorkUI.openModal(${item.id})"><i class="ph ph-pencil-simple"></i> Edit</button>
+                    ${window.LifeOSSession?.is_guest ? '' : `<button type="button" class="btn btn-sm" onclick="WorkUI.openModal(${item.id})"><i class="ph ph-pencil-simple"></i> Edit</button>`}
                 </div>
             </article>
         `).join('');
@@ -142,6 +148,11 @@ const WorkUI = {
     renderLinkedInDrafts() {
         const list = document.getElementById('linkedin-draft-list');
         if (!list) return;
+
+        if (window.LifeOSSession?.is_guest) {
+            CoreUI.setEmptyState(list, 'LinkedIn draft automation is hidden in guest mode.');
+            return;
+        }
 
         if (!this.linkedinDrafts.length) {
             CoreUI.setEmptyState(list, 'No LinkedIn drafts generated yet.');
@@ -221,7 +232,7 @@ const WorkUI = {
     async generateLinkedInPostWithOllama(draft) {
         const config = this.linkedinConfig || {};
         const baseUrl = String(config.ollama_base_url || 'http://127.0.0.1:11434').replace(/\/+$/, '');
-        const model = config.ollama_model || 'qwen2.5:7b-instruct';
+        const model = config.ollama_model || 'llama3.2:3b';
         const response = await fetch(`${baseUrl}/api/generate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

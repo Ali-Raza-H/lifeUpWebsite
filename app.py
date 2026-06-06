@@ -30,6 +30,23 @@ import blueprints.tasks_api as tasks_api
 import blueprints.work_api as work_api
 
 BASE_DIR = Path(__file__).resolve().parent
+GUEST_ROLE = "guest"
+ADMIN_ROLE = "admin"
+GUEST_HOME_ENDPOINT = "library"
+GUEST_ALLOWED_PAGE_ENDPOINTS = {"library", "projects", "work", "profile", "logout", "system_status"}
+GUEST_ALLOWED_API_ENDPOINTS = {
+    "system_status",
+    "library_api.get_summary",
+    "library_api.get_items",
+    "profile_api.get_profile",
+    "profile_api.get_traits",
+    "profile_api.get_beliefs",
+    "profile_api.get_skills",
+    "projects_api.get_projects",
+    "projects_api.get_project",
+    "work_api.get_work_summary",
+    "work_api.get_work_experiences",
+}
 
 
 def _load_env_file(path: Path) -> None:
@@ -66,6 +83,8 @@ def create_app(test_config: dict | None = None) -> Flask:
         # Security Credentials
         AUTH_USERNAME=os.environ.get("AUTH_USERNAME", "admin"),
         AUTH_PASSWORD=os.environ.get("AUTH_PASSWORD", "2008Ali2008uk##"),
+        GUEST_AUTH_USERNAME=os.environ.get("GUEST_AUTH_USERNAME", "guest"),
+        GUEST_AUTH_PASSWORD=os.environ.get("GUEST_AUTH_PASSWORD", "lifeOSDemoAcc123#"),
         LINKEDIN_EMAIL_TO=os.environ.get("LINKEDIN_EMAIL_TO", "khadamalihussain@gmail.com"),
         SMTP_HOST=os.environ.get("SMTP_HOST", ""),
         SMTP_PORT=int(os.environ.get("SMTP_PORT", "587")),
@@ -76,7 +95,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         OLLAMA_GENERATION_MODE=os.environ.get("OLLAMA_GENERATION_MODE", "client"),
         OLLAMA_ENABLED=os.environ.get("OLLAMA_ENABLED", "1") != "0",
         OLLAMA_BASE_URL=os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
-        OLLAMA_MODEL=os.environ.get("OLLAMA_MODEL", "qwen2.5:7b-instruct"),
+        OLLAMA_MODEL=os.environ.get("OLLAMA_MODEL", "llama3.2:3b"),
         OLLAMA_TIMEOUT_SECONDS=float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "45")),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE=os.environ.get("SESSION_COOKIE_SAMESITE", "Lax"),
@@ -127,7 +146,7 @@ def _register_routes(app: Flask) -> None:
     @app.route("/login", methods=["GET", "POST"])
     def login():
         if session.get("logged_in"):
-            return redirect(url_for("dashboard"))
+            return redirect(url_for(_home_endpoint_for_role(session.get("user_role"))))
             
         error = None
         if request.method == "POST":
@@ -136,8 +155,14 @@ def _register_routes(app: Flask) -> None:
             
             if username == app.config["AUTH_USERNAME"] and password == app.config["AUTH_PASSWORD"]:
                 session["logged_in"] = True
+                session["user_role"] = ADMIN_ROLE
                 session.permanent = True
                 return redirect(url_for("dashboard"))
+            if username == app.config["GUEST_AUTH_USERNAME"] and password == app.config["GUEST_AUTH_PASSWORD"]:
+                session["logged_in"] = True
+                session["user_role"] = GUEST_ROLE
+                session.permanent = True
+                return redirect(url_for(GUEST_HOME_ENDPOINT))
             else:
                 error = "Invalid credentials. Access denied."
                 
@@ -146,6 +171,7 @@ def _register_routes(app: Flask) -> None:
     @app.route("/logout")
     def logout():
         session.pop("logged_in", None)
+        session.pop("user_role", None)
         return redirect(url_for("login"))
 
     @app.route("/")
@@ -239,7 +265,13 @@ def _register_template_helpers(app: Flask) -> None:
                 cached_asset_version.cache_clear()
             return cached_asset_version(relative_path)
 
-        return {"asset_version": asset_version}
+        user_role = session.get("user_role", ADMIN_ROLE if session.get("logged_in") else None)
+        return {
+            "asset_version": asset_version,
+            "is_guest_user": user_role == GUEST_ROLE,
+            "current_user_role": user_role,
+            "guest_home_endpoint": GUEST_HOME_ENDPOINT,
+        }
 
 
 def _register_error_handlers(app: Flask) -> None:
@@ -289,6 +321,25 @@ def _register_auth_hooks(app: Flask) -> None:
             if request.path.startswith("/api/"):
                 return jsonify({"error": "Unauthorized access. Authentication required."}), 401
             return redirect(url_for("login"))
+
+        if not session.get("logged_in"):
+            return None
+
+        user_role = session.get("user_role", ADMIN_ROLE)
+        if user_role != GUEST_ROLE:
+            return None
+
+        if request.path.startswith("/api/"):
+            if request.endpoint not in GUEST_ALLOWED_API_ENDPOINTS or request.method != "GET":
+                return jsonify({"error": "Guest access is read-only and limited to public demo data."}), 403
+            return None
+
+        if request.endpoint not in GUEST_ALLOWED_PAGE_ENDPOINTS:
+            return redirect(url_for(GUEST_HOME_ENDPOINT))
+
+
+def _home_endpoint_for_role(user_role: str | None) -> str:
+    return GUEST_HOME_ENDPOINT if user_role == GUEST_ROLE else "dashboard"
 
 
 app = create_app()

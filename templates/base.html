@@ -14,28 +14,38 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css', v=asset_version('css/components.css')) }}">
     {% block head %}{% endblock %}
 </head>
-<body>
+<body class="{% if is_guest_user %}guest-session{% endif %}">
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <i class="ph-fill ph-cpu" id="sidebar-toggle" style="cursor: pointer;"></i>
             <h2>LifeOS</h2>
         </div>
         <ul class="nav-links">
+            {% if not is_guest_user %}
             <li><a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}"><i class="ph ph-squares-four"></i> <span>Dashboard</span></a></li>
             <li><a href="{{ url_for('habits') }}" class="nav-link {% if request.endpoint == 'habits' %}active{% endif %}"><i class="ph ph-calendar-check"></i> <span>Habits</span></a></li>
             <li><a href="{{ url_for('tasks') }}" class="nav-link {% if request.endpoint == 'tasks' %}active{% endif %}"><i class="ph ph-list-checks"></i> <span>Tasks</span></a></li>
+            {% endif %}
             <li><a href="{{ url_for('projects') }}" class="nav-link {% if request.endpoint == 'projects' %}active{% endif %}"><i class="ph ph-kanban"></i> <span>Projects</span></a></li>
+            {% if not is_guest_user %}
             <li><a href="{{ url_for('goals') }}" class="nav-link {% if request.endpoint == 'goals' %}active{% endif %}"><i class="ph ph-target"></i> <span>Goals</span></a></li>
             <li><a href="{{ url_for('analytics') }}" class="nav-link {% if request.endpoint == 'analytics' %}active{% endif %}"><i class="ph ph-chart-bar"></i> <span>Analytics</span></a></li>
             <li><a href="{{ url_for('life') }}" class="nav-link {% if request.endpoint == 'life' %}active{% endif %}"><i class="ph ph-heartbeat"></i> <span>Life</span></a></li>
+            {% endif %}
             <li><a href="{{ url_for('work') }}" class="nav-link {% if request.endpoint == 'work' %}active{% endif %}"><i class="ph ph-briefcase"></i> <span>Work</span></a></li>
             <li><a href="{{ url_for('library') }}" class="nav-link {% if request.endpoint == 'library' %}active{% endif %}"><i class="ph ph-books"></i> <span>Library</span></a></li>
+            {% if not is_guest_user %}
             <li><a href="{{ url_for('journal') }}" class="nav-link {% if request.endpoint == 'journal' %}active{% endif %}"><i class="ph ph-book-open"></i> <span>Journal</span></a></li>
             <li><a href="{{ url_for('notes') }}" class="nav-link {% if request.endpoint == 'notes' %}active{% endif %}"><i class="ph ph-notepad"></i> <span>Notes</span></a></li>
             <li><a href="{{ url_for('calendar') }}" class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}"><i class="ph ph-calendar-blank"></i> <span>Calendar</span></a></li>
             <li><a href="{{ url_for('mindset') }}" class="nav-link {% if request.endpoint == 'mindset' %}active{% endif %}"><i class="ph ph-brain"></i> <span>Mindset</span></a></li>
+            {% endif %}
             <li><a href="{{ url_for('profile') }}" class="nav-link {% if request.endpoint == 'profile' %}active{% endif %}"><i class="ph ph-fingerprint"></i> <span>Profile</span></a></li>
+            {% if not is_guest_user %}
             <li style="margin-top: auto;"><a href="{{ url_for('settings') }}" class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}"><i class="ph ph-gear"></i> <span>Settings</span></a></li>
+            {% else %}
+            <li style="margin-top: auto;"><span class="nav-link active"><i class="ph ph-eye"></i> <span>Guest View</span></span></li>
+            {% endif %}
             <li><a href="{{ url_for('logout') }}" class="nav-link"><i class="ph ph-sign-out"></i> <span>Logout</span></a></li>
         </ul>
     </aside>
@@ -43,9 +53,10 @@
     <main class="main-wrapper">
         <div class="top-bar">
             <div style="display: flex; align-items: center; gap: 12px;">
-                <div><i class="ph-fill ph-circle" style="color: var(--accent-blue); font-size: 8px; margin-right: 6px; text-shadow: var(--glow-blue);"></i> User Dashboard</div>
+                <div><i class="ph-fill ph-circle" style="color: var(--accent-blue); font-size: 8px; margin-right: 6px; text-shadow: var(--glow-blue);"></i> {% if is_guest_user %}Guest Viewer{% else %}User Dashboard{% endif %}</div>
             </div>
             <div class="top-bar-actions">
+                {% if not is_guest_user %}
                 <button type="button" class="command-button" onclick="CoreUI.openCommandPalette()" title="Open command palette">
                     <i class="ph ph-command"></i>
                     <span>Command</span>
@@ -66,10 +77,18 @@
                         </div>
                     </div>
                 </div>
+                {% endif %}
                 <div id="os-clock">00:00:00</div>
             </div>
         </div>
         <div id="app-alert-region" class="app-alert-region" aria-live="polite"></div>
+        {% if is_guest_user %}
+        <div class="content-container" style="padding-top: 16px; padding-bottom: 0;">
+            <div class="compact-item">
+                <span class="item-desc">Guest account: read-only access to demo-safe sections only.</span>
+            </div>
+        </div>
+        {% endif %}
 
         <div class="content-scroll">
             <div class="content-container">
@@ -123,6 +142,12 @@
         </div>
     </div>
 
+    <script>
+        window.LifeOSSession = {
+            role: {{ current_user_role|tojson }},
+            is_guest: {{ is_guest_user|tojson }}
+        };
+    </script>
     <script src="{{ url_for('static', filename='js/api.js', v=asset_version('js/api.js') ) }}"></script>
     <script src="{{ url_for('static', filename='js/core.js', v=asset_version('js/core.js') ) }}"></script>
     {% block scripts %}{% endblock %}
