@@ -1012,6 +1012,53 @@ def test_aggregate_payloads_support_fast_page_loads(client):
     assert isinstance(analytics["calendar"]["habits"], list)
 
 
+def test_os_operating_layer_endpoints(client):
+    today = date.today().isoformat()
+    active_response = client.post(
+        "/api/tasks/",
+        json={"title": "LifeOS v1 polish", "description": "Finalize operating layer", "priority": 1, "due_date": today},
+    )
+    assert active_response.status_code == 201
+
+    completed_response = client.post(
+        "/api/tasks/",
+        json={"title": "LifeOS command palette test", "description": "Searchable completed work", "priority": 2},
+    )
+    assert completed_response.status_code == 201
+    completed_task = completed_response.get_json()["task"]
+    assert client.put(f"/api/tasks/{completed_task['id']}", json={"status": "completed"}).status_code == 200
+
+    project_response = client.post(
+        "/api/projects/",
+        json={"name": "LifeOS Release", "description": "Finished version", "status": "active", "deadline": today},
+    )
+    assert project_response.status_code == 201
+
+    search_response = client.get("/api/os/command?q=lifeos")
+    assert search_response.status_code == 200
+    search_payload = search_response.get_json()
+    assert search_payload["query"] == "lifeos"
+    assert any(result["type"] in {"task", "project"} for result in search_payload["results"])
+
+    default_search_response = client.get("/api/os/command")
+    assert default_search_response.status_code == 200
+    assert any(result["action_type"] == "quick_add" for result in default_search_response.get_json()["results"])
+
+    daily_response = client.get("/api/os/daily-plan")
+    assert daily_response.status_code == 200
+    daily_plan = daily_response.get_json()
+    assert {"date", "headline", "metrics", "blocks", "actions", "risks"} <= set(daily_plan)
+    assert daily_plan["metrics"]["due_today"] >= 1
+    assert len(daily_plan["actions"]) >= 1
+
+    weekly_response = client.get("/api/os/weekly-review")
+    assert weekly_response.status_code == 200
+    weekly_review = weekly_response.get_json()
+    assert {"period", "scorecard", "wins", "risks", "next_focus", "evidence"} <= set(weekly_review)
+    assert any(item["label"] == "Tasks finished" for item in weekly_review["scorecard"])
+    assert weekly_review["evidence"]["completed_tasks"]
+
+
 def test_calendar_event_lifecycle_and_week_payload(client):
     create_response = client.post(
         "/api/calendar/events",

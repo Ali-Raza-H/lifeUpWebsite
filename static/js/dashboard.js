@@ -11,7 +11,18 @@ const DashboardUI = {
         this.initClock();
 
         try {
-            const payload = await API.get('/api/analytics/dashboard');
+            const [dashboardResult, dailyPlanResult, weeklyReviewResult] = await Promise.allSettled([
+                API.get('/api/analytics/dashboard'),
+                API.get('/api/os/daily-plan'),
+                API.get('/api/os/weekly-review')
+            ]);
+            if (dashboardResult.status !== 'fulfilled') {
+                throw dashboardResult.reason;
+            }
+
+            const payload = dashboardResult.value;
+            const dailyPlan = dailyPlanResult.status === 'fulfilled' ? dailyPlanResult.value : null;
+            const weeklyReview = weeklyReviewResult.status === 'fulfilled' ? weeklyReviewResult.value : null;
             const tasks = payload.tasks || [];
             const projects = payload.projects || [];
             const habits = payload.habits || [];
@@ -23,6 +34,8 @@ const DashboardUI = {
             this.projects = projects;
             await this.loadQuickAddMeta();
             this.renderOverview(overview, tasks, todayPayload);
+            this.renderDailyPlan(dailyPlan);
+            this.renderWeeklyReview(weeklyReview);
             this.renderToday(todayPayload);
             this.renderTasks(tasks);
             this.renderProjects(projects);
@@ -109,6 +122,140 @@ const DashboardUI = {
 
         const consistencyEl = document.getElementById('habit-consistency');
         if (consistencyEl) consistencyEl.textContent = `${consistency}%`;
+    },
+
+    renderDailyPlan(plan) {
+        const list = document.getElementById('daily-plan-list');
+        if (!list) return;
+
+        if (!plan) {
+            CoreUI.setEmptyState(list, 'Daily operating plan unavailable.');
+            return;
+        }
+
+        const headline = plan.headline || {};
+        const metrics = plan.metrics || {};
+        const metricItems = [
+            { label: 'Overdue', value: metrics.overdue_tasks ?? 0 },
+            { label: 'Due Today', value: metrics.due_today ?? 0 },
+            { label: 'Habits', value: metrics.open_habits ?? 0 },
+            { label: 'Follow Ups', value: metrics.follow_ups_due ?? 0 },
+            { label: 'Events', value: metrics.remaining_events_today ?? 0 }
+        ];
+        const blocks = plan.blocks || [];
+        const actions = plan.actions || [];
+        const risks = plan.risks || [];
+
+        list.innerHTML = `
+            <div class="compact-item" style="flex-direction:column; align-items:flex-start; gap:10px;">
+                <div class="item-title">${CoreUI.escapeHtml(headline.title || 'Daily plan ready')}</div>
+                <div class="item-desc">${CoreUI.escapeHtml(headline.message || 'Use this panel as the start-of-day operating brief.')}</div>
+                <div style="display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:8px; width:100%;">
+                    ${metricItems.map((item) => `
+                        <div class="compact-item" style="flex-direction:column; align-items:flex-start; gap:4px; min-height:auto;">
+                            <span class="item-desc">${CoreUI.escapeHtml(item.label)}</span>
+                            <span class="badge">${CoreUI.escapeHtml(item.value)}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            ${blocks.slice(0, 3).map((block) => `
+                <a class="compact-item" href="${CoreUI.escapeHtml(block.action_url || '#')}" style="text-decoration:none; flex-direction:column; align-items:flex-start; gap:7px;">
+                    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; width:100%;">
+                        <div>
+                            <div class="item-desc">${CoreUI.escapeHtml(block.label || 'Block')}</div>
+                            <div class="item-title" style="margin-top:4px;">${CoreUI.escapeHtml(block.title || 'Untitled block')}</div>
+                        </div>
+                        <span class="badge">${CoreUI.escapeHtml(block.severity || 'low')}</span>
+                    </div>
+                    <div class="item-desc">${CoreUI.escapeHtml(block.description || '')}</div>
+                </a>
+            `).join('')}
+            <div class="compact-item" style="flex-direction:column; align-items:flex-start; gap:8px;">
+                <div class="item-title">Next moves</div>
+                ${actions.slice(0, 3).map((action) => `
+                    <a href="${CoreUI.escapeHtml(action.action_url || '#')}" class="item-desc" style="color:var(--text-primary); text-decoration:none;">
+                        <i class="ph ph-arrow-right"></i> ${CoreUI.escapeHtml(action.title)}
+                        <span style="color:var(--text-secondary);"> - ${CoreUI.escapeHtml(action.detail || '')}</span>
+                    </a>
+                `).join('')}
+            </div>
+            ${risks.length ? `
+                <div class="compact-item" style="flex-direction:column; align-items:flex-start; gap:8px;">
+                    <div class="item-title">Watchouts</div>
+                    ${risks.map((risk) => `
+                        <a href="${CoreUI.escapeHtml(risk.action_url || '#')}" class="item-desc" style="color:var(--text-primary); text-decoration:none;">
+                            <span class="badge">${CoreUI.escapeHtml(risk.severity || 'risk')}</span>
+                            ${CoreUI.escapeHtml(risk.title)}
+                            <span style="color:var(--text-secondary);"> - ${CoreUI.escapeHtml(risk.detail || '')}</span>
+                        </a>
+                    `).join('')}
+                </div>
+            ` : ''}
+        `;
+    },
+
+    renderWeeklyReview(review) {
+        const list = document.getElementById('weekly-review-list');
+        if (!list) return;
+
+        if (!review) {
+            CoreUI.setEmptyState(list, 'Weekly review unavailable.');
+            return;
+        }
+
+        const scorecard = review.scorecard || [];
+        const wins = review.wins || [];
+        const risks = review.risks || [];
+        const nextFocus = review.next_focus || [];
+        const period = review.period || {};
+
+        list.innerHTML = `
+            <div class="compact-item" style="flex-direction:column; align-items:flex-start; gap:10px;">
+                <div style="display:flex; justify-content:space-between; gap:12px; width:100%; align-items:flex-start;">
+                    <div>
+                        <div class="item-title">Last 7 days</div>
+                        <div class="item-desc">${CoreUI.escapeHtml(period.label || '')}</div>
+                    </div>
+                    <span class="badge">${CoreUI.escapeHtml(nextFocus.length ? 'Actionable' : 'Quiet')}</span>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; width:100%;">
+                    ${scorecard.slice(0, 4).map((item) => `
+                        <div class="compact-item" style="flex-direction:column; align-items:flex-start; gap:4px; min-height:auto;">
+                            <span class="item-desc">${CoreUI.escapeHtml(item.label)}</span>
+                            <span class="item-title">${CoreUI.escapeHtml(item.value)}</span>
+                            <span class="item-desc">${CoreUI.escapeHtml(item.detail || '')}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            <div class="compact-item" style="flex-direction:column; align-items:flex-start; gap:8px;">
+                <div class="item-title">Wins</div>
+                ${wins.slice(0, 2).map((win) => `
+                    <a href="${CoreUI.escapeHtml(win.action_url || '#')}" class="item-desc" style="color:var(--text-primary); text-decoration:none;">
+                        <i class="ph ph-check-circle"></i> ${CoreUI.escapeHtml(win.title)}
+                        <span style="color:var(--text-secondary);"> - ${CoreUI.escapeHtml(win.detail || '')}</span>
+                    </a>
+                `).join('')}
+            </div>
+            <div class="compact-item" style="flex-direction:column; align-items:flex-start; gap:8px;">
+                <div class="item-title">Risks</div>
+                ${risks.slice(0, 2).map((risk) => `
+                    <a href="${CoreUI.escapeHtml(risk.action_url || '#')}" class="item-desc" style="color:var(--text-primary); text-decoration:none;">
+                        <span class="badge">${CoreUI.escapeHtml(risk.severity || 'low')}</span>
+                        ${CoreUI.escapeHtml(risk.title)}
+                    </a>
+                `).join('')}
+            </div>
+            <div class="compact-item" style="flex-direction:column; align-items:flex-start; gap:8px;">
+                <div class="item-title">Next focus</div>
+                ${nextFocus.slice(0, 3).map((focus) => `
+                    <a href="${CoreUI.escapeHtml(focus.action_url || '#')}" class="item-desc" style="color:var(--text-primary); text-decoration:none;">
+                        <i class="ph ph-arrow-right"></i> ${CoreUI.escapeHtml(focus.title)}
+                    </a>
+                `).join('')}
+            </div>
+        `;
     },
 
     renderToday(todayPayload) {
@@ -979,5 +1126,14 @@ const DashboardUI = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    DashboardUI.loadData();
+    DashboardUI.loadData().then(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('quick_add') === '1') {
+            DashboardUI.openQuickAdd();
+            params.delete('quick_add');
+            const nextQuery = params.toString();
+            const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash}`;
+            window.history.replaceState({}, '', nextUrl);
+        }
+    });
 });

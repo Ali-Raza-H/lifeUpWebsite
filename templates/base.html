@@ -46,6 +46,11 @@
                 <div><i class="ph-fill ph-circle" style="color: var(--accent-blue); font-size: 8px; margin-right: 6px; text-shadow: var(--glow-blue);"></i> User Dashboard</div>
             </div>
             <div class="top-bar-actions">
+                <button type="button" class="command-button" onclick="CoreUI.openCommandPalette()" title="Open command palette">
+                    <i class="ph ph-command"></i>
+                    <span>Command</span>
+                    <kbd>Ctrl K</kbd>
+                </button>
                 <div class="notification-shell">
                     <button type="button" class="notification-button" id="notification-toggle" onclick="CoreUI.toggleNotifications()" title="Notifications">
                         <i class="ph ph-bell"></i>
@@ -90,6 +95,30 @@
             <div class="app-confirm-actions">
                 <button type="button" class="btn" id="app-confirm-cancel">Cancel</button>
                 <button type="button" class="btn btn-danger" id="app-confirm-ok">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="command-palette-overlay" class="command-palette-overlay" role="dialog" aria-modal="true" aria-labelledby="command-palette-title" style="display:none;">
+        <div class="command-palette">
+            <div class="command-palette-head">
+                <div>
+                    <div id="command-palette-title" class="command-palette-title">LifeOS Command</div>
+                    <div class="command-palette-subtitle">Search everything or jump to a system action.</div>
+                </div>
+                <button type="button" class="btn btn-icon" onclick="CoreUI.closeCommandPalette()" title="Close"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="command-palette-search">
+                <i class="ph ph-magnifying-glass"></i>
+                <input id="command-palette-input" type="search" placeholder="Search tasks, projects, notes, contacts, library, work..." autocomplete="off">
+            </div>
+            <div id="command-palette-results" class="command-palette-results">
+                <div class="command-palette-empty">Loading commands...</div>
+            </div>
+            <div class="command-palette-foot">
+                <span>Enter opens</span>
+                <span>Esc closes</span>
+                <span>Ctrl K toggles</span>
             </div>
         </div>
     </div>

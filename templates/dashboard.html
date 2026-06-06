@@ -37,6 +37,31 @@
 
 <div class="bento-grid">
 
+    <div class="card" id="daily-plan-panel" style="grid-column: span 7; min-height: 300px;">
+        <div class="card-header">
+            <div>
+                <span class="card-title"><i class="ph ph-compass"></i> Daily Operating Plan</span>
+                <div class="item-desc">A synthesized plan from tasks, schedule, habits, contacts, and project pressure.</div>
+            </div>
+            <button type="button" class="btn btn-sm" onclick="CoreUI.openCommandPalette()"><i class="ph ph-command"></i> Command</button>
+        </div>
+        <div class="compact-list" id="daily-plan-list">
+            <div class="compact-item"><span class="item-desc">Loading daily plan...</span></div>
+        </div>
+    </div>
+
+    <div class="card" id="weekly-review-panel" style="grid-column: span 5; min-height: 300px;">
+        <div class="card-header">
+            <div>
+                <span class="card-title"><i class="ph ph-calendar-check"></i> Weekly Review</span>
+                <div class="item-desc">Wins, risks, and next focus from the last 7 days.</div>
+            </div>
+            <a href="{{ url_for('life') }}" class="btn btn-icon" title="Open Life reviews"><i class="ph ph-arrow-right"></i></a>
+        </div>
+        <div class="compact-list" id="weekly-review-list">
+            <div class="compact-item"><span class="item-desc">Loading weekly review...</span></div>
+        </div>
+    </div>
 
     <!-- Habit Graph (Monthly) -->
     <div class="card" style="grid-column: span 6; height: 260px;">
