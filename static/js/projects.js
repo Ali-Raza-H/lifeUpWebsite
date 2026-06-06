@@ -548,6 +548,10 @@ const ProjectUI = {
         document.getElementById('project-modal').style.display = 'none';
     },
 
+    openQuickAdd() {
+        this.openCreateModal();
+    },
+
     async submitProject(event) {
         event.preventDefault();
         const projectId = document.getElementById('project-id').value;

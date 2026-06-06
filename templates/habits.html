@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
 {% block title %}Habits{% endblock %}
-{% block page_title %}Protocols{% endblock %}
+{% block page_title %}Habits{% endblock %}
 
 {% block header_actions %}
-<button class="btn btn-primary" onclick="HabitUI.openCreateModal()"><i class="ph ph-plus"></i> New Protocol</button>
+<button class="btn btn-primary" onclick="HabitUI.openQuickAdd()"><i class="ph ph-plus"></i> Quick Add</button>
 {% endblock %}
 
 {% block content %}
@@ -20,7 +20,7 @@
 <div class="bento-grid">
     <div class="card" style="grid-column: span 12;">
         <div class="card-header">
-            <span class="card-title"><i class="ph ph-table"></i> Monthly Habit Matrix</span>
+            <span class="card-title"><i class="ph ph-table"></i> Monthly Habit Tracker</span>
             <span class="item-desc">One row per habit, one column per day.</span>
         </div>
         <div id="habits-matrix">
@@ -32,7 +32,7 @@
 <div id="habit-modal" class="modal-overlay">
     <div class="modal-content">
         <div class="card-header">
-            <h3 class="card-title" id="habit-modal-title">Define Protocol</h3>
+            <h3 class="card-title" id="habit-modal-title">Define Habit</h3>
             <button class="btn btn-icon" onclick="HabitUI.closeModal()"><i class="ph ph-x"></i></button>
         </div>
         <form id="habit-form" onsubmit="HabitUI.submitHabit(event)">

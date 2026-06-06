@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
 {% block title %}Dashboard{% endblock %}
-{% block page_title %}<span id="greeting" style="font-weight: 500;">System Overview</span>{% endblock %}
+{% block page_title %}<span id="greeting" style="font-weight: 500;">Overview</span>{% endblock %}
 
 {% block header_actions %}
-<button type="button" class="btn btn-primary" onclick="DashboardUI.openQuickAddModal()"><i class="ph ph-plus"></i> Quick Add</button>
+<button type="button" class="btn btn-primary" onclick="DashboardUI.openQuickAdd()"><i class="ph ph-plus"></i> Quick Add</button>
 {% endblock %}
 
 {% block content %}
@@ -60,7 +60,10 @@
 
     <div class="card" style="grid-column: span 6; min-height: 260px;">
         <div class="card-header">
-            <span class="card-title"><i class="ph ph-lightning"></i> Today Focus</span>
+            <div>
+                <span class="card-title"><i class="ph ph-lightning"></i> Today Command</span>
+                <div class="item-desc">What deserves attention first, and why.</div>
+            </div>
         </div>
         <div class="compact-list" id="today-focus-list">
             <div class="compact-item"><span class="item-desc">Loading...</span></div>
@@ -69,7 +72,10 @@
 
     <div class="card" style="grid-column: span 6; min-height: 260px;">
         <div class="card-header">
-            <span class="card-title"><i class="ph ph-calendar-dots"></i> Next Event</span>
+            <div>
+                <span class="card-title"><i class="ph ph-calendar-dots"></i> Schedule Radar</span>
+                <div class="item-desc">Current block, next commitment, and prep pressure.</div>
+            </div>
         </div>
         <div class="compact-list" id="dashboard-next-event">
             <div class="compact-item"><span class="item-desc">Loading...</span></div>
@@ -105,7 +111,7 @@
     <!-- Task List -->
     <div class="card" style="grid-column: span 12;">
         <div class="card-header">
-            <span class="card-title"><i class="ph ph-list-checks"></i> Priority Task Execution</span>
+            <span class="card-title"><i class="ph ph-list-checks"></i> Priority Tasks</span>
             <a href="{{ url_for('tasks') }}" class="btn btn-icon"><i class="ph ph-arrow-right"></i></a>
         </div>
         <div class="bento-grid" id="priority-tasks-list" style="grid-template-columns: repeat(3, 1fr); gap: var(--space-3);">
@@ -115,7 +121,7 @@
 </div>
 
 <div id="dashboard-quick-add-modal" class="modal-overlay">
-    <div class="modal-content" style="width:min(520px, calc(100vw - 32px));">
+    <div class="modal-content" style="width:min(720px, calc(100vw - 32px)); max-height:calc(100dvh - 32px); overflow-y:auto;">
         <div class="card-header">
             <h3 class="card-title">Quick Add</h3>
             <button type="button" class="btn btn-icon" onclick="DashboardUI.closeQuickAddModal()"><i class="ph ph-x"></i></button>
@@ -125,20 +131,28 @@
                 <label class="form-label" for="dashboard-quick-add-type">Type</label>
                 <select id="dashboard-quick-add-type" class="form-control" onchange="DashboardUI.changeQuickAddType()">
                     <option value="task">Task</option>
+                    <option value="habit">Habit</option>
                     <option value="event">Calendar Event</option>
                     <option value="project">Project</option>
                     <option value="goal">Goal</option>
                     <option value="note">Note</option>
                     <option value="journal">Journal Entry</option>
                     <option value="resource">Resource</option>
+                    <option value="health">Health Log</option>
+                    <option value="meal">Meal</option>
+                    <option value="finance">Finance Entry</option>
+                    <option value="contact">Contact</option>
+                    <option value="review">Life Review</option>
+                    <option value="library">Library Item</option>
+                    <option value="work">Work Experience</option>
                 </select>
             </div>
-            <div class="form-group">
-                <label class="form-label" for="dashboard-quick-title">Title</label>
-                <input type="text" id="dashboard-quick-title" class="form-control" required>
+            <div class="form-group quick-add-field" data-types="task habit event project goal note journal resource finance contact library work">
+                <label class="form-label" for="dashboard-quick-title" id="dashboard-quick-title-label">Title</label>
+                <input type="text" id="dashboard-quick-title" class="form-control">
             </div>
-            <div class="form-group quick-add-field" data-types="task note journal project goal resource event">
-                <label class="form-label" for="dashboard-quick-notes">Notes</label>
+            <div class="form-group quick-add-field" data-types="task habit event project goal note journal resource health meal contact library work">
+                <label class="form-label" for="dashboard-quick-notes" id="dashboard-quick-notes-label">Notes</label>
                 <textarea id="dashboard-quick-notes" class="form-control" rows="3"></textarea>
             </div>
             <div class="form-group quick-add-field" data-types="task">
@@ -170,6 +184,16 @@
                     <select id="dashboard-quick-goal" class="form-control"></select>
                 </div>
             </div>
+            <div class="form-row quick-add-field" data-types="habit">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-habit-category">Category</label>
+                    <input type="text" id="dashboard-quick-habit-category" class="form-control" placeholder="health, study, coding">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-habit-target">Target Streak</label>
+                    <input type="number" id="dashboard-quick-habit-target" class="form-control" min="0" step="1" value="0">
+                </div>
+            </div>
             <div class="form-row quick-add-field" data-types="event">
                 <div class="form-group">
                     <label class="form-label" for="dashboard-quick-start">Start</label>
@@ -190,6 +214,114 @@
                     <input type="text" id="dashboard-quick-location" class="form-control">
                 </div>
             </div>
+            <div class="form-row quick-add-field" data-types="health">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-health-date">Date</label>
+                    <input type="date" id="dashboard-quick-health-date" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-health-sleep">Sleep Hours</label>
+                    <input type="number" id="dashboard-quick-health-sleep" class="form-control" min="0" step="0.25">
+                </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="health">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-health-weight">Weight Kg</label>
+                    <input type="number" id="dashboard-quick-health-weight" class="form-control" min="0" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-health-exercise">Exercise Minutes</label>
+                    <input type="number" id="dashboard-quick-health-exercise" class="form-control" min="0" step="5">
+                </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="health">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-health-energy">Energy (1-10)</label>
+                    <input type="number" id="dashboard-quick-health-energy" class="form-control" min="1" max="10" step="1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-health-symptoms">Symptoms</label>
+                    <input type="text" id="dashboard-quick-health-symptoms" class="form-control" placeholder="Headache, soreness, stress">
+                </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="meal">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-meal-date">Date</label>
+                    <input type="date" id="dashboard-quick-meal-date" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-meal-type">Meal</label>
+                    <select id="dashboard-quick-meal-type" class="form-control">
+                        <option value="breakfast">Breakfast</option>
+                        <option value="lunch">Lunch</option>
+                        <option value="dinner">Dinner</option>
+                        <option value="snack">Snack</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="meal">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-meal-preset">Preset Food</label>
+                    <select id="dashboard-quick-meal-preset" class="form-control"></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-meal-servings">Servings</label>
+                    <input type="number" id="dashboard-quick-meal-servings" class="form-control" min="0.1" step="0.01" value="1">
+                </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="finance">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-finance-date">Date</label>
+                    <input type="date" id="dashboard-quick-finance-date" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-finance-type">Type</label>
+                    <select id="dashboard-quick-finance-type" class="form-control">
+                        <option value="expense">Expense</option>
+                        <option value="income">Income</option>
+                        <option value="saving">Saving</option>
+                        <option value="subscription">Subscription</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="finance">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-finance-amount">Amount</label>
+                    <input type="number" id="dashboard-quick-finance-amount" class="form-control" min="0" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-finance-category">Category</label>
+                    <input type="text" id="dashboard-quick-finance-category" class="form-control" placeholder="Food, travel, tuition">
+                </div>
+            </div>
+            <label class="life-check quick-add-field" data-types="finance">
+                <input type="checkbox" id="dashboard-quick-finance-recurring">
+                <span>Mark as recurring</span>
+            </label>
+            <div class="form-row quick-add-field" data-types="contact">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-contact-relation">Relation</label>
+                    <input type="text" id="dashboard-quick-contact-relation" class="form-control" placeholder="Friend, family, mentor">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-contact-priority">Priority</label>
+                    <select id="dashboard-quick-contact-priority" class="form-control">
+                        <option value="normal">Normal</option>
+                        <option value="high">High</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="contact">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-contact-last">Last Contacted</label>
+                    <input type="date" id="dashboard-quick-contact-last" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-contact-next">Next Follow Up</label>
+                    <input type="date" id="dashboard-quick-contact-next" class="form-control">
+                </div>
+            </div>
             <div class="form-row quick-add-field" data-types="project goal">
                 <div class="form-group">
                     <label class="form-label" for="dashboard-quick-date">Target Date</label>
@@ -204,6 +336,36 @@
                         <option value="skill">Skill</option>
                     </select>
                 </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="review">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-review-type">Period</label>
+                    <select id="dashboard-quick-review-type" class="form-control">
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="quarterly">Quarterly</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-review-start">Period Start</label>
+                    <input type="date" id="dashboard-quick-review-start" class="form-control">
+                </div>
+            </div>
+            <div class="form-group quick-add-field" data-types="review">
+                <label class="form-label" for="dashboard-quick-review-score">Score (1-10)</label>
+                <input type="number" id="dashboard-quick-review-score" class="form-control" min="1" max="10" step="1">
+            </div>
+            <div class="form-group quick-add-field" data-types="review">
+                <label class="form-label" for="dashboard-quick-review-wins">Wins</label>
+                <textarea id="dashboard-quick-review-wins" class="form-control" rows="3"></textarea>
+            </div>
+            <div class="form-group quick-add-field" data-types="review">
+                <label class="form-label" for="dashboard-quick-review-challenges">Challenges</label>
+                <textarea id="dashboard-quick-review-challenges" class="form-control" rows="3"></textarea>
+            </div>
+            <div class="form-group quick-add-field" data-types="review">
+                <label class="form-label" for="dashboard-quick-review-focus">Next Focus</label>
+                <textarea id="dashboard-quick-review-focus" class="form-control" rows="3"></textarea>
             </div>
             <div class="form-group quick-add-field" data-types="resource">
                 <label class="form-label" for="dashboard-quick-url">Url</label>
@@ -221,6 +383,117 @@
                 <div class="form-group quick-add-field" data-types="journal">
                     <label class="form-label" for="dashboard-quick-mood">Mood</label>
                     <input type="number" id="dashboard-quick-mood" class="form-control" min="1" max="10" value="5">
+                </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="library">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-library-type">Media Type</label>
+                    <select id="dashboard-quick-library-type" class="form-control">
+                        <option value="book">Book</option>
+                        <option value="manga">Manga</option>
+                        <option value="manhwa">Manhwa</option>
+                        <option value="anime">Anime</option>
+                        <option value="tv">TV Show</option>
+                        <option value="movie">Movie</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-library-status">Status</label>
+                    <select id="dashboard-quick-library-status" class="form-control">
+                        <option value="want_to_start">Want To Start</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                        <option value="paused">Paused</option>
+                        <option value="dropped">Dropped</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="library">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-library-creator">Author / Studio</label>
+                    <input type="text" id="dashboard-quick-library-creator" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-library-platform">Platform</label>
+                    <input type="text" id="dashboard-quick-library-platform" class="form-control">
+                </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="library">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-library-current">Current Progress</label>
+                    <input type="number" id="dashboard-quick-library-current" class="form-control" min="0" step="1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-library-total">Total Units</label>
+                    <input type="number" id="dashboard-quick-library-total" class="form-control" min="1" step="1">
+                </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="library">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-library-score">Score (1-10)</label>
+                    <input type="number" id="dashboard-quick-library-score" class="form-control" min="1" max="10" step="1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-library-started">Started</label>
+                    <input type="date" id="dashboard-quick-library-started" class="form-control">
+                </div>
+            </div>
+            <div class="form-group quick-add-field" data-types="library">
+                <label class="form-label" for="dashboard-quick-library-completed">Completed</label>
+                <input type="date" id="dashboard-quick-library-completed" class="form-control">
+            </div>
+            <div class="form-row quick-add-field" data-types="work">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-work-organization">Organisation</label>
+                    <input type="text" id="dashboard-quick-work-organization" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-work-type">Type</label>
+                    <select id="dashboard-quick-work-type" class="form-control">
+                        <option value="job">Job</option>
+                        <option value="work_experience">Work Experience</option>
+                        <option value="internship">Internship</option>
+                        <option value="apprenticeship">Apprenticeship</option>
+                        <option value="volunteering">Volunteering</option>
+                        <option value="freelance">Freelance</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="work">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-work-status">Status</label>
+                    <select id="dashboard-quick-work-status" class="form-control">
+                        <option value="saved">Saved</option>
+                        <option value="applied">Applied</option>
+                        <option value="interviewing">Interviewing</option>
+                        <option value="active">Active</option>
+                        <option value="completed">Completed</option>
+                        <option value="rejected">Rejected</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-work-location">Location</label>
+                    <input type="text" id="dashboard-quick-work-location" class="form-control" placeholder="Bolton, remote, hybrid">
+                </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="work">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-work-start">Start Date</label>
+                    <input type="date" id="dashboard-quick-work-start" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-work-end">End Date</label>
+                    <input type="date" id="dashboard-quick-work-end" class="form-control">
+                </div>
+            </div>
+            <div class="form-row quick-add-field" data-types="work">
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-work-hours">Hours Per Week</label>
+                    <input type="number" id="dashboard-quick-work-hours" class="form-control" min="0" max="168" step="1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dashboard-quick-work-url">Application Or Evidence Link</label>
+                    <input type="url" id="dashboard-quick-work-url" class="form-control" placeholder="https://example.com">
                 </div>
             </div>
             <div style="display:flex; justify-content:flex-end; gap: var(--space-2);">

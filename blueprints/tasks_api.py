@@ -16,6 +16,7 @@ from utils import (
     require_object,
     row_to_dict,
     rows_to_dicts,
+    validate_optional_reference,
 )
 
 bp = Blueprint("tasks_api", __name__, url_prefix="/api/tasks")
@@ -105,6 +106,8 @@ def create_task():
     status = get_optional_choice(payload, "status", allowed=TASK_STATUSES, default="pending") or "pending"
     project_id = get_optional_int(payload, "project_id", minimum=1)
     goal_id = get_optional_int(payload, "goal_id", minimum=1)
+    validate_optional_reference(project_id, "projects", field="project_id", label="Project")
+    validate_optional_reference(goal_id, "goals", field="goal_id", label="Goal")
     linkedin_post_enabled = 1 if get_optional_bool(payload, "linkedin_post_enabled", default=False) else 0
     completed_at = iso_now() if status == "completed" else None
 
@@ -170,6 +173,8 @@ def update_task(task_id: int):
         if "goal_id" in payload
         else current_task["goal_id"]
     )
+    validate_optional_reference(project_id, "projects", field="project_id", label="Project")
+    validate_optional_reference(goal_id, "goals", field="goal_id", label="Goal")
     linkedin_post_enabled = (
         1 if get_optional_bool(payload, "linkedin_post_enabled", default=bool(current_task.get("linkedin_post_enabled"))) else 0
     )

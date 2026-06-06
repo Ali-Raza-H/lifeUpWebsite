@@ -187,8 +187,10 @@ const ProfileUI = {
             return;
         }
 
-        Chart.defaults.color = '#a1a1aa';
-        Chart.defaults.font.family = '"JetBrains Mono", monospace';
+        const chartTextColor = this.getChartTextColor();
+        const chartFontFamily = this.getChartFontFamily();
+        Chart.defaults.color = chartTextColor;
+        Chart.defaults.font.family = chartFontFamily;
         this.skillChart = new Chart(chartCanvas, {
             type: 'radar',
             data: {
@@ -211,7 +213,10 @@ const ProfileUI = {
                     r: {
                         angleLines: { color: '#1f1f22' },
                         grid: { color: '#1f1f22' },
-                        pointLabels: { color: '#a1a1aa', font: { size: 10 } },
+                        pointLabels: {
+                            color: chartTextColor,
+                            font: { family: chartFontFamily, size: 11, weight: 600 }
+                        },
                         min: 0,
                         max: 100,
                         ticks: { display: false }
@@ -231,8 +236,10 @@ const ProfileUI = {
         const labels = traits.map((trait) => trait.name);
         const data = traits.map((trait) => trait.score);
 
-        Chart.defaults.color = '#a1a1aa';
-        Chart.defaults.font.family = '"JetBrains Mono", monospace';
+        const chartTextColor = this.getChartTextColor();
+        const chartFontFamily = this.getChartFontFamily();
+        Chart.defaults.color = chartTextColor;
+        Chart.defaults.font.family = chartFontFamily;
 
         this.traitChart = new Chart(ctx, {
             type: 'radar',
@@ -256,7 +263,10 @@ const ProfileUI = {
                     r: {
                         angleLines: { color: '#1f1f22' },
                         grid: { color: '#1f1f22' },
-                        pointLabels: { color: '#a1a1aa', font: { size: 11 } },
+                        pointLabels: {
+                            color: chartTextColor,
+                            font: { family: chartFontFamily, size: 12, weight: 600 }
+                        },
                         min: 0,
                         max: 100,
                         ticks: { display: false }
@@ -264,6 +274,14 @@ const ProfileUI = {
                 }
             }
         });
+    },
+
+    getChartFontFamily() {
+        return getComputedStyle(document.documentElement).getPropertyValue('--font-sans').trim() || '"Syne", sans-serif';
+    },
+
+    getChartTextColor() {
+        return 'rgba(240, 240, 240, 0.78)';
     },
 
     labelize(value) {

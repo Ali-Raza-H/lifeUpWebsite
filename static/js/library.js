@@ -227,6 +227,10 @@ const LibraryUI = {
         this.resetForm(this.activePanel);
     },
 
+    openQuickAdd() {
+        this.openModal(this.activePanel);
+    },
+
     updateModalTitle(isEdit = false) {
         const mediaType = document.getElementById('library-media-type').value || this.activePanel;
         const config = this.typeConfig[mediaType] || this.typeConfig.book;

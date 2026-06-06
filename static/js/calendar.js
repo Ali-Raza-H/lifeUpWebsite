@@ -589,6 +589,10 @@ const CalendarUI = {
         if (modal) modal.style.display = 'none';
     },
 
+    openQuickAdd() {
+        this.openEventModal();
+    },
+
     getDefaultStartDateTime() {
         const baseDate = this.selectedDate ? this.parseIsoDate(this.selectedDate) : new Date();
         const target = new Date(baseDate || new Date());

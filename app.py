@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import timedelta
 from pathlib import Path
 from functools import lru_cache
 
@@ -76,6 +77,11 @@ def create_app(test_config: dict | None = None) -> Flask:
         OLLAMA_BASE_URL=os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
         OLLAMA_MODEL=os.environ.get("OLLAMA_MODEL", "qwen2.5:7b-instruct"),
         OLLAMA_TIMEOUT_SECONDS=float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "45")),
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE=os.environ.get("SESSION_COOKIE_SAMESITE", "Lax"),
+        SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE", "1") != "0",
+        SESSION_REFRESH_EACH_REQUEST=False,
+        PERMANENT_SESSION_LIFETIME=timedelta(days=int(os.environ.get("SESSION_LIFETIME_DAYS", "14"))),
     )
 
     if test_config:

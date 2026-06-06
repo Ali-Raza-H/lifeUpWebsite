@@ -117,6 +117,10 @@ const NotesUI = {
         document.getElementById('note-title').focus();
     },
 
+    openQuickAdd() {
+        this.createNewNote();
+    },
+
     async saveNote() {
         const id = document.getElementById('current-note-id').value;
         const existing = this.notes.find((note) => note.id === this.currentNoteId);

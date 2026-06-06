@@ -1,6 +1,40 @@
 from datetime import date, timedelta
 
 
+def test_page_routes_require_login(anon_client):
+    response = anon_client.get("/", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
+
+
+def test_api_routes_require_login(anon_client):
+    response = anon_client.get("/api/tasks/")
+    assert response.status_code == 401
+    assert response.get_json()["error"] == "Unauthorized access. Authentication required."
+
+
+def test_login_logout_and_security_headers(anon_client):
+    login_response = anon_client.post(
+        "/login",
+        data={"username": anon_client.application.config["AUTH_USERNAME"], "password": anon_client.application.config["AUTH_PASSWORD"]},
+        follow_redirects=False,
+    )
+    assert login_response.status_code == 302
+    assert login_response.headers["Location"].endswith("/")
+    assert login_response.headers["X-Content-Type-Options"] == "nosniff"
+    assert login_response.headers["X-Frame-Options"] == "SAMEORIGIN"
+    assert login_response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert anon_client.application.config["SESSION_COOKIE_HTTPONLY"] is True
+    assert anon_client.application.config["SESSION_COOKIE_SAMESITE"] == "Lax"
+
+    protected_response = anon_client.get("/api/tasks/")
+    assert protected_response.status_code == 200
+
+    logout_response = anon_client.get("/logout", follow_redirects=False)
+    assert logout_response.status_code == 302
+    assert logout_response.headers["Location"].endswith("/login")
+
+
 def test_task_lifecycle_sets_completed_timestamp(client):
     response = client.post(
         "/api/tasks/",
@@ -143,7 +177,7 @@ def test_completed_flagged_task_creates_linkedin_email_draft(client):
     assert draft["source_id"] == task["id"]
     assert "Build LinkedIn draft workflow" in draft["post_body"]
     assert "Portfolio Builder" in draft["post_body"]
-    assert draft["email_to"] == "khadamalihussain@gmail.com"
+    assert draft["email_to"] == client.application.config["LINKEDIN_EMAIL_TO"]
     assert draft["email_status"] == "pending_generation"
 
     duplicate_update = client.put(f"/api/tasks/{task['id']}", json={"status": "completed"})
@@ -208,6 +242,49 @@ def test_task_and_project_links_can_be_cleared(client):
     project_update = client.put(f"/api/projects/{project['id']}", json={"goal_id": None})
     assert project_update.status_code == 200
     assert project_update.get_json()["project"]["goal_id"] is None
+
+
+def test_invalid_cross_entity_references_are_rejected(client):
+    invalid_task = client.post("/api/tasks/", json={"title": "Broken link", "project_id": 9999})
+    assert invalid_task.status_code == 400
+    assert invalid_task.get_json()["error"] == "Project not found."
+
+    invalid_project = client.post("/api/projects/", json={"name": "Broken project", "goal_id": 9999})
+    assert invalid_project.status_code == 400
+    assert invalid_project.get_json()["error"] == "Goal not found."
+
+    invalid_calendar_event = client.post(
+        "/api/calendar/events",
+        json={
+            "title": "Broken event",
+            "start_at": "2026-05-19T09:00",
+            "end_at": "2026-05-19T10:00",
+            "goal_id": 9999,
+        },
+    )
+    assert invalid_calendar_event.status_code == 400
+    assert invalid_calendar_event.get_json()["error"] == "Goal not found."
+
+
+def test_project_habit_links_validate_entities(client):
+    project = client.post("/api/projects/", json={"name": "Habit linked project"}).get_json()["project"]
+    habit = client.post("/api/habits/", json={"name": "Read", "frequency": "daily"}).get_json()["habit"]
+
+    valid_link = client.post(f"/api/projects/{project['id']}/habits", json={"habit_id": habit["id"]})
+    assert valid_link.status_code == 200
+    assert valid_link.get_json()["message"] == "Habit linked to project."
+
+    duplicate_link = client.post(f"/api/projects/{project['id']}/habits", json={"habit_id": habit["id"]})
+    assert duplicate_link.status_code == 200
+    assert duplicate_link.get_json()["message"] == "Habit already linked to project."
+
+    missing_project = client.post("/api/projects/9999/habits", json={"habit_id": habit["id"]})
+    assert missing_project.status_code == 404
+    assert missing_project.get_json()["error"] == "Project not found."
+
+    missing_habit = client.post(f"/api/projects/{project['id']}/habits", json={"habit_id": 9999})
+    assert missing_habit.status_code == 404
+    assert missing_habit.get_json()["error"] == "Habit not found."
 
 
 def test_goal_notes_and_completion_metadata(client):
@@ -918,6 +995,7 @@ def test_aggregate_payloads_support_fast_page_loads(client):
     assert {"tasks", "projects", "habits", "overview", "habits_monthly", "task_velocity", "today"} <= set(dashboard)
     assert isinstance(dashboard["tasks"], list)
     assert isinstance(dashboard["overview"], dict)
+    assert {"focus_tasks", "primary_focus", "next_event", "current_event", "follow_ups_due"} <= set(dashboard["today"])
 
     profile_response = client.get("/api/profile/all")
     assert profile_response.status_code == 200
@@ -930,7 +1008,7 @@ def test_aggregate_payloads_support_fast_page_loads(client):
     analytics_response = client.get("/api/analytics/page")
     assert analytics_response.status_code == 200
     analytics = analytics_response.get_json()
-    assert {"overview", "velocity", "traits", "calendar", "mood_productivity"} <= set(analytics)
+    assert {"overview", "velocity", "task_analytics", "calendar", "mood_productivity"} <= set(analytics)
     assert isinstance(analytics["calendar"]["habits"], list)
 
 

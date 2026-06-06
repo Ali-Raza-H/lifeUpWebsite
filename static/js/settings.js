@@ -8,6 +8,19 @@ const SettingsUI = {
     importedBackupName: '',
     traitSaveTimers: {},
 
+    switchTab(tabId) {
+        document.querySelectorAll('.settings-tab-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.tab === tabId);
+        });
+        document.querySelectorAll('.settings-tab-content').forEach(content => {
+            if (content.id === 'tab-' + tabId) {
+                content.style.display = 'flex';
+            } else {
+                content.style.display = 'none';
+            }
+        });
+    },
+
     init() {
         this.bindEvents();
         this.loadAll();

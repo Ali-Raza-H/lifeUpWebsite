@@ -58,7 +58,10 @@ CREATE TABLE IF NOT EXISTS tasks (
     calendar_event_id INTEGER,
     linkedin_post_enabled INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    completed_at DATETIME
+    completed_at DATETIME,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
+    FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE SET NULL,
+    FOREIGN KEY (calendar_event_id) REFERENCES calendar_events(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS projects (
@@ -71,7 +74,8 @@ CREATE TABLE IF NOT EXISTS projects (
     deadline DATETIME,
     linkedin_post_enabled INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    completed_at DATETIME
+    completed_at DATETIME,
+    FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS project_habits (
@@ -157,7 +161,9 @@ CREATE TABLE IF NOT EXISTS calendar_events (
     recurrence TEXT DEFAULT 'none',
     recurrence_until DATE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
+    FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS notes (

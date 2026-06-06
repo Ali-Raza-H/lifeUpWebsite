@@ -14,6 +14,7 @@ from utils import (
     iso_now,
     require_object,
     row_to_dict,
+    validate_optional_reference,
 )
 
 bp = Blueprint("projects_api", __name__, url_prefix="/api/projects")
@@ -81,6 +82,7 @@ def create_project():
     description = get_optional_string(payload, "description", max_length=2000, default="") or ""
     notes = get_optional_string(payload, "notes", max_length=10000, default="") or ""
     goal_id = get_optional_int(payload, "goal_id", minimum=1)
+    validate_optional_reference(goal_id, "goals", field="goal_id", label="Goal")
     deadline = get_optional_date(payload, "deadline")
     status = get_optional_choice(payload, "status", allowed=PROJECT_STATUSES, default="planning") or "planning"
     linkedin_post_enabled = 1 if get_optional_bool(payload, "linkedin_post_enabled", default=False) else 0
@@ -124,6 +126,7 @@ def update_project(project_id: int):
         if "goal_id" in payload
         else current_project["goal_id"]
     )
+    validate_optional_reference(goal_id, "goals", field="goal_id", label="Goal")
     deadline = get_optional_date(payload, "deadline") if "deadline" in payload else current_project["deadline"]
     status = (
         get_optional_choice(payload, "status", allowed=PROJECT_STATUSES, default=current_project["status"])
@@ -168,18 +171,30 @@ def delete_project(project_id: int):
 def link_habit(project_id: int):
     payload = require_object(request.get_json(silent=True))
     habit_id = get_optional_int(payload, "habit_id", minimum=1)
-    
+
     if not habit_id:
         return jsonify({"error": "habit_id is required."}), 400
-        
-    try:
-        execute_db(
-            "INSERT INTO project_habits (project_id, habit_id) VALUES (?, ?)",
-            (project_id, habit_id)
-        )
-    except Exception:
-        pass # Ignore duplicates
-        
+
+    project = query_db("SELECT id FROM projects WHERE id = ?", [project_id], one=True)
+    if not project:
+        return jsonify({"error": "Project not found."}), 404
+
+    habit = query_db("SELECT id FROM habits WHERE id = ?", [habit_id], one=True)
+    if not habit:
+        return jsonify({"error": "Habit not found."}), 404
+
+    existing = query_db(
+        "SELECT project_id, habit_id FROM project_habits WHERE project_id = ? AND habit_id = ?",
+        [project_id, habit_id],
+        one=True,
+    )
+    if existing:
+        return jsonify({"message": "Habit already linked to project."})
+
+    execute_db(
+        "INSERT INTO project_habits (project_id, habit_id) VALUES (?, ?)",
+        (project_id, habit_id),
+    )
     return jsonify({"message": "Habit linked to project."})
 
 @bp.route("/<int:project_id>/habits/<int:habit_id>", methods=["DELETE"])

@@ -335,7 +335,12 @@
     }
 
     .mindset-panels {
+        grid-template-columns: 1fr;
         gap: var(--space-6);
+    }
+
+    .mindset-panels > section {
+        grid-column: span 1 !important;
     }
 
     .mindset-page .card-header {
@@ -357,10 +362,12 @@
         display: flex;
         flex-direction: column;
         align-items: stretch;
-        gap: var(--space-2);
+        gap: var(--space-3);
         padding-left: 24px !important;
         padding-right: 0 !important;
+        padding-bottom: var(--space-3) !important;
         margin-bottom: 0;
+        height: auto !important;
     }
 
     .mindset-page .compact-item:not(.metric-card):hover {

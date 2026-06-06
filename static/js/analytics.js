@@ -1,6 +1,6 @@
 const AnalyticsUI = {
     velocityChart: null,
-    traitChart: null,
+    taskAnalyticsChart: null,
     moodProductivityChart: null,
     selectedMonth: null,
 
@@ -10,7 +10,7 @@ const AnalyticsUI = {
             const payload = await API.get(`/api/analytics/page${calendarSuffix}`);
             const overview = payload.overview || {};
             const velocity = payload.velocity || {};
-            const traits = payload.traits || [];
+            const taskAnalytics = payload.task_analytics || { labels: [], completed: [], share_of_total: [], total_tasks: 0 };
             const calendarPayload = payload.calendar || { habits: [], weekday_labels: [] };
             const moodProductivity = payload.mood_productivity || { labels: [], mood: [], tasks: [] };
 
@@ -21,7 +21,8 @@ const AnalyticsUI = {
             document.getElementById('consistency-rate').textContent = `${monthlyConsistency}%`;
 
             this.renderToolbar(calendarPayload);
-            this.initCharts(velocity, traits, moodProductivity);
+            this.renderExecutionBreakdown(taskAnalytics, overview);
+            this.initCharts(velocity, taskAnalytics, moodProductivity);
             this.renderMonthlyReport(calendarPayload);
             this.renderCalendarReport(calendarPayload);
         } catch (error) {
@@ -133,7 +134,54 @@ const AnalyticsUI = {
         return `<div class="month-calendar">${head}${body}</div>`;
     },
 
-    initCharts(velocity, traits, moodProductivity) {
+    renderExecutionBreakdown(taskAnalytics, overview) {
+        const grid = document.getElementById('execution-breakdown-grid');
+        const insight = document.getElementById('execution-breakdown-insight');
+        if (!grid || !insight) return;
+
+        const completedSeries = taskAnalytics.completed || [];
+        const labels = taskAnalytics.labels || [];
+        const totalRecent = completedSeries.reduce((sum, value) => sum + Number(value || 0), 0);
+        const activeProjects = Number(overview.active_projects || 0);
+        const activeGoals = Number(overview.active_goals || 0);
+        const completionRate = Number(overview.task_completion_rate || 0);
+        const totalTasks = Number(taskAnalytics.total_tasks || overview.total_tasks || 0);
+        const peakValue = completedSeries.length ? Math.max(...completedSeries) : 0;
+        const peakIndex = peakValue > 0 ? completedSeries.indexOf(peakValue) : -1;
+        const peakLabel = peakIndex >= 0 ? labels[peakIndex] : '';
+        const activeDays = completedSeries.filter((value) => Number(value || 0) > 0).length;
+        const averageActiveDay = activeDays ? (totalRecent / activeDays).toFixed(1) : '0.0';
+
+        grid.innerHTML = `
+            <div class="compact-item metric-card">
+                <span class="item-desc">Completion Rate</span>
+                <div class="stat-value">${completionRate}%</div>
+            </div>
+            <div class="compact-item metric-card">
+                <span class="item-desc">Active Projects</span>
+                <div class="stat-value">${activeProjects}</div>
+            </div>
+            <div class="compact-item metric-card">
+                <span class="item-desc">Active Goals</span>
+                <div class="stat-value">${activeGoals}</div>
+            </div>
+            <div class="compact-item metric-card">
+                <span class="item-desc">Last 14 Days</span>
+                <div class="stat-value">${totalRecent}</div>
+            </div>
+        `;
+
+        if (!totalRecent) {
+            insight.textContent = totalTasks
+                ? 'No tasks were completed in the current 14-day window. The execution chart below will highlight when output starts moving again.'
+                : 'No task history yet. As tasks are created and completed, this panel will show execution pressure and momentum.';
+            return;
+        }
+
+        insight.textContent = `Peak output was ${peakValue} task${peakValue === 1 ? '' : 's'} on ${peakLabel}. You averaged ${averageActiveDay} completions on days where work moved.`;
+    },
+
+    initCharts(velocity, taskAnalytics, moodProductivity) {
         Chart.defaults.color = '#a1a1aa';
         Chart.defaults.borderColor = '#1f1f22';
         Chart.defaults.font.family = '"JetBrains Mono", monospace';
@@ -165,36 +213,55 @@ const AnalyticsUI = {
             });
         }
 
-        const traitCanvas = document.getElementById('traitChart');
-        if (traitCanvas) {
-            CoreUI.destroyChart(this.traitChart);
-            this.traitChart = new Chart(traitCanvas, {
-                type: 'radar',
+        const taskAnalyticsCanvas = document.getElementById('taskAnalyticsChart');
+        if (taskAnalyticsCanvas) {
+            CoreUI.destroyChart(this.taskAnalyticsChart);
+            this.taskAnalyticsChart = new Chart(taskAnalyticsCanvas, {
                 data: {
-                    labels: traits.map((trait) => trait.name),
-                    datasets: [{
-                        label: 'Profile',
-                        data: traits.map((trait) => trait.score),
-                        backgroundColor: 'rgba(255, 0, 255, 0.2)',
-                        borderColor: '#ff00ff',
-                        pointBackgroundColor: '#ff00ff',
-                        pointBorderColor: '#000',
-                        borderWidth: 1.5
-                    }]
+                    labels: taskAnalytics.labels || [],
+                    datasets: [
+                        {
+                            type: 'bar',
+                            label: 'Completed',
+                            data: taskAnalytics.completed || [],
+                            backgroundColor: 'rgba(0, 240, 255, 0.45)',
+                            borderColor: '#00f0ff',
+                            borderWidth: 1,
+                            borderRadius: 4,
+                            yAxisID: 'yTasks'
+                        },
+                        {
+                            type: 'line',
+                            label: `Share of Total${taskAnalytics.total_tasks ? ` (${taskAnalytics.total_tasks})` : ''}`,
+                            data: taskAnalytics.share_of_total || [],
+                            borderColor: '#ff7a00',
+                            borderWidth: 2,
+                            backgroundColor: 'rgba(255, 122, 0, 0.12)',
+                            pointBackgroundColor: '#ff7a00',
+                            pointRadius: 2,
+                            tension: 0.3,
+                            yAxisID: 'yShare'
+                        }
+                    ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
+                    plugins: { legend: { display: true } },
                     scales: {
-                        r: {
-                            angleLines: { color: '#1f1f22' },
-                            grid: { color: '#1f1f22' },
-                            pointLabels: { color: '#a1a1aa', font: { size: 10 } },
-                            min: 0,
+                        yTasks: {
+                            beginAtZero: true,
+                            precision: 0,
+                            grid: { color: '#1f1f22' }
+                        },
+                        yShare: {
+                            beginAtZero: true,
                             max: 100,
-                            ticks: { display: false }
-                        }
+                            position: 'right',
+                            grid: { display: false },
+                            ticks: { callback: (value) => `${value}%` }
+                        },
+                        x: { grid: { display: false } }
                     }
                 }
             });

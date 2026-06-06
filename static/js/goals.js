@@ -266,6 +266,10 @@ const GoalUI = {
         `).join('');
     },
 
+    openQuickAdd() {
+        this.openCreateModal();
+    },
+
     async submitGoal(event) {
         event.preventDefault();
         const goalId = document.getElementById('goal-id').value;

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}Analytics{% endblock %}
-{% block page_title %}System Analytics{% endblock %}
+{% block page_title %}Analytics{% endblock %}
 
 {% block content %}
 <div class="bento-grid">
@@ -10,7 +10,7 @@
         <div class="stat-value" id="completed-tasks" style="margin-top: auto;">-</div>
     </div>
     <div class="card metric-card" style="grid-column: span 4;">
-        <span class="card-title"><i class="ph ph-calendar-check"></i> Active Protocols</span>
+        <span class="card-title"><i class="ph ph-calendar-check"></i> Active Habits</span>
         <div class="stat-value" id="active-habits" style="margin-top: auto;">-</div>
     </div>
     <div class="card metric-card" style="grid-column: span 4;">
@@ -20,25 +20,32 @@
 
     <div class="card" style="grid-column: span 6; height: 320px;">
         <div class="card-header">
-            <span class="card-title"><i class="ph ph-trend-up"></i> Execution Velocity</span>
+            <span class="card-title"><i class="ph ph-trend-up"></i> Task Velocity</span>
         </div>
         <div class="chart-container" style="height: 220px;">
             <canvas id="velocityChart"></canvas>
         </div>
     </div>
-    
-    <div class="card" style="grid-column: span 6; height: 320px;">
+
+    <div class="card" style="grid-column: span 6; min-height: 320px;">
         <div class="card-header">
-            <span class="card-title"><i class="ph ph-hexagon"></i> Trait Distribution</span>
+            <span class="card-title"><i class="ph ph-gauge"></i> Execution Breakdown</span>
+            <span class="item-desc">Overall task completion and recent output trend.</span>
         </div>
-        <div class="chart-container" style="height: 220px; display: flex; justify-content: center;">
-            <canvas id="traitChart"></canvas>
+        <div class="metric-grid cols-4" id="execution-breakdown-grid" style="margin-bottom: var(--space-3);">
+            <div class="compact-item metric-card"><span class="item-desc">Loading...</span></div>
+        </div>
+        <div id="execution-breakdown-insight" class="item-desc" style="margin-bottom: var(--space-3);">
+            Loading execution insight...
+        </div>
+        <div class="chart-container" style="height: 150px;">
+            <canvas id="taskAnalyticsChart"></canvas>
         </div>
     </div>
-    
+
     <div class="board-column" style="grid-column: span 12;">
         <div class="card-header" style="padding-bottom: var(--space-2);">
-            <span class="card-title"><i class="ph ph-calendar-blank"></i> Monthly Protocol Report</span>
+            <span class="card-title"><i class="ph ph-calendar-blank"></i> Monthly Habit Report</span>
         </div>
         <div class="compact-list" id="monthly-report-list" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4);">
             <div class="compact-item" style="grid-column: span 2;"><span class="item-desc">Loading report...</span></div>
@@ -52,17 +59,6 @@
         </div>
         <div class="chart-container" style="height: 220px;">
             <canvas id="moodProductivityChart"></canvas>
-        </div>
-    </div>
-
-    <div class="card" style="grid-column: span 12;">
-        <div class="calendar-toolbar" style="margin-bottom: var(--space-4);">
-            <button id="analytics-prev-month" class="btn" type="button"><i class="ph ph-caret-left"></i> Previous</button>
-            <div id="analytics-month-label" class="calendar-month-label">Loading month...</div>
-            <button id="analytics-next-month" class="btn" type="button">Next <i class="ph ph-caret-right"></i></button>
-        </div>
-        <div id="analytics-habit-calendar" class="bento-grid">
-            <div class="compact-item" style="grid-column: span 12;"><span class="item-desc">Loading calendar report...</span></div>
         </div>
     </div>
 </div>

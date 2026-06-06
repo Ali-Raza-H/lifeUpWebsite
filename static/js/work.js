@@ -363,6 +363,10 @@ const WorkUI = {
         if (modal) modal.style.display = 'none';
     },
 
+    openQuickAdd() {
+        this.openModal();
+    },
+
     async saveExperience(event) {
         event.preventDefault();
         const experienceId = document.getElementById('work-id').value;

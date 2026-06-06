@@ -1743,6 +1743,7 @@ def dashboard_today_payload() -> dict:
     today = date.today().isoformat()
     now = datetime.now().replace(second=0, microsecond=0)
     now_iso = now.isoformat(sep=" ")
+    tomorrow_iso = (now.date() + timedelta(days=1)).isoformat()
 
     due_today = int(
         query_db(
@@ -1788,6 +1789,55 @@ def dashboard_today_payload() -> dict:
         )["count"]
         or 0
     )
+    follow_ups_due = int(
+        query_db(
+            """
+            SELECT COUNT(*) AS count
+            FROM contacts
+            WHERE next_follow_up IS NOT NULL
+              AND next_follow_up <= ?
+            """,
+            [today],
+            one=True,
+        )["count"]
+        or 0
+    )
+
+    open_habit_rows = rows_to_dicts(
+        query_db(
+            """
+            SELECT h.name
+            FROM habits h
+            LEFT JOIN habit_logs hl
+              ON hl.habit_id = h.id
+             AND hl.log_date = ?
+             AND hl.status = 'completed'
+            WHERE hl.id IS NULL
+            ORDER BY h.name COLLATE NOCASE ASC
+            LIMIT 3
+            """,
+            [today],
+        )
+    )
+    open_habit_names = [row["name"] for row in open_habit_rows]
+
+    current_event_row = query_db(
+        """
+        SELECT
+            ce.*,
+            p.name AS project_name,
+            g.title AS goal_title
+        FROM calendar_events ce
+        LEFT JOIN projects p ON p.id = ce.project_id
+        LEFT JOIN goals g ON g.id = ce.goal_id
+        WHERE ce.start_at <= ?
+          AND ce.end_at > ?
+        ORDER BY ce.end_at ASC
+        LIMIT 1
+        """,
+        [now_iso, now_iso],
+        one=True,
+    )
     next_event_row = query_db(
         """
         SELECT
@@ -1797,38 +1847,195 @@ def dashboard_today_payload() -> dict:
         FROM calendar_events ce
         LEFT JOIN projects p ON p.id = ce.project_id
         LEFT JOIN goals g ON g.id = ce.goal_id
-        WHERE ce.end_at >= ?
+        WHERE ce.start_at > ?
         ORDER BY ce.start_at ASC
         LIMIT 1
         """,
         [now_iso],
         one=True,
     )
-    next_event = row_to_dict(next_event_row)
 
     focus_tasks = rows_to_dicts(
         query_db(
             """
-            SELECT *
-            FROM tasks
-            WHERE status IN ('pending', 'in_progress', 'on_hold')
+            SELECT
+                t.*,
+                p.name AS project_name,
+                g.title AS goal_title
+            FROM tasks t
+            LEFT JOIN projects p ON p.id = t.project_id
+            LEFT JOIN goals g ON g.id = t.goal_id
+            WHERE t.status IN ('pending', 'in_progress', 'on_hold')
             ORDER BY
-                CASE WHEN DATE(due_date) = ? THEN 0 WHEN due_date IS NULL THEN 2 ELSE 1 END,
-                priority ASC,
-                COALESCE(due_date, '9999-12-31') ASC,
-                created_at DESC
-            LIMIT 5
+                CASE WHEN DATE(t.due_date) = ? THEN 0 WHEN t.due_date IS NULL THEN 2 ELSE 1 END,
+                t.priority ASC,
+                COALESCE(t.due_date, '9999-12-31') ASC,
+                t.created_at DESC
+            LIMIT 4
             """,
             [today],
         )
+    )
+
+    def _serialize_focus_task(task: dict) -> dict:
+        due_dt = parse_datetime(task.get("due_date"))
+        reason = "backlog"
+        if due_dt and due_dt.date().isoformat() < today:
+            reason = "overdue"
+        elif due_dt and due_dt.date().isoformat() == today:
+            reason = "due_today"
+        elif task.get("status") == "in_progress":
+            reason = "in_progress"
+        elif int(task.get("priority") or 3) <= 2:
+            reason = "high_priority"
+
+        return {
+            **task,
+            "focus_reason": reason,
+        }
+
+    focus_tasks = [_serialize_focus_task(task) for task in focus_tasks]
+    primary_focus = focus_tasks[0] if focus_tasks else {}
+
+    def _event_task_context(event: dict) -> tuple[int, list[dict]]:
+        if not event:
+            return 0, []
+        filters: list[str] = ["t.status != 'completed'"]
+        params: list[object] = []
+        relation_filters: list[str] = []
+
+        if event.get("id"):
+            relation_filters.append("t.calendar_event_id = ?")
+            params.append(event["id"])
+        if event.get("project_id"):
+            relation_filters.append("t.project_id = ?")
+            params.append(event["project_id"])
+        if event.get("goal_id"):
+            relation_filters.append("t.goal_id = ?")
+            params.append(event["goal_id"])
+
+        if not relation_filters:
+            return 0, []
+
+        filters.append(f"({' OR '.join(relation_filters)})")
+        where_clause = " AND ".join(filters)
+        count = int(
+            query_db(
+                f"SELECT COUNT(DISTINCT t.id) AS count FROM tasks t WHERE {where_clause}",
+                params,
+                one=True,
+            )["count"]
+            or 0
+        )
+        rows = rows_to_dicts(
+            query_db(
+                f"""
+                SELECT DISTINCT
+                    t.id,
+                    t.title,
+                    t.priority,
+                    t.status,
+                    t.due_date,
+                    t.estimated_minutes
+                FROM tasks t
+                WHERE {where_clause}
+                ORDER BY t.priority ASC, COALESCE(t.due_date, '9999-12-31') ASC, t.created_at DESC
+                LIMIT 3
+                """,
+                params,
+            )
+        )
+        return count, rows
+
+    def _serialize_event(event_row, *, following_after: str | None = None) -> dict:
+        event = row_to_dict(event_row)
+        if not event:
+            return {}
+
+        start_dt = parse_datetime(event.get("start_at"))
+        end_dt = parse_datetime(event.get("end_at"))
+        duration_minutes = 0
+        minutes_until_start = None
+        minutes_until_end = None
+        status = "upcoming"
+        if start_dt and end_dt:
+            duration_minutes = max(0, int((end_dt - start_dt).total_seconds() // 60))
+            minutes_until_start = int((start_dt - now).total_seconds() // 60)
+            minutes_until_end = int((end_dt - now).total_seconds() // 60)
+            if start_dt <= now < end_dt:
+                status = "ongoing"
+
+        related_count, related_tasks = _event_task_context(event)
+
+        following_event_row = None
+        if following_after:
+            following_event_row = query_db(
+                """
+                SELECT title, start_at, category, location
+                FROM calendar_events
+                WHERE start_at > ?
+                ORDER BY start_at ASC
+                LIMIT 1
+                """,
+                [following_after],
+                one=True,
+            )
+        following_event = row_to_dict(following_event_row)
+        following_start = parse_datetime(following_event.get("start_at")) if following_event else None
+        buffer_after_minutes = (
+            int((following_start - end_dt).total_seconds() // 60)
+            if following_start and end_dt
+            else None
+        )
+
+        return {
+            **event,
+            "status": status,
+            "duration_minutes": duration_minutes,
+            "minutes_until_start": minutes_until_start,
+            "minutes_until_end": minutes_until_end,
+            "related_open_task_count": related_count,
+            "related_open_tasks": related_tasks,
+            "following_event": following_event,
+            "buffer_after_minutes": buffer_after_minutes,
+        }
+
+    current_event = _serialize_event(current_event_row, following_after=row_to_dict(current_event_row).get("end_at") if current_event_row else None)
+    next_event = _serialize_event(next_event_row, following_after=row_to_dict(next_event_row).get("end_at") if next_event_row else None)
+
+    remaining_events_today = int(
+        query_db(
+            """
+            SELECT COUNT(*) AS count
+            FROM calendar_events
+            WHERE end_at >= ?
+              AND start_at < ?
+            """,
+            [now_iso, f"{tomorrow_iso} 00:00:00"],
+            one=True,
+        )["count"]
+        or 0
+    )
+
+    next_event_start = parse_datetime(next_event.get("start_at")) if next_event else None
+    free_window_minutes = (
+        max(0, int((next_event_start - now).total_seconds() // 60))
+        if next_event_start and not current_event
+        else 0
     )
 
     return {
         "due_today": due_today,
         "overdue_tasks": overdue_tasks,
         "open_habits": open_habit_count,
+        "open_habit_names": open_habit_names,
+        "follow_ups_due": follow_ups_due,
+        "current_event": current_event,
         "next_event": next_event,
+        "remaining_events_today": remaining_events_today,
+        "free_window_minutes": free_window_minutes,
         "focus_tasks": focus_tasks,
+        "primary_focus": primary_focus,
     }
 
 

@@ -115,6 +115,10 @@ const NotebookUI = {
         }
     },
 
+    openQuickAdd() {
+        this.createNewNote();
+    },
+
     async deleteCurrentNote() {
         if (!this.currentNoteId) return;
         if (!(await CoreUI.confirm({

@@ -300,6 +300,10 @@ const TaskUI = {
         document.getElementById('task-form').reset();
     },
 
+    openQuickAdd() {
+        this.openCreateModal();
+    },
+
     async submitTask(event) {
         event.preventDefault();
         const taskId = document.getElementById('task-id').value;

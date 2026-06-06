@@ -1,5 +1,59 @@
 .profile-page {
     min-width: 0;
+    color: var(--text-primary);
+}
+
+.profile-page .compact-item,
+.profile-page .form-control,
+.profile-page .item-desc,
+.profile-page .profile-section-desc {
+    font-family: var(--font-sans);
+}
+
+.profile-page .item-title {
+    font-size: 15px;
+    line-height: 1.35;
+}
+
+.profile-page .item-desc,
+.profile-page .profile-section-desc {
+    font-size: 14px;
+    line-height: 1.7;
+    color: rgba(240, 240, 240, 0.82);
+}
+
+.profile-page .form-control {
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.profile-page .form-control::placeholder {
+    color: rgba(240, 240, 240, 0.42);
+}
+
+.profile-page .badge,
+.profile-trait-state,
+.profile-skill-meta {
+    letter-spacing: 0.08em;
+}
+
+.profile-page .badge {
+    font-size: 12px;
+}
+
+.profile-belief-item .item-title,
+.profile-skill-tile .item-title,
+.profile-trait-meta .item-title {
+    margin-bottom: 4px;
+}
+
+.profile-belief-item .item-desc,
+.profile-skill-tile > .item-desc {
+    max-width: 68ch;
+}
+
+.profile-skill-tile > .item-desc {
+    color: rgba(240, 240, 240, 0.74);
 }
 
 .profile-top-grid {
@@ -198,5 +252,5 @@
 .profile-trait-state,
 .profile-skill-meta,
 .profile-section-desc {
-    color: var(--text-secondary);
+    color: rgba(240, 240, 240, 0.76);
 }

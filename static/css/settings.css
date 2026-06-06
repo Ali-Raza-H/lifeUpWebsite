@@ -2,6 +2,48 @@
     gap: var(--space-5);
 }
 
+.settings-tabs-container {
+    border-bottom: 1px solid var(--border-subtle);
+    margin-bottom: var(--space-2);
+}
+
+.settings-tabs {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.settings-tab-btn {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-bottom: 2px solid transparent;
+    opacity: 0.6;
+}
+
+.settings-tab-btn:hover {
+    opacity: 1;
+    background: transparent;
+    box-shadow: none;
+}
+
+.settings-tab-btn.active {
+    opacity: 1;
+    border-bottom: 2px solid var(--accent-blue);
+    background: transparent;
+    color: var(--accent-blue);
+    box-shadow: none;
+}
+
+.settings-tab-content {
+    flex-direction: column;
+    gap: var(--space-5);
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 .settings-section-desc {
     margin-bottom: var(--space-3);
 }
@@ -219,6 +261,10 @@
         gap: var(--space-5);
         overflow-x: hidden;
     }
+    
+    .settings-tabs {
+        overflow-x: auto;
+    }
 
     .settings-page .card-header {
         display: grid;
@@ -253,8 +299,12 @@
         padding-right: 0;
     }
 
+    .settings-skills-grid {
+        grid-template-columns: 1fr;
+    }
+
     .settings-skill-card {
-        grid-column: span 12;
+        grid-column: span 1 !important;
     }
 
     .settings-food-grid {

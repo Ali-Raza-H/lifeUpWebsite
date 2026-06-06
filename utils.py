@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
+from database import query_db
+
 
 class ValidationError(ValueError):
     def __init__(self, message: str, field: str | None = None, status_code: int = 400) -> None:
@@ -170,3 +172,17 @@ def parse_datetime(value: str | None) -> datetime | None:
         return datetime.strptime(value, "%Y-%m-%d")
     except ValueError:
         return None
+
+
+def validate_optional_reference(
+    record_id: int | None,
+    table_name: str,
+    *,
+    field: str,
+    label: str,
+) -> None:
+    if record_id is None:
+        return
+    row = query_db(f"SELECT id FROM {table_name} WHERE id = ?", [record_id], one=True)
+    if row is None:
+        raise ValidationError(f"{label} not found.", field)

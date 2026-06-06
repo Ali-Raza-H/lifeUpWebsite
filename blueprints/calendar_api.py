@@ -21,6 +21,7 @@ from utils import (
     get_required_string,
     parse_datetime,
     require_object,
+    validate_optional_reference,
 )
 
 bp = Blueprint("calendar_api", __name__, url_prefix="/api/calendar")
@@ -68,6 +69,8 @@ def create_event():
     location = get_optional_string(payload, "location", max_length=140, default="") or ""
     project_id = get_optional_int(payload, "project_id", minimum=1)
     goal_id = get_optional_int(payload, "goal_id", minimum=1)
+    validate_optional_reference(project_id, "projects", field="project_id", label="Project")
+    validate_optional_reference(goal_id, "goals", field="goal_id", label="Goal")
     recurrence = get_optional_choice(payload, "recurrence", allowed=RECURRENCE_OPTIONS, default="none") or "none"
     recurrence_until = get_optional_date(payload, "recurrence_until")
     start_at = get_optional_datetime(payload, "start_at")
@@ -105,6 +108,8 @@ def update_event(event_id: int):
     location = get_optional_string(payload, "location", max_length=140, default=current["location"])
     project_id = get_optional_int(payload, "project_id", default=current.get("project_id"), minimum=1)
     goal_id = get_optional_int(payload, "goal_id", default=current.get("goal_id"), minimum=1)
+    validate_optional_reference(project_id, "projects", field="project_id", label="Project")
+    validate_optional_reference(goal_id, "goals", field="goal_id", label="Goal")
     recurrence = get_optional_choice(
         payload,
         "recurrence",

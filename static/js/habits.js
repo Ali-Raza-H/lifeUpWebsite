@@ -130,6 +130,10 @@ const HabitUI = {
         document.getElementById('habit-form').reset();
     },
 
+    openQuickAdd() {
+        this.openCreateModal();
+    },
+
     async submitHabit(event) {
         event.preventDefault();
         const habitId = document.getElementById('habit-id').value;

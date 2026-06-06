@@ -141,6 +141,10 @@ const JournalUI = {
         document.getElementById('journal-form').reset();
     },
 
+    openQuickAdd() {
+        this.openCreateModal();
+    },
+
     async submitEntry(event) {
         event.preventDefault();
         const entryId = document.getElementById('journal-id').value;
