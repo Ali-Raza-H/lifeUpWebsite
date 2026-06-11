@@ -9,12 +9,13 @@ import math
 import smtplib
 import sqlite3
 from urllib.error import HTTPError, URLError
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from flask import current_app
 
 from database import execute_db, query_db
-from utils import parse_datetime, row_to_dict, rows_to_dicts
+from utils import iso_now, parse_datetime, row_to_dict, rows_to_dicts
 
 DEFAULT_TRAITS = [
     ("Systems Thinking", 95, "cognitive", 1),
@@ -301,19 +302,16 @@ def maybe_create_linkedin_draft_for_task(task_id: int) -> dict:
     title = f"LinkedIn draft: {task['title']}"
     context = _task_context_summary(task)
     fallback_body = _build_task_linkedin_post(task)
-    mode = _linkedin_generation_mode()
     draft, created = _create_linkedin_draft_record(
         "task",
         task_id,
         title,
         fallback_body,
         context,
-        email_status="pending_generation" if mode == "client" else "pending",
-        email_error=_pending_client_generation_message() if mode == "client" else "",
+        email_status="pending",
+        email_error="",
     )
     if not created:
-        return draft
-    if mode == "client":
         return draft
 
     body = _generate_task_linkedin_post(task) or fallback_body
@@ -366,19 +364,16 @@ def maybe_create_linkedin_draft_for_project(project_id: int) -> dict:
     title = f"LinkedIn draft: {project['name']}"
     context = _project_context_summary(project, tasks, milestones)
     fallback_body = _build_project_linkedin_post(project, tasks, milestones)
-    mode = _linkedin_generation_mode()
     draft, created = _create_linkedin_draft_record(
         "project",
         project_id,
         title,
         fallback_body,
         context,
-        email_status="pending_generation" if mode == "client" else "pending",
-        email_error=_pending_client_generation_message() if mode == "client" else "",
+        email_status="pending",
+        email_error="",
     )
     if not created:
-        return draft
-    if mode == "client":
         return draft
 
     body = _generate_project_linkedin_post(project, tasks, milestones) or fallback_body
@@ -391,6 +386,49 @@ def resend_linkedin_draft_email(draft_id: int) -> dict:
         return {}
     _attempt_send_linkedin_draft(draft)
     return row_to_dict(query_db("SELECT * FROM linkedin_drafts WHERE id = ?", [draft_id], one=True))
+
+
+def generate_linkedin_draft(draft_id: int) -> dict:
+    draft = row_to_dict(query_db("SELECT * FROM linkedin_drafts WHERE id = ?", [draft_id], one=True))
+    if not draft:
+        return {}
+
+    prompt = _build_linkedin_generation_prompt(draft.get("context_summary", ""), draft.get("source_type", "task"))
+    generated = _generate_linkedin_post_with_gemini(prompt) or draft.get("post_body", "")
+    if not generated:
+        return draft
+    return _finalize_linkedin_draft(draft_id, generated)
+
+
+def generate_journal_entry_feedback(entry_id: int) -> tuple[dict, str]:
+    entry = row_to_dict(query_db("SELECT * FROM journal_entries WHERE id = ?", [entry_id], one=True))
+    if not entry:
+        return {}, "not_found"
+
+    prompt = _build_journal_feedback_prompt(entry)
+    model = str(current_app.config.get("JOURNAL_FEEDBACK_MODEL", "gemini-2.5-flash-lite")).strip()
+    feedback = _generate_text_with_gemini(
+        prompt,
+        model=model or "gemini-2.5-flash-lite",
+        max_output_tokens=520,
+        temperature=0.2,
+        top_p=0.75,
+    )
+    feedback = _clean_generated_text(feedback)[:2500]
+    if not feedback:
+        return entry, "AI feedback could not be generated. Check the Gemini API key and model configuration."
+
+    generated_at = iso_now()
+    execute_db(
+        """
+        UPDATE journal_entries
+        SET ai_feedback = ?, ai_feedback_generated_at = ?, ai_feedback_model = ?, updated_at = ?
+        WHERE id = ?
+        """,
+        (feedback, generated_at, model, generated_at, entry_id),
+    )
+    updated = row_to_dict(query_db("SELECT * FROM journal_entries WHERE id = ?", [entry_id], one=True))
+    return updated, ""
 
 
 def finalize_linkedin_draft_generation(draft_id: int, post_body: str) -> dict:
@@ -448,15 +486,6 @@ def _create_linkedin_draft_record(
         )
 
     return row_to_dict(query_db("SELECT * FROM linkedin_drafts WHERE id = ?", [draft_id], one=True)), True
-
-
-def _linkedin_generation_mode() -> str:
-    mode = str(current_app.config.get("OLLAMA_GENERATION_MODE", "client")).strip().lower()
-    return mode if mode in {"client", "server"} else "client"
-
-
-def _pending_client_generation_message() -> str:
-    return "Waiting for your browser to generate the final post using local Ollama."
 
 
 def _smtp_not_enabled_message() -> str:
@@ -590,64 +619,146 @@ def _project_context_summary(project: dict, tasks: list[dict], milestones: list[
 
 
 def _generate_task_linkedin_post(task: dict) -> str:
-    context = _task_context_summary(task)
-    prompt = (
-        "Write a LinkedIn post for a student/developer who wants to get noticed for practical project work.\n"
-        "Use the context below. Make it specific, confident, and natural. Avoid fake metrics, cringe hype, and buzzword spam.\n"
-        "Mention what was built or completed, why it matters, and what was learned. Keep it under 180 words.\n"
-        "End with 2-4 relevant hashtags.\n\n"
-        f"Context:\n{context}\n\n"
-        "Return only the post text."
-    )
-    generated = _generate_linkedin_post_with_ollama(prompt)
+    prompt = _build_linkedin_generation_prompt(_task_context_summary(task), "task")
+    generated = _generate_linkedin_post_with_gemini(prompt)
     return generated or _build_task_linkedin_post(task)
 
 
 def _generate_project_linkedin_post(project: dict, tasks: list[dict], milestones: list[dict]) -> str:
-    context = _project_context_summary(project, tasks, milestones)
-    prompt = (
-        "Write a LinkedIn post for a student/developer announcing a completed project.\n"
-        "Use the context below. Make it specific, credible, and useful for building visibility on LinkedIn.\n"
-        "Talk about the project, the work completed, and the skill signal it gives. Avoid inventing facts.\n"
-        "Keep it under 200 words and end with 2-4 relevant hashtags.\n\n"
-        f"Context:\n{context}\n\n"
-        "Return only the post text."
-    )
-    generated = _generate_linkedin_post_with_ollama(prompt)
+    prompt = _build_linkedin_generation_prompt(_project_context_summary(project, tasks, milestones), "project")
+    generated = _generate_linkedin_post_with_gemini(prompt)
     return generated or _build_project_linkedin_post(project, tasks, milestones)
 
 
-def _generate_linkedin_post_with_ollama(prompt: str) -> str:
-    if current_app.config.get("TESTING") or not current_app.config.get("OLLAMA_ENABLED", True):
+def _build_linkedin_generation_prompt(context: str, source_type: str) -> str:
+    is_project = source_type == "project"
+    angle = "announcing a completed project" if is_project else "sharing a completed task inside an active project"
+    word_limit = 200 if is_project else 180
+    return (
+        f"Write a LinkedIn post for a student/developer {angle}.\n"
+        "Use the context below. Make it specific, credible, and useful for building visibility.\n"
+        "Mention what was built or completed, why it matters, and what skill signal it gives.\n"
+        "Avoid inventing facts, fake metrics, cringe hype, and buzzword spam.\n"
+        f"Keep it under {word_limit} words and end with 2-4 relevant hashtags.\n\n"
+        f"Context:\n{context}\n\n"
+        "Return only the post text."
+    )
+
+
+def _build_journal_feedback_prompt(entry: dict) -> str:
+    return (
+        "You are reviewing a private journal entry. Give objective feedback, not encouragement.\n"
+        "Use only evidence from the entry. Do not flatter, reassure, diagnose, moralize, or make the writer feel good.\n"
+        "Point out patterns, weak assumptions, missing evidence, contradictions, and one practical next step.\n"
+        "If the entry lacks enough detail, say exactly what information is missing.\n"
+        "Keep the response under 170 words. Use this exact format:\n"
+        "Main pattern: ...\n"
+        "Possible blind spot: ...\n"
+        "Contradiction or tension: ...\n"
+        "Next step: ...\n"
+        "Question to answer: ...\n\n"
+        f"Title: {entry.get('title') or 'Untitled'}\n"
+        f"Mood score: {entry.get('mood_score')}/10\n"
+        f"Tags: {entry.get('tags') or 'None'}\n"
+        f"Entry:\n{entry.get('content') or ''}\n"
+    )
+
+
+def _generate_linkedin_post_with_gemini(prompt: str) -> str:
+    model = str(current_app.config.get("GEMINI_MODEL", "gemini-2.5-flash-lite")).strip()
+    text = _generate_text_with_gemini(
+        prompt,
+        model=model or "gemini-2.5-flash-lite",
+        max_output_tokens=420,
+        temperature=0.72,
+        top_p=0.9,
+    )
+    return _clean_generated_linkedin_post(text)
+
+
+def _generate_text_with_gemini(
+    prompt: str,
+    *,
+    model: str,
+    max_output_tokens: int,
+    temperature: float,
+    top_p: float,
+) -> str:
+    if current_app.config.get("TESTING") or not current_app.config.get("GEMINI_ENABLED", True):
         return ""
 
-    base_url = str(current_app.config.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")).rstrip("/")
-    model = str(current_app.config.get("OLLAMA_MODEL", "llama3.2:3b"))
-    timeout = float(current_app.config.get("OLLAMA_TIMEOUT_SECONDS", 45))
+    api_key = str(current_app.config.get("GEMINI_API_KEY", "")).strip()
+    if not api_key:
+        return ""
+
+    timeout = float(current_app.config.get("GEMINI_TIMEOUT_SECONDS", 45))
     payload = {
-        "model": model,
-        "prompt": prompt,
-        "stream": False,
-        "options": {
-            "temperature": 0.72,
-            "top_p": 0.9,
-            "num_predict": 420,
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": prompt,
+                    }
+                ]
+            }
+        ],
+        "generationConfig": {
+            "temperature": temperature,
+            "topP": top_p,
+            "maxOutputTokens": max_output_tokens,
         },
     }
     request = Request(
-        f"{base_url}/api/generate",
+        f"https://generativelanguage.googleapis.com/v1beta/models/{quote(model, safe='')}:generateContent",
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
         method="POST",
     )
     try:
         with urlopen(request, timeout=timeout) as response:
             data = json.loads(response.read().decode("utf-8"))
-    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, OSError):
+    except HTTPError as exc:
+        details = ""
+        try:
+            details = exc.read().decode("utf-8")[:500]
+        except OSError:
+            details = ""
+        current_app.logger.warning("Gemini request failed with HTTP %s: %s", exc.code, details)
+        return ""
+    except (URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+        current_app.logger.warning("Gemini request failed: %s", exc)
         return ""
 
-    text = str(data.get("response") or "").strip()
-    return _clean_generated_linkedin_post(text)
+    return _extract_gemini_text(data)
+
+
+def _clean_generated_text(text: str) -> str:
+    cleaned = str(text or "").strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.strip("`").strip()
+    for prefix in ("Feedback:", "Objective feedback:", "AI feedback:"):
+        if cleaned.lower().startswith(prefix.lower()):
+            cleaned = cleaned[len(prefix):].strip()
+    return cleaned
+
+
+def _extract_gemini_text(data: dict) -> str:
+    candidates = data.get("candidates")
+    if not isinstance(candidates, list):
+        return ""
+    for candidate in candidates:
+        content = candidate.get("content") if isinstance(candidate, dict) else None
+        parts = content.get("parts") if isinstance(content, dict) else None
+        if not isinstance(parts, list):
+            continue
+        text_chunks = []
+        for part in parts:
+            if isinstance(part, dict) and isinstance(part.get("text"), str):
+                text_chunks.append(part["text"])
+        text = "\n".join(chunk.strip() for chunk in text_chunks if chunk and chunk.strip()).strip()
+        if text:
+            return text
+    return ""
 
 
 def _clean_generated_linkedin_post(text: str) -> str:

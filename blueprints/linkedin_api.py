@@ -3,7 +3,7 @@ from __future__ import annotations
 from flask import Blueprint, current_app, jsonify, request
 
 from database import query_db
-from services import finalize_linkedin_draft_generation, resend_linkedin_draft_email
+from services import finalize_linkedin_draft_generation, generate_linkedin_draft, resend_linkedin_draft_email
 from utils import get_required_string, require_object, row_to_dict, rows_to_dicts
 
 bp = Blueprint("linkedin_api", __name__, url_prefix="/api/linkedin")
@@ -14,9 +14,9 @@ def get_linkedin_config():
     return jsonify(
         {
             "email_to": current_app.config.get("LINKEDIN_EMAIL_TO", "khadamalihussain@gmail.com"),
-            "generation_mode": current_app.config.get("OLLAMA_GENERATION_MODE", "client"),
-            "ollama_base_url": current_app.config.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
-            "ollama_model": current_app.config.get("OLLAMA_MODEL", "llama3.2:3b"),
+            "generation_mode": current_app.config.get("LINKEDIN_GENERATION_MODE", "server"),
+            "provider": "google",
+            "model": current_app.config.get("GEMINI_MODEL", "gemini-2.5-flash-lite"),
         }
     )
 
@@ -48,6 +48,14 @@ def send_linkedin_draft(draft_id: int):
     if not draft:
         return jsonify({"error": "LinkedIn draft not found."}), 404
     return jsonify({"draft": draft, "message": "LinkedIn draft email processed."})
+
+
+@bp.route("/drafts/<int:draft_id>/generate", methods=["POST"])
+def generate_linkedin_draft_route(draft_id: int):
+    draft = generate_linkedin_draft(draft_id)
+    if not draft:
+        return jsonify({"error": "LinkedIn draft not found."}), 404
+    return jsonify({"draft": draft, "message": "LinkedIn draft generated and email processed."})
 
 
 @bp.route("/drafts/<int:draft_id>/generation", methods=["POST"])

@@ -154,6 +154,12 @@ const LibraryUI = {
         const score = item.score ? `<span class="library-pill score"><i class="ph ph-star"></i> ${item.score}/10</span>` : '';
         const dates = this.renderDates(item);
         const progress = this.renderProgress(item);
+        const actions = window.LifeOSSession?.is_guest ? '' : `
+            <div class="library-entry-actions">
+                <button type="button" class="btn btn-icon" onclick="LibraryUI.editItem(${item.id})" title="Edit"><i class="ph ph-pencil-simple"></i></button>
+                <button type="button" class="btn btn-icon btn-danger" onclick="LibraryUI.deleteItem(${item.id})" title="Delete"><i class="ph ph-trash"></i></button>
+            </div>
+        `;
 
         return `
             <article class="library-entry">
@@ -162,10 +168,7 @@ const LibraryUI = {
                         <h3 class="library-entry-title">${CoreUI.escapeHtml(item.title)}</h3>
                         ${dates ? `<div class="item-desc mt-1">${dates}</div>` : ''}
                     </div>
-                    <div class="library-entry-actions">
-                        <button type="button" class="btn btn-icon" onclick="LibraryUI.editItem(${item.id})" title="Edit"><i class="ph ph-pencil-simple"></i></button>
-                        <button type="button" class="btn btn-icon btn-danger" onclick="LibraryUI.deleteItem(${item.id})" title="Delete"><i class="ph ph-trash"></i></button>
-                    </div>
+                    ${actions}
                 </div>
                 ${(creator || platform || score) ? `<div class="library-entry-meta">${creator}${platform}${score}</div>` : ''}
                 ${progress}
@@ -214,6 +217,7 @@ const LibraryUI = {
     },
 
     openModal(defaultType) {
+        if (window.LifeOSSession?.is_guest) return;
         this.resetForm(defaultType || this.activePanel);
         document.getElementById('modal-library').style.display = 'flex';
         this.updateModalTitle();
@@ -246,6 +250,7 @@ const LibraryUI = {
     },
 
     editItem(itemId) {
+        if (window.LifeOSSession?.is_guest) return;
         const item = this.items.find((entry) => entry.id === itemId);
         if (!item) return;
 
@@ -267,6 +272,7 @@ const LibraryUI = {
     },
 
     async saveItem(event) {
+        if (window.LifeOSSession?.is_guest) return;
         event.preventDefault();
         const itemId = document.getElementById('library-item-id').value;
         const payload = {
@@ -299,6 +305,7 @@ const LibraryUI = {
     },
 
     async deleteItem(itemId) {
+        if (window.LifeOSSession?.is_guest) return;
         const confirmed = await CoreUI.confirm({
             title: 'Delete library item?',
             message: 'This title will be removed permanently.',

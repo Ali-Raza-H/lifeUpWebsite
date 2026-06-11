@@ -135,11 +135,10 @@ Each feature normally has three pieces:
 The app loads `.env` automatically on startup. Keep real secrets in `.env`; use `.env.example` as the template.
 
 ```text
-OLLAMA_GENERATION_MODE=client
-OLLAMA_BASE_URL=http://127.0.0.1:11434
-OLLAMA_MODEL=llama3.2:3b
+LINKEDIN_GENERATION_MODE=server
+GEMINI_API_KEY=your-google-api-key
+GEMINI_MODEL=gemini-2.5-flash-lite
+JOURNAL_FEEDBACK_MODEL=gemini-2.5-flash-lite
 ```
 
-LinkedIn draft generation uses client-side Ollama by default with `llama3.2:3b`, so a PythonAnywhere deployment can ask your own PC to generate drafts from the Work page. Pull it with `ollama pull llama3.2:3b`, run Ollama locally, and set `OLLAMA_ORIGINS` to allow your app origin if the browser blocks the request.
-
-Set `OLLAMA_GENERATION_MODE=server` only if the server itself can run Ollama.
+LinkedIn draft generation and journal feedback use the Gemini API on the Flask server. Set `GEMINI_API_KEY` in `.env`; the app also accepts `GOOGLE_API_KEY`, `GOOGLE_GENAI_API_KEY`, or `API_KEY` as fallback names. Placeholder values such as `your-google-api-key` are ignored. Lightweight text tasks default to `gemini-2.5-flash-lite`.

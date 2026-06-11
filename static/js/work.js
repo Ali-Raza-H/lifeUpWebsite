@@ -3,7 +3,6 @@ const WorkUI = {
     linkedinDrafts: [],
     linkedinConfig: null,
     generatingDraftIds: new Set(),
-    autoGenerateAttemptedIds: new Set(),
     summary: null,
 
     init() {
@@ -39,9 +38,9 @@ const WorkUI = {
             this.renderLinkedInConfig();
         } catch (error) {
             this.linkedinConfig = {
-                generation_mode: 'client',
-                ollama_base_url: 'http://127.0.0.1:11434',
-                ollama_model: 'llama3.2:3b',
+                generation_mode: 'server',
+                provider: 'google',
+                model: 'gemini-2.5-flash-lite',
                 email_to: 'khadamalihussain@gmail.com'
             };
             this.renderLinkedInConfig();
@@ -52,8 +51,9 @@ const WorkUI = {
         const description = document.getElementById('linkedin-outbox-description');
         if (!description || !this.linkedinConfig) return;
 
-        const mode = this.linkedinConfig.generation_mode === 'client' ? 'your local Ollama' : 'server Ollama';
-        description.textContent = `Generated when flagged tasks or projects are completed. Drafts use ${mode} (${this.linkedinConfig.ollama_model}) and email ${this.linkedinConfig.email_to} when SMTP is configured.`;
+        const provider = this.linkedinConfig.provider || 'google';
+        const model = this.linkedinConfig.model || 'gemini-2.5-flash-lite';
+        description.textContent = `Generated when flagged tasks or projects are completed. Drafts use ${provider} (${model}) on the server and email ${this.linkedinConfig.email_to} when SMTP is configured.`;
     },
 
     async loadSummary() {
@@ -184,22 +184,11 @@ const WorkUI = {
     },
 
     async processPendingLinkedInDrafts() {
-        if (this.linkedinConfig?.generation_mode !== 'client') return;
-
-        const pendingDrafts = this.linkedinDrafts.filter((draft) => (
-            draft.email_status === 'pending_generation'
-            && !this.generatingDraftIds.has(draft.id)
-            && !this.autoGenerateAttemptedIds.has(draft.id)
-        ));
-        for (const draft of pendingDrafts) {
-            this.autoGenerateAttemptedIds.add(draft.id);
-            await this.generateLinkedInDraft(draft.id, { silent: true });
-        }
+        return;
     },
 
     async generateLinkedInDraft(draftId, options = {}) {
-        const draft = this.linkedinDrafts.find((item) => item.id === draftId);
-        if (!draft || this.generatingDraftIds.has(draftId)) return;
+        if (!this.linkedinDrafts.find((item) => item.id === draftId) || this.generatingDraftIds.has(draftId)) return;
 
         if (!this.linkedinConfig) {
             await this.loadLinkedInConfig();
@@ -209,87 +198,21 @@ const WorkUI = {
         this.renderLinkedInDrafts();
 
         try {
-            const generatedPost = await this.generateLinkedInPostWithOllama(draft);
-            const response = await API.post(`/api/linkedin/drafts/${draftId}/generation`, {
-                post_body: generatedPost
-            });
+            const response = await API.post(`/api/linkedin/drafts/${draftId}/generate`, {});
             await this.loadLinkedInDrafts();
             if (!options.silent) {
                 CoreUI.showError(response.message || 'LinkedIn draft generated.', true);
             }
         } catch (error) {
             if (!options.silent) {
-                CoreUI.showError(error.message || 'Local Ollama generation failed.');
+                CoreUI.showError(error.message || 'LinkedIn draft generation failed.');
             } else {
-                console.warn('Local Ollama generation failed:', error);
+                console.warn('LinkedIn draft generation failed:', error);
             }
         } finally {
             this.generatingDraftIds.delete(draftId);
             this.renderLinkedInDrafts();
         }
-    },
-
-    async generateLinkedInPostWithOllama(draft) {
-        const config = this.linkedinConfig || {};
-        const baseUrl = String(config.ollama_base_url || 'http://127.0.0.1:11434').replace(/\/+$/, '');
-        const model = config.ollama_model || 'llama3.2:3b';
-        const response = await fetch(`${baseUrl}/api/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model,
-                prompt: this.buildLinkedInPrompt(draft),
-                stream: false,
-                options: {
-                    temperature: 0.72,
-                    top_p: 0.9,
-                    num_predict: 420
-                }
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error(`Ollama returned ${response.status}. Check Ollama is running and allows this site origin.`);
-        }
-
-        const data = await response.json();
-        const text = this.cleanGeneratedLinkedInPost(data.response || '');
-        if (!text) {
-            throw new Error('Ollama returned an empty LinkedIn draft.');
-        }
-        return text;
-    },
-
-    buildLinkedInPrompt(draft) {
-        const isProject = draft.source_type === 'project';
-        const wordLimit = isProject ? 200 : 180;
-        const angle = isProject
-            ? 'announcing a completed project'
-            : 'sharing a completed task inside an active project';
-        return [
-            `Write a LinkedIn post for a student/developer ${angle}.`,
-            'Use the context below. Make it specific, credible, and useful for building visibility.',
-            'Mention what was built or completed, why it matters, and what skill signal it gives.',
-            'Avoid inventing facts, fake metrics, cringe hype, and buzzword spam.',
-            `Keep it under ${wordLimit} words and end with 2-4 relevant hashtags.`,
-            '',
-            `Context:\n${draft.context_summary || draft.post_body || ''}`,
-            '',
-            'Return only the post text.'
-        ].join('\n');
-    },
-
-    cleanGeneratedLinkedInPost(text) {
-        let cleaned = String(text || '').trim();
-        if (cleaned.startsWith('```')) {
-            cleaned = cleaned.replace(/^```[a-z]*\s*/i, '').replace(/```$/, '').trim();
-        }
-        ['LinkedIn post:', 'Post:', 'Draft:'].forEach((prefix) => {
-            if (cleaned.toLowerCase().startsWith(prefix.toLowerCase())) {
-                cleaned = cleaned.slice(prefix.length).trim();
-            }
-        });
-        return cleaned.slice(0, 2500);
     },
 
     displayLinkedInDraftError(draft) {
@@ -332,6 +255,7 @@ const WorkUI = {
     },
 
     openModal(experienceId = null) {
+        if (window.LifeOSSession?.is_guest) return;
         const modal = document.getElementById('work-modal');
         const form = document.getElementById('work-form');
         const title = document.getElementById('work-modal-title');
@@ -379,6 +303,7 @@ const WorkUI = {
     },
 
     async saveExperience(event) {
+        if (window.LifeOSSession?.is_guest) return;
         event.preventDefault();
         const experienceId = document.getElementById('work-id').value;
         const payload = {
@@ -412,6 +337,7 @@ const WorkUI = {
     },
 
     async deleteCurrentExperience() {
+        if (window.LifeOSSession?.is_guest) return;
         const experienceId = document.getElementById('work-id').value;
         if (!experienceId) return;
 

@@ -12,11 +12,11 @@ const ProjectUI = {
 
     async loadData() {
         try {
-            const [projects, goals, habits] = await Promise.all([
-                API.get('/api/projects/'),
-                API.get('/api/goals/'),
-                API.get('/api/habits/')
-            ]);
+            const isGuest = Boolean(window.LifeOSSession?.is_guest);
+            const requests = isGuest
+                ? [API.get('/api/projects/')]
+                : [API.get('/api/projects/'), API.get('/api/goals/'), API.get('/api/habits/')];
+            const [projects, goals = [], habits = []] = await Promise.all(requests);
             this.projects = projects;
             this.goals = goals;
             this.allHabits = habits;
@@ -212,7 +212,9 @@ const ProjectUI = {
         const statusLabel = project.status.replace('_', ' ');
         const card = document.createElement('div');
         card.className = 'compact-item project-card';
-        card.onclick = () => this.openCreateModal(project.id);
+        if (!window.LifeOSSession?.is_guest) {
+            card.onclick = () => this.openCreateModal(project.id);
+        }
 
         card.innerHTML = `
             <div class="project-card-header">
@@ -224,7 +226,7 @@ const ProjectUI = {
                     </div>
                     <div class="item-title" style="${project.status === 'completed' ? 'text-decoration: line-through; color: var(--text-muted);' : ''}">${CoreUI.escapeHtml(project.name)}</div>
                 </div>
-                ${project.status !== 'completed' ? `<button class="btn btn-icon" onclick="event.stopPropagation(); ProjectUI.quickStatus(${project.id}, 'completed')" title="Mark completed"><i class="ph ph-check"></i></button>` : ''}
+                ${!window.LifeOSSession?.is_guest && project.status !== 'completed' ? `<button class="btn btn-icon" onclick="event.stopPropagation(); ProjectUI.quickStatus(${project.id}, 'completed')" title="Mark completed"><i class="ph ph-check"></i></button>` : ''}
             </div>
             <div class="project-card-body">
                 <div class="item-desc">${CoreUI.escapeHtml(project.description || 'No description added yet.')}</div>
@@ -359,6 +361,7 @@ const ProjectUI = {
     },
 
     async openCreateModal(projectId = null) {
+        if (window.LifeOSSession?.is_guest) return;
         const modal = document.getElementById('project-modal');
         const title = document.getElementById('project-modal-title');
         const subtitle = document.getElementById('project-modal-subtitle');

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Guest Overview{% endblock %}
+{% block page_title %}Guest Overview{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/guest.css', v=asset_version('css/guest.css')) }}">
+{% endblock %}
+
+{% block content %}
+<section class="guest-hero card" style="margin-bottom: var(--space-5);">
+    <div class="guest-hero-copy">
+        <span class="badge" style="background: rgba(0,240,255,0.1); color: var(--accent-blue); border-color: var(--accent-blue); margin-bottom: 12px; display: inline-flex;">Public Portfolio</span>
+        <h2 class="guest-hero-title">Welcome to the LifeOS Demo</h2>
+        <p class="guest-hero-text">
+            This read-only view surfaces the strongest public parts of the system: profile signals, active projects, professional experience, and media consumption.
+        </p>
+    </div>
+    <div class="guest-hero-actions">
+        <a class="btn btn-primary" href="{{ url_for('projects') }}"><i class="ph ph-kanban"></i> Explore Projects</a>
+        <a class="btn" href="{{ url_for('profile') }}"><i class="ph ph-fingerprint"></i> View Profile</a>
+    </div>
+</section>
+
+<section class="metric-grid cols-4" id="guest-overview-metrics" style="margin-bottom: var(--space-5);">
+    <!-- Metrics injected by JS -->
+    <div class="compact-item metric-card"><span class="item-desc">Loading metrics...</span></div>
+</section>
+
+<div class="bento-grid">
+    <!-- Active Projects -->
+    <div class="card" style="grid-column: span 7; min-height: 350px; display: flex; flex-direction: column; overflow: hidden; padding: 0;">
+        <div class="card-header" style="padding: var(--space-5) var(--space-5) var(--space-4); margin: 0; border-bottom: 1px solid var(--border-subtle); background: var(--bg-panel); z-index: 10;">
+            <div>
+                <span class="card-title"><i class="ph ph-kanban"></i> Project Spotlight</span>
+                <div class="item-desc">Currently active work and side projects</div>
+            </div>
+            <a href="{{ url_for('projects') }}" class="btn btn-icon"><i class="ph ph-arrow-right"></i></a>
+        </div>
+        <div style="flex: 1; overflow-y: auto; padding: var(--space-4) var(--space-5) var(--space-5);">
+            <div id="guest-project-spotlight" class="compact-list">
+                <div class="compact-item"><span class="item-desc">Loading projects...</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Skills Chart / Signals -->
+    <div class="card" style="grid-column: span 5; min-height: 350px;">
+        <div class="card-header">
+            <div>
+                <span class="card-title"><i class="ph ph-brain"></i> Profile Signals</span>
+                <div class="item-desc">Top traits and skills</div>
+            </div>
+            <a href="{{ url_for('profile') }}" class="btn btn-icon"><i class="ph ph-arrow-right"></i></a>
+        </div>
+        <div class="chart-container" style="height: 180px; margin-bottom: var(--space-3);">
+            <canvas id="guestSkillsChart"></canvas>
+        </div>
+        <div id="guest-profile-spotlight" class="compact-list"></div>
+    </div>
+
+    <!-- Work Experience -->
+    <div class="card" style="grid-column: span 6; min-height: 350px; display: flex; flex-direction: column; padding: 0;">
+        <div class="card-header" style="padding: var(--space-5) var(--space-5) var(--space-4); margin: 0; border-bottom: 1px solid var(--border-subtle); background: var(--bg-panel); z-index: 10;">
+            <div>
+                <span class="card-title"><i class="ph ph-briefcase"></i> Experience</span>
+                <div class="item-desc">Recent roles and achievements</div>
+            </div>
+            <a href="{{ url_for('work') }}" class="btn btn-icon"><i class="ph ph-arrow-right"></i></a>
+        </div>
+        <div style="flex: 1; overflow-y: auto; padding: var(--space-4) var(--space-5) var(--space-5);">
+            <div id="guest-work-spotlight" class="compact-list">
+                <div class="compact-item"><span class="item-desc">Loading work history...</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Library Activity -->
+    <div class="card" style="grid-column: span 6; min-height: 350px; display: flex; flex-direction: column; padding: 0;">
+        <div class="card-header" style="padding: var(--space-5) var(--space-5) var(--space-4); margin: 0; border-bottom: 1px solid var(--border-subtle); background: var(--bg-panel); z-index: 10;">
+            <div>
+                <span class="card-title"><i class="ph ph-books"></i> Library Activity</span>
+                <div class="item-desc">Recently tracked books, media, and resources</div>
+            </div>
+            <a href="{{ url_for('library') }}" class="btn btn-icon"><i class="ph ph-arrow-right"></i></a>
+        </div>
+        <div style="flex: 1; overflow-y: auto; padding: var(--space-4) var(--space-5) var(--space-5);">
+            <div id="guest-library-spotlight" class="compact-list">
+                <div class="compact-item"><span class="item-desc">Loading library...</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/guest.js', v=asset_version('js/guest.js')) }}"></script>
+{% endblock %}

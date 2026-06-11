@@ -144,6 +144,9 @@ CREATE TABLE IF NOT EXISTS journal_entries (
     content TEXT NOT NULL,
     tags TEXT DEFAULT '',
     mood_score INTEGER, -- 1 to 10
+    ai_feedback TEXT DEFAULT '',
+    ai_feedback_generated_at DATETIME,
+    ai_feedback_model TEXT DEFAULT '',
     entry_date DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

@@ -32,8 +32,8 @@ import blueprints.work_api as work_api
 BASE_DIR = Path(__file__).resolve().parent
 GUEST_ROLE = "guest"
 ADMIN_ROLE = "admin"
-GUEST_HOME_ENDPOINT = "library"
-GUEST_ALLOWED_PAGE_ENDPOINTS = {"library", "projects", "work", "profile", "logout", "system_status"}
+GUEST_HOME_ENDPOINT = "guest_overview"
+GUEST_ALLOWED_PAGE_ENDPOINTS = {"guest_overview", "library", "projects", "work", "profile", "logout", "system_status"}
 GUEST_ALLOWED_API_ENDPOINTS = {
     "system_status",
     "library_api.get_summary",
@@ -69,6 +69,15 @@ def _load_env_file(path: Path) -> None:
         os.environ[key] = value
 
 
+def _get_env_secret(*names: str) -> str:
+    placeholders = {"", "replace-this", "your-google-api-key", "your-api-key"}
+    for name in names:
+        value = os.environ.get(name, "").strip()
+        if value.lower() not in placeholders:
+            return value
+    return ""
+
+
 _load_env_file(BASE_DIR / ".env")
 
 
@@ -92,11 +101,15 @@ def create_app(test_config: dict | None = None) -> Flask:
         SMTP_PASSWORD=os.environ.get("SMTP_PASSWORD", ""),
         SMTP_FROM=os.environ.get("SMTP_FROM", os.environ.get("SMTP_USERNAME", "")),
         SMTP_USE_TLS=os.environ.get("SMTP_USE_TLS", "1") != "0",
-        OLLAMA_GENERATION_MODE=os.environ.get("OLLAMA_GENERATION_MODE", "client"),
-        OLLAMA_ENABLED=os.environ.get("OLLAMA_ENABLED", "1") != "0",
-        OLLAMA_BASE_URL=os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
-        OLLAMA_MODEL=os.environ.get("OLLAMA_MODEL", "llama3.2:3b"),
-        OLLAMA_TIMEOUT_SECONDS=float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "45")),
+        LINKEDIN_GENERATION_MODE=os.environ.get("LINKEDIN_GENERATION_MODE", "server"),
+        GEMINI_ENABLED=os.environ.get("GEMINI_ENABLED", "1") != "0",
+        GEMINI_API_KEY=_get_env_secret("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_API_KEY", "API_KEY"),
+        GEMINI_MODEL=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite"),
+        JOURNAL_FEEDBACK_MODEL=os.environ.get(
+            "JOURNAL_FEEDBACK_MODEL",
+            os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite"),
+        ),
+        GEMINI_TIMEOUT_SECONDS=float(os.environ.get("GEMINI_TIMEOUT_SECONDS", "45")),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE=os.environ.get("SESSION_COOKIE_SAMESITE", "Lax"),
         SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE", "1") != "0",
@@ -217,6 +230,10 @@ def _register_routes(app: Flask) -> None:
     @app.route("/library")
     def library():
         return render_template("library.html")
+
+    @app.route("/guest")
+    def guest_overview():
+        return render_template("guest_overview.html")
 
     @app.route("/work")
     def work():

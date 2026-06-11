@@ -21,6 +21,9 @@
             <h2>LifeOS</h2>
         </div>
         <ul class="nav-links">
+            {% if is_guest_user %}
+            <li><a href="{{ url_for('guest_overview') }}" class="nav-link {% if request.endpoint == 'guest_overview' %}active{% endif %}"><i class="ph ph-eye"></i> <span>Overview</span></a></li>
+            {% endif %}
             {% if not is_guest_user %}
             <li><a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}"><i class="ph ph-squares-four"></i> <span>Dashboard</span></a></li>
             <li><a href="{{ url_for('habits') }}" class="nav-link {% if request.endpoint == 'habits' %}active{% endif %}"><i class="ph ph-calendar-check"></i> <span>Habits</span></a></li>
@@ -85,7 +88,7 @@
         {% if is_guest_user %}
         <div class="content-container" style="padding-top: 16px; padding-bottom: 0;">
             <div class="compact-item">
-                <span class="item-desc">Guest account: read-only access to demo-safe sections only.</span>
+                <span class="item-desc">Guest account: read-only access to demo-safe sections only. Use Overview for the strongest public snapshot.</span>
             </div>
         </div>
         {% endif %}

@@ -9,7 +9,9 @@
 {% endblock %}
 
 {% block header_actions %}
+{% if not is_guest_user %}
 <button class="btn btn-primary" onclick="LibraryUI.openQuickAdd()"><i class="ph ph-plus"></i> Quick Add</button>
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -55,7 +57,7 @@
                         <h2 class="life-section-title"><i class="ph ph-book-open-text"></i> Books</h2>
                         <p class="library-panel-subhead">Track novels, nonfiction, study books, and rereads.</p>
                     </div>
-                    <button class="btn btn-sm btn-primary" onclick="LibraryUI.openModal('book')"><i class="ph ph-plus"></i> Add Book</button>
+                    {% if not is_guest_user %}<button class="btn btn-sm btn-primary" onclick="LibraryUI.openModal('book')"><i class="ph ph-plus"></i> Add Book</button>{% endif %}
                 </div>
                 <div class="metric-grid cols-3 library-type-metrics" id="library-stats-book"></div>
                 <div class="life-list-container">
@@ -73,7 +75,7 @@
                         <h2 class="life-section-title"><i class="ph ph-books"></i> Manga</h2>
                         <p class="library-panel-subhead">Keep tabs on series, volumes, and chapters you want next.</p>
                     </div>
-                    <button class="btn btn-sm btn-primary" onclick="LibraryUI.openModal('manga')"><i class="ph ph-plus"></i> Add Manga</button>
+                    {% if not is_guest_user %}<button class="btn btn-sm btn-primary" onclick="LibraryUI.openModal('manga')"><i class="ph ph-plus"></i> Add Manga</button>{% endif %}
                 </div>
                 <div class="metric-grid cols-3 library-type-metrics" id="library-stats-manga"></div>
                 <div class="life-list-container">
@@ -91,7 +93,7 @@
                         <h2 class="life-section-title"><i class="ph ph-stack"></i> Manhwa</h2>
                         <p class="library-panel-subhead">Separate your webtoon backlog from everything else.</p>
                     </div>
-                    <button class="btn btn-sm btn-primary" onclick="LibraryUI.openModal('manhwa')"><i class="ph ph-plus"></i> Add Manhwa</button>
+                    {% if not is_guest_user %}<button class="btn btn-sm btn-primary" onclick="LibraryUI.openModal('manhwa')"><i class="ph ph-plus"></i> Add Manhwa</button>{% endif %}
                 </div>
                 <div class="metric-grid cols-3 library-type-metrics" id="library-stats-manhwa"></div>
                 <div class="life-list-container">
@@ -109,7 +111,7 @@
                         <h2 class="life-section-title"><i class="ph ph-television-simple"></i> Anime</h2>
                         <p class="library-panel-subhead">Log seasons, movies, and watch progress without mixing them into TV.</p>
                     </div>
-                    <button class="btn btn-sm btn-primary" onclick="LibraryUI.openModal('anime')"><i class="ph ph-plus"></i> Add Anime</button>
+                    {% if not is_guest_user %}<button class="btn btn-sm btn-primary" onclick="LibraryUI.openModal('anime')"><i class="ph ph-plus"></i> Add Anime</button>{% endif %}
                 </div>
                 <div class="metric-grid cols-3 library-type-metrics" id="library-stats-anime"></div>
                 <div class="life-list-container">
@@ -127,7 +129,7 @@
                         <h2 class="life-section-title"><i class="ph ph-monitor-play"></i> TV Shows</h2>
                         <p class="library-panel-subhead">Keep series and seasonal watchlists in one place.</p>
                     </div>
-                    <button class="btn btn-sm btn-primary" onclick="LibraryUI.openModal('tv')"><i class="ph ph-plus"></i> Add Show</button>
+                    {% if not is_guest_user %}<button class="btn btn-sm btn-primary" onclick="LibraryUI.openModal('tv')"><i class="ph ph-plus"></i> Add Show</button>{% endif %}
                 </div>
                 <div class="metric-grid cols-3 library-type-metrics" id="library-stats-tv"></div>
                 <div class="life-list-container">
@@ -145,7 +147,7 @@
                         <h2 class="life-section-title"><i class="ph ph-film-strip"></i> Movies</h2>
                         <p class="library-panel-subhead">Track film nights, rewatches, and titles worth hunting down.</p>
                     </div>
-                    <button class="btn btn-sm btn-primary" onclick="LibraryUI.openModal('movie')"><i class="ph ph-plus"></i> Add Movie</button>
+                    {% if not is_guest_user %}<button class="btn btn-sm btn-primary" onclick="LibraryUI.openModal('movie')"><i class="ph ph-plus"></i> Add Movie</button>{% endif %}
                 </div>
                 <div class="metric-grid cols-3 library-type-metrics" id="library-stats-movie"></div>
                 <div class="life-list-container">
@@ -160,6 +162,7 @@
     </div>
 </div>
 
+{% if not is_guest_user %}
 <div id="modal-library" class="modal-overlay">
     <div class="modal-content life-modal-content library-modal-content">
         <div class="card-header">
@@ -234,6 +237,7 @@
         </form>
     </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

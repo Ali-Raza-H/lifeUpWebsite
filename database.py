@@ -51,6 +51,9 @@ MIGRATIONS = (
     ("notes", "is_pinned", "ALTER TABLE notes ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0"),
     ("journal_entries", "title", "ALTER TABLE journal_entries ADD COLUMN title TEXT DEFAULT ''"),
     ("journal_entries", "tags", "ALTER TABLE journal_entries ADD COLUMN tags TEXT DEFAULT ''"),
+    ("journal_entries", "ai_feedback", "ALTER TABLE journal_entries ADD COLUMN ai_feedback TEXT DEFAULT ''"),
+    ("journal_entries", "ai_feedback_generated_at", "ALTER TABLE journal_entries ADD COLUMN ai_feedback_generated_at DATETIME"),
+    ("journal_entries", "ai_feedback_model", "ALTER TABLE journal_entries ADD COLUMN ai_feedback_model TEXT DEFAULT ''"),
     ("journal_entries", "updated_at", "ALTER TABLE journal_entries ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"),
     ("calendar_events", "project_id", "ALTER TABLE calendar_events ADD COLUMN project_id INTEGER"),
     ("calendar_events", "goal_id", "ALTER TABLE calendar_events ADD COLUMN goal_id INTEGER"),
@@ -143,6 +146,10 @@ def _backfill_completion_timestamps(db: sqlite3.Connection) -> None:
     db.execute("UPDATE notes SET tags = '' WHERE tags IS NULL")
     db.execute("UPDATE journal_entries SET title = '' WHERE title IS NULL")
     db.execute("UPDATE journal_entries SET tags = '' WHERE tags IS NULL")
+    if _column_exists(db, "journal_entries", "ai_feedback"):
+        db.execute("UPDATE journal_entries SET ai_feedback = '' WHERE ai_feedback IS NULL")
+    if _column_exists(db, "journal_entries", "ai_feedback_model"):
+        db.execute("UPDATE journal_entries SET ai_feedback_model = '' WHERE ai_feedback_model IS NULL")
     if _column_exists(db, "attachments", "is_favorite"):
         db.execute("UPDATE attachments SET is_favorite = 0 WHERE is_favorite IS NULL")
     db.execute(

@@ -1,5 +1,6 @@
 const JournalUI = {
     entries: [],
+    generatingFeedbackIds: new Set(),
     filters: {
         q: '',
         mood: '',
@@ -64,6 +65,8 @@ const JournalUI = {
 
         entries.forEach((entry) => {
             const div = document.createElement('div');
+            const isGeneratingFeedback = this.generatingFeedbackIds.has(entry.id);
+            const hasFeedback = String(entry.ai_feedback || '').trim().length > 0;
             div.className = 'compact-item';
             div.style.flexDirection = 'column';
             div.style.gap = '12px';
@@ -76,6 +79,7 @@ const JournalUI = {
                     </div>
                     <div style="display:flex; gap:8px; align-items:center;">
                         <span class="badge">Mood ${entry.mood_score}/10</span>
+                        <button class="btn btn-icon" onclick="JournalUI.generateFeedback(${entry.id})" title="${hasFeedback ? 'Refresh objective AI feedback' : 'Generate objective AI feedback'}" ${isGeneratingFeedback ? 'disabled' : ''}><i class="ph ph-scales"></i></button>
                         <button class="btn btn-icon" onclick="JournalUI.openCreateModal(${entry.id})" title="Edit"><i class="ph ph-pencil-simple"></i></button>
                         <button class="btn btn-icon btn-danger" onclick="JournalUI.deleteEntry(${entry.id})" title="Delete"><i class="ph ph-trash"></i></button>
                     </div>
@@ -83,6 +87,17 @@ const JournalUI = {
                 ${entry.tags ? `<div class="item-desc">${CoreUI.escapeHtml(entry.tags)}</div>` : ''}
                 <div style="font-family: var(--font-mono); white-space: pre-wrap; font-size: 13px; color: var(--text-primary); line-height: 1.6; width: 100%;">
                     ${CoreUI.escapeHtml(entry.content)}
+                </div>
+                <div style="width:100%; border-top:1px solid var(--border-color); padding-top:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:8px;">
+                        <span class="item-title"><i class="ph ph-scales"></i> Objective AI Feedback</span>
+                        ${entry.ai_feedback_generated_at ? `<span class="item-desc">${CoreUI.escapeHtml(CoreUI.formatDate(entry.ai_feedback_generated_at))}</span>` : ''}
+                    </div>
+                    ${isGeneratingFeedback
+                        ? '<div class="item-desc">Generating objective feedback...</div>'
+                        : hasFeedback
+                            ? `<div style="font-family: var(--font-mono); white-space: pre-wrap; font-size: 12px; color: var(--text-secondary); line-height: 1.6;">${CoreUI.escapeHtml(entry.ai_feedback)}</div>`
+                            : '<div class="item-desc">No feedback generated yet.</div>'}
                 </div>
             `;
             list.appendChild(div);
@@ -187,6 +202,23 @@ const JournalUI = {
             await this.loadEntries();
         } catch (error) {
             CoreUI.showError(error.message || 'Failed to delete journal entry.');
+        }
+    },
+
+    async generateFeedback(id) {
+        if (this.generatingFeedbackIds.has(id)) return;
+        this.generatingFeedbackIds.add(id);
+        this.renderEntries();
+
+        try {
+            await API.post(`/api/journal/${id}/feedback`, {});
+            await this.loadEntries();
+            CoreUI.showError('Objective AI feedback generated.', true);
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to generate journal feedback.');
+        } finally {
+            this.generatingFeedbackIds.delete(id);
+            this.renderEntries();
         }
     }
 };

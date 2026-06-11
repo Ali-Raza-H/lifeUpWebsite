@@ -45,7 +45,7 @@ def test_guest_login_redirects_to_guest_home(anon_client):
         follow_redirects=False,
     )
     assert login_response.status_code == 302
-    assert login_response.headers["Location"].endswith("/library")
+    assert login_response.headers["Location"].endswith("/guest")
 
 
 def test_guest_access_is_limited_to_read_only_demo_sections(anon_client):
@@ -59,6 +59,7 @@ def test_guest_access_is_limited_to_read_only_demo_sections(anon_client):
     )
     assert login_response.status_code == 302
 
+    assert anon_client.get("/guest").status_code == 200
     assert anon_client.get("/library").status_code == 200
     assert anon_client.get("/projects").status_code == 200
     assert anon_client.get("/work").status_code == 200
@@ -66,7 +67,7 @@ def test_guest_access_is_limited_to_read_only_demo_sections(anon_client):
 
     blocked_page = anon_client.get("/tasks", follow_redirects=False)
     assert blocked_page.status_code == 302
-    assert blocked_page.headers["Location"].endswith("/library")
+    assert blocked_page.headers["Location"].endswith("/guest")
 
     assert anon_client.get("/api/library/summary").status_code == 200
     assert anon_client.get("/api/work/summary").status_code == 200
@@ -225,7 +226,7 @@ def test_completed_flagged_task_creates_linkedin_email_draft(client):
     assert "Build LinkedIn draft workflow" in draft["post_body"]
     assert "Portfolio Builder" in draft["post_body"]
     assert draft["email_to"] == client.application.config["LINKEDIN_EMAIL_TO"]
-    assert draft["email_status"] == "pending_generation"
+    assert draft["email_status"] == "not_configured"
 
     duplicate_update = client.put(f"/api/tasks/{task['id']}", json={"status": "completed"})
     assert duplicate_update.status_code == 200
@@ -265,7 +266,7 @@ def test_completed_flagged_project_creates_linkedin_email_draft(client):
     assert draft["source_id"] == project["id"]
     assert "Study Automation Dashboard" in draft["post_body"]
     assert "Design progress cards" in draft["context_summary"]
-    assert draft["email_status"] == "pending_generation"
+    assert draft["email_status"] == "not_configured"
 
 
 def test_task_and_project_links_can_be_cleared(client):
@@ -824,6 +825,48 @@ def test_journal_entries_can_be_updated_and_filtered(client):
     filtered = client.get("/api/journal/?q=revised&mood=9")
     assert filtered.status_code == 200
     assert len(filtered.get_json()) == 1
+
+
+def test_journal_entry_feedback_can_be_generated_and_cleared_on_edit(client, monkeypatch):
+    captured = {}
+
+    def fake_generate(prompt, *, model, max_output_tokens, temperature, top_p):
+        captured["prompt"] = prompt
+        captured["model"] = model
+        captured["temperature"] = temperature
+        return (
+            "Main pattern: The entry reports output but gives little process evidence.\n"
+            "Possible blind spot: It assumes the session was strong without defining quality.\n"
+            "Contradiction or tension: The high mood score is not tied to a measurable result.\n"
+            "Next step: Record one concrete result and one constraint next time.\n"
+            "Question to answer: What made the session effective?"
+        )
+
+    monkeypatch.setattr("services._generate_text_with_gemini", fake_generate)
+    client.application.config["JOURNAL_FEEDBACK_MODEL"] = "gemini-2.5-flash-lite"
+
+    entry = client.post(
+        "/api/journal/",
+        json={"title": "Deep work", "tags": "study", "content": "Strong session", "mood_score": 8},
+    ).get_json()["entry"]
+
+    feedback_response = client.post(f"/api/journal/{entry['id']}/feedback", json={})
+    assert feedback_response.status_code == 200
+    updated = feedback_response.get_json()["entry"]
+    assert "Possible blind spot" in updated["ai_feedback"]
+    assert updated["ai_feedback_model"] == "gemini-2.5-flash-lite"
+    assert updated["ai_feedback_generated_at"]
+    assert "Do not flatter" in captured["prompt"]
+    assert captured["temperature"] == 0.2
+
+    edit_response = client.put(
+        f"/api/journal/{entry['id']}",
+        json={"content": "Revised session notes", "mood_score": 7},
+    )
+    assert edit_response.status_code == 200
+    edited = edit_response.get_json()["entry"]
+    assert edited["ai_feedback"] == ""
+    assert edited["ai_feedback_generated_at"] is None
 
 
 def test_calendar_event_supports_goal_and_project_links(client):

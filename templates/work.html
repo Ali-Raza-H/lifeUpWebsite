@@ -8,7 +8,9 @@
 {% endblock %}
 
 {% block header_actions %}
+{% if not is_guest_user %}
 <button class="btn btn-primary" onclick="WorkUI.openQuickAdd()"><i class="ph ph-plus"></i> Quick Add</button>
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -64,6 +66,7 @@
     </section>
 </div>
 
+{% if not is_guest_user %}
 <div id="work-modal" class="modal-overlay">
     <div class="modal-content work-modal-content">
         <div class="card-header">
@@ -150,6 +153,7 @@
         </form>
     </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

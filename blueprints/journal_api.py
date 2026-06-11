@@ -3,6 +3,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from database import execute_db, query_db
+from services import generate_journal_entry_feedback
 from utils import get_optional_int, get_optional_string, get_required_string, iso_now, require_object, row_to_dict, rows_to_dicts
 
 bp = Blueprint("journal_api", __name__, url_prefix="/api/journal")
@@ -72,11 +73,26 @@ def update_entry(entry_id: int):
     mood_score = get_optional_int(payload, "mood_score", default=current.get("mood_score", 5), minimum=1, maximum=10)
 
     execute_db(
-        "UPDATE journal_entries SET title = ?, content = ?, tags = ?, mood_score = ?, updated_at = ? WHERE id = ?",
+        """
+        UPDATE journal_entries
+        SET title = ?, content = ?, tags = ?, mood_score = ?, ai_feedback = '', ai_feedback_generated_at = NULL,
+            ai_feedback_model = '', updated_at = ?
+        WHERE id = ?
+        """,
         (title, content, tags, mood_score, iso_now(), entry_id),
     )
     updated = query_db("SELECT * FROM journal_entries WHERE id = ?", [entry_id], one=True)
     return jsonify({"entry": row_to_dict(updated), "message": "Entry updated."})
+
+
+@bp.route("/<int:entry_id>/feedback", methods=["POST"])
+def generate_feedback(entry_id: int):
+    entry, error = generate_journal_entry_feedback(entry_id)
+    if error == "not_found":
+        return jsonify({"error": "Journal entry not found."}), 404
+    if error:
+        return jsonify({"error": error, "entry": entry}), 503
+    return jsonify({"entry": entry, "message": "Objective AI feedback generated."})
 
 
 @bp.route("/<int:entry_id>", methods=["DELETE"])
