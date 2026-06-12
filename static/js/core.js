@@ -1,5 +1,7 @@
 const CoreUI = {
     sidebarStorageKey: 'lifeos.sidebar.collapsed',
+    statusColumnRowLimitStorageKey: 'lifeos.statusColumnRowLimit',
+    statusColumnRowLimitDefault: 5,
     notificationsLoaded: false,
     commandSearchTimer: null,
     commandResults: [],
@@ -39,6 +41,64 @@ const CoreUI = {
         if (!element) return;
         const spanStyle = span ? ` style="grid-column: span ${span};"` : '';
         element.innerHTML = `<div class="compact-item"${spanStyle}><span class="item-desc">${this.escapeHtml(message)}</span></div>`;
+    },
+
+    getStoredStatusColumnRowLimitValue() {
+        try {
+            return localStorage.getItem(this.statusColumnRowLimitStorageKey) || String(this.statusColumnRowLimitDefault);
+        } catch (error) {
+            return String(this.statusColumnRowLimitDefault);
+        }
+    },
+
+    getStatusColumnRowLimit() {
+        const storedValue = this.getStoredStatusColumnRowLimitValue();
+        if (storedValue === 'all') return Number.MAX_SAFE_INTEGER;
+        const parsed = Number.parseInt(storedValue, 10);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : this.statusColumnRowLimitDefault;
+    },
+
+    setStatusColumnRowLimit(value) {
+        const nextValue = value === 'all' ? 'all' : String(Number.parseInt(value, 10) || this.statusColumnRowLimitDefault);
+        try {
+            localStorage.setItem(this.statusColumnRowLimitStorageKey, nextValue);
+        } catch (error) {
+            console.warn('Unable to save row limit preference.', error);
+        }
+        return nextValue;
+    },
+
+    initStatusRowLimitControls(onChange) {
+        const controls = Array.from(document.querySelectorAll('.js-status-row-limit'));
+        if (!controls.length) return;
+
+        const applyValue = (value) => {
+            controls.forEach((control) => {
+                control.value = value;
+            });
+        };
+
+        applyValue(this.getStoredStatusColumnRowLimitValue());
+        controls.forEach((control) => {
+            control.addEventListener('change', (event) => {
+                const nextValue = this.setStatusColumnRowLimit(event.target.value);
+                applyValue(nextValue);
+                if (typeof onChange === 'function') {
+                    onChange();
+                }
+            });
+        });
+    },
+
+    createRowLimitNotice(hiddenCount, itemLabel = 'items') {
+        const notice = document.createElement('div');
+        notice.className = 'compact-item row-limit-notice';
+        notice.innerHTML = `<span class="item-desc">+${hiddenCount} more ${this.escapeHtml(itemLabel)} hidden by row limit</span>`;
+        return notice;
+    },
+
+    renderRowLimitNotice(hiddenCount, itemLabel = 'items') {
+        return `<div class="row-limit-notice"><span class="item-desc">+${hiddenCount} more ${this.escapeHtml(itemLabel)} hidden by row limit</span></div>`;
     },
 
     showError(message, isSuccess = false) {

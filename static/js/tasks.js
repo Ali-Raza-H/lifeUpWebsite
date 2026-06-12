@@ -29,6 +29,7 @@ const TaskUI = {
         bind('task-goal-filter', 'goal');
         bind('task-due-filter', 'due');
         bind('task-status-filter', 'status');
+        CoreUI.initStatusRowLimitControls(() => this.renderTasks());
 
         document.getElementById('task-reset-filters')?.addEventListener('click', () => {
             this.filters = { query: '', sort: 'default', project: 'all', goal: 'all', due: 'all', status: 'all' };
@@ -138,6 +139,7 @@ const TaskUI = {
     renderTasks() {
         const tasks = this.getFilteredTasks();
         this.renderSummary(tasks);
+        const rowLimit = CoreUI.getStatusColumnRowLimit();
 
         const countEl = document.getElementById('task-results-count');
         if (countEl) countEl.textContent = `${tasks.length} task${tasks.length === 1 ? '' : 's'}`;
@@ -156,13 +158,17 @@ const TaskUI = {
 
         tasks.forEach((task) => {
             counts[task.status] += 1;
-            columns[task.status]?.appendChild(this.createTaskElement(task));
+            if (counts[task.status] <= rowLimit) {
+                columns[task.status]?.appendChild(this.createTaskElement(task));
+            }
         });
 
         Object.keys(columns).forEach((status) => {
             document.getElementById(`tasks-${status.replace('_', '-')}-count`).textContent = counts[status];
             if (counts[status] === 0) {
                 CoreUI.setEmptyState(columns[status], 'No tasks');
+            } else if (counts[status] > rowLimit) {
+                columns[status]?.appendChild(CoreUI.createRowLimitNotice(counts[status] - rowLimit, 'tasks'));
             }
         });
     },

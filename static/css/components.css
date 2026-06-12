@@ -71,6 +71,30 @@
     border-color: var(--border-focus);
 }
 
+.row-limit-notice {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-2);
+    border: 1px dashed var(--border-subtle);
+    border-radius: var(--radius-sm);
+    border-style: dashed;
+    color: var(--text-muted);
+}
+
+.row-limit-toolbar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.row-limit-toolbar .form-control-compact {
+    width: auto;
+    min-width: 84px;
+}
+
 .item-main {
     display: flex;
     flex-direction: column;
@@ -1816,7 +1840,17 @@ input[type="range"]:focus {
     padding: 10px 12px 10px 28px;
 }
 
-.compact-list > .compact-item:not(.metric-card)::before,
+.row-limit-notice,
+.compact-item.row-limit-notice {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-2);
+    border: 1px dashed var(--border-subtle);
+    background: transparent;
+}
+
+.compact-list > .compact-item:not(.metric-card):not(.row-limit-notice)::before,
 .project-notebook-list > .project-note-item::before,
 .library-status-body > .library-entry::before {
     content: "\2192";
@@ -1840,8 +1874,8 @@ input[type="range"]:focus {
     border-color: transparent;
 }
 
-.compact-list > .compact-item:not(.metric-card):hover::before,
-.compact-list > .compact-item.active:not(.metric-card)::before,
+.compact-list > .compact-item:not(.metric-card):not(.row-limit-notice):hover::before,
+.compact-list > .compact-item.active:not(.metric-card):not(.row-limit-notice)::before,
 .project-notebook-list > .project-note-item:hover::before,
 .project-notebook-list > .project-note-item.active::before,
 .library-status-body > .library-entry:hover::before {

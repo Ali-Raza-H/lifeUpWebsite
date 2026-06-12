@@ -45,6 +45,7 @@ const ProjectUI = {
             this.filters.sort = event.target.value;
             this.renderView();
         });
+        CoreUI.initStatusRowLimitControls(() => this.renderView());
         document.getElementById('project-clear-filters')?.addEventListener('click', () => {
             this.filters = { query: '', status: 'all', goal: 'all', sort: 'deadline' };
             document.getElementById('project-search').value = '';
@@ -178,6 +179,7 @@ const ProjectUI = {
     },
 
     renderKanban(projects) {
+        const rowLimit = CoreUI.getStatusColumnRowLimit();
         const columns = {
             planning: document.getElementById('projects-planning'),
             active: document.getElementById('projects-active'),
@@ -195,13 +197,17 @@ const ProjectUI = {
         projects.forEach((project) => {
             const status = counts[project.status] !== undefined ? project.status : 'active';
             counts[status] += 1;
-            columns[status]?.appendChild(this.createProjectCard(project));
+            if (counts[status] <= rowLimit) {
+                columns[status]?.appendChild(this.createProjectCard(project));
+            }
         });
 
         Object.entries(columns).forEach(([status, column]) => {
             document.getElementById(`${status}-count`).textContent = counts[status];
             if (column && counts[status] === 0) {
                 CoreUI.setEmptyState(column, 'No projects');
+            } else if (column && counts[status] > rowLimit) {
+                column.appendChild(CoreUI.createRowLimitNotice(counts[status] - rowLimit, 'projects'));
             }
         });
     },

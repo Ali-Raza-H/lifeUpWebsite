@@ -21,6 +21,7 @@ const LibraryUI = {
     ],
 
     async init() {
+        CoreUI.initStatusRowLimitControls(() => this.render());
         await this.loadAll();
         this.setupModalClosures();
     },
@@ -131,9 +132,12 @@ const LibraryUI = {
     renderTypeBoard(type, items) {
         const container = document.getElementById(`library-board-${type}`);
         if (!container) return;
+        const rowLimit = CoreUI.getStatusColumnRowLimit();
 
         container.innerHTML = this.statusConfig.map((status) => {
             const matchingItems = items.filter((item) => item.status === status.key);
+            const visibleItems = matchingItems.slice(0, rowLimit);
+            const hiddenCount = matchingItems.length - visibleItems.length;
             return `
                 <div class="library-status-column">
                     <div class="library-status-head">
@@ -141,7 +145,7 @@ const LibraryUI = {
                         <span class="badge">${matchingItems.length}</span>
                     </div>
                     <div class="library-status-body">
-                        ${matchingItems.length ? matchingItems.map((item) => this.renderItemCard(item)).join('') : `<div class="library-empty-state">${status.empty}</div>`}
+                        ${matchingItems.length ? `${visibleItems.map((item) => this.renderItemCard(item)).join('')}${hiddenCount > 0 ? CoreUI.renderRowLimitNotice(hiddenCount, 'titles') : ''}` : `<div class="library-empty-state">${status.empty}</div>`}
                     </div>
                 </div>
             `;
