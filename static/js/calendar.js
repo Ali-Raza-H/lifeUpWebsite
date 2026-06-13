@@ -447,45 +447,65 @@ const CalendarUI = {
         if (!container) return;
 
         const weekdayRow = payload.weekday_labels.map((label) => `
-            <div class="calendar-month-weekday">${CoreUI.escapeHtml(label)}</div>
+            <div class="calendar-month-weekday" role="columnheader">${CoreUI.escapeHtml(label)}</div>
         `).join('');
 
         const dayCells = payload.days.map((day) => {
             const visibleEvents = this.filterEvents(day.events);
-            const preview = visibleEvents.slice(0, 2).map((event) => `
-                <button type="button" class="calendar-month-event-pill" onclick="CalendarUI.openEventModal(${event.id})">
-                    <span>${CoreUI.escapeHtml(event.start_time)}</span>
-                    <span>${CoreUI.escapeHtml(event.title)}</span>
-                </button>
-            `).join('');
-            const overflow = visibleEvents.length > 2
-                ? `<div class="calendar-month-more">+${visibleEvents.length - 2} more</div>`
-                : '';
-
-            return `
+            const events = visibleEvents.map((event) => {
+                const meta = [event.category || 'general', event.location].filter(Boolean).join(' - ');
+                return `
                 <button
                     type="button"
+                    class="calendar-month-event-pill"
+                    onclick="event.stopPropagation(); CalendarUI.openEventModal(${event.id})"
+                    title="${CoreUI.escapeHtml(`${event.title} | ${event.start_time} - ${event.end_time}`)}"
+                >
+                    <span class="calendar-month-event-time">${CoreUI.escapeHtml(event.start_time)}</span>
+                    <span class="calendar-month-event-main">
+                        <span class="calendar-month-event-title">${CoreUI.escapeHtml(event.title)}</span>
+                        <span class="calendar-month-event-meta">${CoreUI.escapeHtml(meta)}</span>
+                    </span>
+                </button>
+            `;
+            }).join('');
+
+            return `
+                <div
                     class="calendar-month-day ${day.is_today ? 'is-today' : ''} ${day.is_current_month ? '' : 'is-muted'} ${day.date === this.selectedDate ? 'is-selected' : ''}"
+                    role="gridcell"
+                    tabindex="0"
+                    aria-selected="${day.date === this.selectedDate ? 'true' : 'false'}"
+                    aria-label="${CoreUI.escapeHtml(`${day.label || 'Day'} ${day.day_number}, ${visibleEvents.length} event${visibleEvents.length === 1 ? '' : 's'}`)}"
                     onclick="CalendarUI.selectDate('${day.date}')"
+                    onkeydown="CalendarUI.handleMonthDayKeydown(event, '${day.date}')"
                 >
                     <div class="calendar-month-day-head">
-                        <span>${day.day_number}</span>
-                        <span class="calendar-month-day-count">${visibleEvents.length || ''}</span>
+                        <span class="calendar-month-day-number">${day.day_number}</span>
+                        <span class="calendar-month-day-count" aria-label="${visibleEvents.length} events">${visibleEvents.length || ''}</span>
                     </div>
                     <div class="calendar-month-day-events">
-                        ${preview}
-                        ${overflow}
+                        ${events}
                     </div>
-                </button>
+                </div>
             `;
         }).join('');
 
         container.innerHTML = `
-            <div class="calendar-month-grid">
-                ${weekdayRow}
-                ${dayCells}
+            <div class="calendar-month-shell">
+                <div class="calendar-month-grid" role="grid" aria-label="${CoreUI.escapeHtml(payload.month_label || 'Month calendar')}">
+                    ${weekdayRow}
+                    ${dayCells}
+                </div>
             </div>
         `;
+    },
+
+    handleMonthDayKeydown(event, dateString) {
+        if (event.target !== event.currentTarget) return;
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        this.selectDate(dateString);
     },
 
     renderAgenda() {
@@ -549,6 +569,7 @@ const CalendarUI = {
         form.reset();
         this.populateRelationOptions();
         document.getElementById('calendar-event-id').value = '';
+        document.getElementById('calendar-event-sync-task').checked = true;
         deleteBtn.style.display = 'none';
 
         if (eventId) {
@@ -566,6 +587,7 @@ const CalendarUI = {
             document.getElementById('calendar-event-start').value = this.toDateTimeLocal(event.start_at);
             document.getElementById('calendar-event-end').value = this.toDateTimeLocal(event.end_at);
             document.getElementById('calendar-event-description').value = event.description || '';
+            document.getElementById('calendar-event-sync-task').checked = Boolean(event.linked_task_id);
             deleteBtn.style.display = 'inline-flex';
         } else {
             title.textContent = 'New Event';
@@ -622,7 +644,8 @@ const CalendarUI = {
             recurrence_until: document.getElementById('calendar-event-recurrence-until').value || null,
             start_at: document.getElementById('calendar-event-start').value,
             end_at: document.getElementById('calendar-event-end').value,
-            description: document.getElementById('calendar-event-description').value
+            description: document.getElementById('calendar-event-description').value,
+            sync_task: document.getElementById('calendar-event-sync-task').checked
         };
 
         try {

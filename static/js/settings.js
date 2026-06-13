@@ -814,6 +814,7 @@ const SettingsUI = {
 
         const keys = [
             'tasks', 'habits', 'habit_logs', 'projects', 'project_milestones', 'project_notes',
+            'notebook_folders', 'folder_notes', 'notebooks', 'notebook_pages',
             'project_habits', 'goals', 'goal_links', 'goal_milestones', 'journal_entries', 'notes',
             'traits', 'beliefs', 'skills', 'calendar_events', 'health_logs', 'finance_entries',
             'contacts', 'life_reviews', 'attachments', 'food_presets', 'diet_entries', 'work_experiences',

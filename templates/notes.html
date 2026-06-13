@@ -36,6 +36,8 @@
             <div class="note-editor-actions">
                 <button class="btn" type="button" id="note-pin-btn" onclick="NotesUI.togglePinCurrentNote()"><i class="ph ph-push-pin"></i> Pin</button>
                 <button class="btn btn-icon btn-danger" type="button" onclick="NotesUI.deleteCurrentNote()" title="Delete Note"><i class="ph ph-trash"></i></button>
+                <button class="btn" type="button" id="note-edit-toggle" onclick="NotesUI.toggleEditing()"><i class="ph ph-pencil-simple"></i> Edit</button>
+                <button class="btn" type="button" id="note-autosave-btn" onclick="NotesUI.toggleAutosave()"><i class="ph ph-floppy-disk-back"></i> Autosave Off</button>
                 <button class="btn btn-primary" type="button" onclick="NotesUI.saveNote()">Save</button>
             </div>
         </div>
@@ -44,7 +46,39 @@
             <input type="text" id="note-tags" class="form-control" placeholder="research, references, ideas">
         </div>
         <div class="note-editor-shell">
-            <textarea id="note-content"></textarea>
+            <div class="note-format-toolbar" id="note-format-toolbar" aria-label="Note formatting tools">
+                <select class="form-control form-control-compact note-format-select" id="note-block-format" onchange="NotesUI.applyBlockFormat(this.value)" title="Text style">
+                    <option value="P">Paragraph</option>
+                    <option value="H1">Heading 1</option>
+                    <option value="H2">Heading 2</option>
+                    <option value="H3">Heading 3</option>
+                    <option value="H4">Heading 4</option>
+                    <option value="H5">Heading 5</option>
+                    <option value="H6">Heading 6</option>
+                </select>
+                <button class="btn btn-icon" type="button" onclick="NotesUI.applyInlineFormat('bold')" title="Bold"><i class="ph ph-text-b"></i></button>
+                <button class="btn btn-icon" type="button" onclick="NotesUI.applyInlineFormat('italic')" title="Italic"><i class="ph ph-text-italic"></i></button>
+                <button class="btn btn-icon" type="button" onclick="NotesUI.applyInlineFormat('strikeThrough')" title="Strikethrough"><i class="ph ph-text-strikethrough"></i></button>
+                <button class="btn btn-icon" type="button" onclick="NotesUI.applyInlineCode()" title="Inline code"><i class="ph ph-code"></i></button>
+                <span class="note-toolbar-separator"></span>
+                <button class="btn btn-icon" type="button" onclick="NotesUI.applyInlineFormat('insertUnorderedList')" title="Bulleted list"><i class="ph ph-list-bullets"></i></button>
+                <button class="btn btn-icon" type="button" onclick="NotesUI.applyInlineFormat('insertOrderedList')" title="Numbered list"><i class="ph ph-list-numbers"></i></button>
+                <button class="btn btn-icon" type="button" onclick="NotesUI.insertTaskListItem()" title="Task item"><i class="ph ph-check-square"></i></button>
+                <button class="btn btn-icon" type="button" onclick="NotesUI.applyBlockFormat('BLOCKQUOTE')" title="Quote"><i class="ph ph-quotes"></i></button>
+                <button class="btn btn-icon" type="button" onclick="NotesUI.applyBlockFormat('PRE')" title="Code block"><i class="ph ph-code-block"></i></button>
+                <span class="note-toolbar-separator"></span>
+                <button class="btn btn-icon" type="button" onclick="NotesUI.insertLink()" title="Link"><i class="ph ph-link"></i></button>
+                <button class="btn btn-icon" type="button" onclick="NotesUI.insertImage()" title="Image"><i class="ph ph-image"></i></button>
+                <button class="btn btn-icon" type="button" onclick="NotesUI.insertTable()" title="Table"><i class="ph ph-table"></i></button>
+                <button class="btn btn-icon" type="button" onclick="NotesUI.insertHorizontalRule()" title="Divider"><i class="ph ph-minus"></i></button>
+                <span class="note-toolbar-separator"></span>
+                <button class="btn btn-sm" type="button" onclick="NotesUI.convertClipboardMarkdown()" title="Paste Markdown as formatted text"><i class="ph ph-clipboard-text"></i> Paste MD</button>
+                <button class="btn btn-icon" type="button" onclick="NotesUI.applyInlineFormat('removeFormat')" title="Clear formatting"><i class="ph ph-eraser"></i></button>
+                <button class="btn btn-icon" type="button" onclick="NotesUI.applyInlineFormat('undo')" title="Undo"><i class="ph ph-arrow-counter-clockwise"></i></button>
+                <button class="btn btn-icon" type="button" onclick="NotesUI.applyInlineFormat('redo')" title="Redo"><i class="ph ph-arrow-clockwise"></i></button>
+            </div>
+            <article class="note-preview note-rich-content" id="note-preview"></article>
+            <div class="note-rich-editor note-rich-content" id="note-content" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Note content"></div>
         </div>
     </section>
     
@@ -56,55 +90,5 @@
 {% endblock %}
 
 {% block scripts %}
-<style>
-    .editor-toolbar {
-        border: 1px solid var(--border-subtle);
-        border-bottom: none;
-        border-radius: 0;
-        background: var(--bg-surface);
-        opacity: 1;
-        padding: 7px 10px;
-    }
-    .editor-toolbar > button {
-        color: var(--text-primary) !important;
-        border-color: transparent !important;
-    }
-    .editor-toolbar > button:hover, .editor-toolbar > button.active {
-        background: var(--bg-surface-hover);
-        border-color: var(--border-focus) !important;
-    }
-    .CodeMirror {
-        border: 1px solid var(--border-subtle);
-        border-right: 0;
-        border-left: 0;
-        border-bottom: 0;
-        border-radius: 0;
-        background: var(--bg-panel);
-        color: var(--text-primary);
-        font-family: var(--font-mono);
-        font-size: 13px;
-        line-height: 1.65;
-    }
-    .editor-preview {
-        background: var(--bg-base);
-        color: var(--text-primary);
-    }
-    .editor-preview a {
-        color: var(--accent-blue);
-        text-decoration: underline;
-    }
-
-    .EasyMDEContainer {
-        display: flex;
-        flex: 1;
-        min-height: 0;
-        flex-direction: column;
-    }
-
-    .EasyMDEContainer .CodeMirror {
-        flex: 1;
-        min-height: 0;
-    }
-</style>
 <script src="{{ url_for('static', filename='js/notes.js', v=asset_version('js/notes.js')) }}"></script>
 {% endblock %}

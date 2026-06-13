@@ -744,3 +744,18 @@ a:hover {
 .guest-hidden {
     display: none !important;
 }
+
+/* Utilities */
+.cursor-pointer { cursor: pointer; }
+.mt-auto { margin-top: auto; }
+.flex-center-gap-12 { display: flex; align-items: center; gap: 12px; }
+.status-dot-blue {
+    color: var(--accent-blue);
+    font-size: 8px;
+    margin-right: 6px;
+    text-shadow: var(--glow-blue);
+}
+.pt-16-pb-0 {
+    padding-top: 16px;
+    padding-bottom: 0;
+}

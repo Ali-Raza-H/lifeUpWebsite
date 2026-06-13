@@ -122,13 +122,13 @@
 
 .work-status-interviewing {
     color: var(--accent-amber);
-    border-color: rgba(245, 158, 11, 0.42);
+    border-color: var(--accent-amber-soft);
 }
 
 .work-status-active,
 .work-status-completed {
     color: var(--accent-green);
-    border-color: rgba(34, 197, 94, 0.42);
+    border-color: var(--accent-green-soft);
 }
 
 .work-status-rejected {

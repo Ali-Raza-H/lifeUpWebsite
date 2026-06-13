@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request
 
-from database import execute_db, query_db
+from database import ensure_project_notebook_folder, execute_db, get_db, query_db
 from services import fetch_project_metrics, maybe_create_linkedin_draft_for_project
 from utils import (
     get_optional_bool,
@@ -96,6 +96,8 @@ def create_project():
         (name, description, notes, goal_id, status, deadline, linkedin_post_enabled, completed_at),
     )
     project = query_db("SELECT * FROM projects WHERE id = ?", [project_id], one=True)
+    ensure_project_notebook_folder(project_id, name)
+    get_db().commit()
     if status == "completed" and linkedin_post_enabled:
         maybe_create_linkedin_draft_for_project(project_id)
     return jsonify({"project": row_to_dict(project), "message": "Project created."}), 201
@@ -153,6 +155,8 @@ def update_project(project_id: int):
         (name, description, notes, goal_id, status, deadline, linkedin_post_enabled, completed_at, project_id),
     )
     updated = query_db("SELECT * FROM projects WHERE id = ?", [project_id], one=True)
+    ensure_project_notebook_folder(project_id, name)
+    get_db().commit()
     if status == "completed" and linkedin_post_enabled:
         maybe_create_linkedin_draft_for_project(project_id)
     return jsonify({"project": row_to_dict(updated), "message": "Project updated."})

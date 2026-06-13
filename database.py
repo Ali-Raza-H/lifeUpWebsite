@@ -92,6 +92,7 @@ def init_db() -> None:
     db.executescript(schema_path.read_text(encoding="utf-8"))
     _run_migrations(db)
     _ensure_project_milestones_table(db)
+    _ensure_notebook_tables(db)
     _ensure_goal_links_table(db)
     _ensure_goal_milestones_table(db)
     _ensure_life_tables(db)
@@ -100,6 +101,8 @@ def init_db() -> None:
     _ensure_linkedin_tables(db)
     _ensure_calendar_relation_indexes(db)
     _ensure_task_sync_indexes(db)
+    _sync_project_notebook_folders(db)
+    _backfill_project_notes_to_folder_notes(db)
     _backfill_completion_timestamps(db)
     db.commit()
 
@@ -179,6 +182,126 @@ def _ensure_project_milestones_table(db: sqlite3.Connection) -> None:
         """
     )
     db.execute("CREATE INDEX IF NOT EXISTS idx_project_milestones_project_id ON project_milestones(project_id)")
+
+
+def _ensure_notebook_tables(db: sqlite3.Connection) -> None:
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS notebook_folders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            folder_type TEXT NOT NULL DEFAULT 'Personal',
+            project_id INTEGER UNIQUE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        )
+        """
+    )
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS folder_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            folder_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL DEFAULT '',
+            legacy_project_note_id INTEGER UNIQUE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (folder_id) REFERENCES notebook_folders(id) ON DELETE CASCADE
+        )
+        """
+    )
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS notebooks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            folder_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            is_main INTEGER NOT NULL DEFAULT 0,
+            display_order INTEGER NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (folder_id) REFERENCES notebook_folders(id) ON DELETE CASCADE
+        )
+        """
+    )
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS notebook_pages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            notebook_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL DEFAULT '',
+            page_number INTEGER NOT NULL DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE
+        )
+        """
+    )
+    if not _column_exists(db, "folder_notes", "legacy_project_note_id"):
+        db.execute("ALTER TABLE folder_notes ADD COLUMN legacy_project_note_id INTEGER")
+    if not _column_exists(db, "notebooks", "is_main"):
+        db.execute("ALTER TABLE notebooks ADD COLUMN is_main INTEGER NOT NULL DEFAULT 0")
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_notebook_folders_project_id ON notebook_folders(project_id)")
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_folder_notes_legacy_project_note_id ON folder_notes(legacy_project_note_id)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_notebook_folders_type ON notebook_folders(folder_type, name)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_folder_notes_folder_id ON folder_notes(folder_id, updated_at DESC)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_notebooks_folder_id ON notebooks(folder_id, display_order, id)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_notebook_pages_notebook_id ON notebook_pages(notebook_id, page_number, id)")
+
+
+def ensure_project_notebook_folder(project_id: int, project_name: str) -> int:
+    db = get_db()
+    return _ensure_project_notebook_folder(db, project_id, project_name)
+
+
+def _ensure_project_notebook_folder(db: sqlite3.Connection, project_id: int, project_name: str) -> int:
+    existing = db.execute("SELECT id FROM notebook_folders WHERE project_id = ?", (project_id,)).fetchone()
+    if existing:
+        db.execute(
+            "UPDATE notebook_folders SET name = ?, folder_type = 'Projects', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (project_name, existing["id"]),
+        )
+        return int(existing["id"])
+    cur = db.execute(
+        "INSERT INTO notebook_folders (name, folder_type, project_id) VALUES (?, 'Projects', ?)",
+        (project_name, project_id),
+    )
+    return int(cur.lastrowid)
+
+
+def _sync_project_notebook_folders(db: sqlite3.Connection) -> None:
+    projects = db.execute("SELECT id, name FROM projects ORDER BY id ASC").fetchall()
+    for project in projects:
+        _ensure_project_notebook_folder(db, int(project["id"]), project["name"])
+
+
+def _backfill_project_notes_to_folder_notes(db: sqlite3.Connection) -> None:
+    rows = db.execute(
+        """
+        SELECT pn.id, pn.project_id, pn.title, pn.content, pn.created_at, pn.updated_at, p.name AS project_name
+        FROM project_notes pn
+        JOIN projects p ON p.id = pn.project_id
+        ORDER BY pn.project_id ASC, pn.id ASC
+        """
+    ).fetchall()
+    for row in rows:
+        folder_id = _ensure_project_notebook_folder(db, int(row["project_id"]), row["project_name"])
+        exists = db.execute(
+            "SELECT id FROM folder_notes WHERE legacy_project_note_id = ?",
+            (row["id"],),
+        ).fetchone()
+        if exists:
+            continue
+        db.execute(
+            """
+            INSERT INTO folder_notes (folder_id, title, content, legacy_project_note_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (folder_id, row["title"], row["content"], row["id"], row["created_at"], row["updated_at"]),
+        )
 
 
 def _ensure_goal_links_table(db: sqlite3.Connection) -> None:

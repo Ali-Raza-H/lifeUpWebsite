@@ -805,6 +805,60 @@ def test_notes_support_tags_and_pinning(client):
     assert payload[0]["id"] == note["id"]
 
 
+def test_notebooks_create_project_folders_and_pages(client):
+    project = client.post("/api/projects/", json={"name": "Notebook Project"}).get_json()["project"]
+
+    workspace = client.get("/api/notebooks/workspace")
+    assert workspace.status_code == 200
+    folder = next(item for item in workspace.get_json()["folders"] if item["project_id"] == project["id"])
+    assert folder["name"] == "Notebook Project"
+    assert folder["folder_type"] == "Projects"
+
+    note_response = client.post(
+        f"/api/notebooks/folders/{folder['id']}/notes",
+        json={"title": "Loose project thought", "content": "# Context"},
+    )
+    assert note_response.status_code == 201
+    folder_note = note_response.get_json()["note"]
+
+    notebook_response = client.post(
+        f"/api/notebooks/folders/{folder['id']}/notebooks",
+        json={"title": "Build Journal", "is_main": 1},
+    )
+    assert notebook_response.status_code == 201
+    notebook = notebook_response.get_json()["notebook"]
+
+    page_response = client.post(
+        f"/api/notebooks/notebooks/{notebook['id']}/pages",
+        json={"title": "Page 2", "content": "Planning notes"},
+    )
+    assert page_response.status_code == 201
+    page = page_response.get_json()["page"]
+
+    update_page = client.put(f"/api/notebooks/pages/{page['id']}", json={"content": "Updated planning notes"})
+    assert update_page.status_code == 200
+    assert update_page.get_json()["page"]["content"] == "Updated planning notes"
+
+    folder_payload = client.get(f"/api/notebooks/folders/{folder['id']}").get_json()
+    assert any(item["id"] == folder_note["id"] for item in folder_payload["notes"])
+    assert folder_payload["notebooks"][0]["id"] == notebook["id"]
+    assert len(folder_payload["notebooks"][0]["pages"]) == 2
+
+
+def test_project_notes_backfill_into_folder_notes(client):
+    project = client.post("/api/projects/", json={"name": "Legacy Notes Project"}).get_json()["project"]
+    legacy = client.post(
+        f"/api/projects/{project['id']}/notes/",
+        json={"title": "Legacy note", "content": "Old notebook body"},
+    )
+    assert legacy.status_code == 201
+
+    workspace = client.get("/api/notebooks/workspace").get_json()
+    folder = next(item for item in workspace["folders"] if item["project_id"] == project["id"])
+    folder_payload = client.get(f"/api/notebooks/folders/{folder['id']}").get_json()
+    assert any(item["title"] == "Legacy note" and item["content"] == "Old notebook body" for item in folder_payload["notes"])
+
+
 def test_journal_entries_can_be_updated_and_filtered(client):
     create_response = client.post(
         "/api/journal/",
@@ -914,6 +968,59 @@ def test_recurring_calendar_events_expand_into_week(client):
         if any(event["title"] == "Morning review" for event in day["events"])
     ]
     assert matches == ["2026-05-18", "2026-05-19", "2026-05-20"]
+
+
+def test_calendar_event_can_stay_standalone_without_task(client):
+    create_response = client.post(
+        "/api/calendar/events",
+        json={
+            "title": "Dentist appointment",
+            "start_at": "2026-05-21T14:00",
+            "end_at": "2026-05-21T14:30",
+            "sync_task": False,
+        },
+    )
+    assert create_response.status_code == 201
+    event = create_response.get_json()["event"]
+
+    tasks = client.get("/api/tasks/?q=Dentist%20appointment").get_json()
+    assert tasks == []
+
+    week_payload = client.get("/api/calendar/week?start=2026-05-18").get_json()
+    matching_day = next(day for day in week_payload["days"] if day["date"] == "2026-05-21")
+    standalone_event = next(item for item in matching_day["events"] if item["id"] == event["id"])
+    assert standalone_event["linked_task_id"] is None
+
+
+def test_calendar_event_can_remove_existing_linked_task(client):
+    create_response = client.post(
+        "/api/calendar/events",
+        json={
+            "title": "Task-backed block",
+            "start_at": "2026-05-22T09:00",
+            "end_at": "2026-05-22T10:00",
+        },
+    )
+    assert create_response.status_code == 201
+    event = create_response.get_json()["event"]
+    assert len(client.get("/api/tasks/?q=Task-backed%20block").get_json()) == 1
+
+    update_response = client.put(
+        f"/api/calendar/events/{event['id']}",
+        json={
+            "title": "Task-backed block",
+            "start_at": "2026-05-22T09:00",
+            "end_at": "2026-05-22T10:00",
+            "sync_task": False,
+        },
+    )
+    assert update_response.status_code == 200
+    assert client.get("/api/tasks/?q=Task-backed%20block").get_json() == []
+
+    week_payload = client.get("/api/calendar/week?start=2026-05-18").get_json()
+    matching_day = next(day for day in week_payload["days"] if day["date"] == "2026-05-22")
+    standalone_event = next(item for item in matching_day["events"] if item["id"] == event["id"])
+    assert standalone_event["linked_task_id"] is None
 
 
 def test_project_milestone_flow(client):

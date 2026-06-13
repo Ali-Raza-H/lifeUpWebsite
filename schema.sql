@@ -96,6 +96,49 @@ CREATE TABLE IF NOT EXISTS project_notes (
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS notebook_folders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    folder_type TEXT NOT NULL DEFAULT 'Personal',
+    project_id INTEGER UNIQUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS folder_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    folder_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    legacy_project_note_id INTEGER UNIQUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (folder_id) REFERENCES notebook_folders(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS notebooks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    folder_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    is_main INTEGER NOT NULL DEFAULT 0,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (folder_id) REFERENCES notebook_folders(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS notebook_pages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    notebook_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    page_number INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS project_milestones (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id INTEGER NOT NULL,
@@ -344,6 +387,10 @@ CREATE INDEX IF NOT EXISTS idx_skills_category_order ON skills(category, display
 CREATE INDEX IF NOT EXISTS idx_calendar_events_start_at ON calendar_events(start_at);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_end_at ON calendar_events(end_at);
 CREATE INDEX IF NOT EXISTS idx_project_milestones_project_id ON project_milestones(project_id);
+CREATE INDEX IF NOT EXISTS idx_notebook_folders_type ON notebook_folders(folder_type, name);
+CREATE INDEX IF NOT EXISTS idx_folder_notes_folder_id ON folder_notes(folder_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notebooks_folder_id ON notebooks(folder_id, display_order, id);
+CREATE INDEX IF NOT EXISTS idx_notebook_pages_notebook_id ON notebook_pages(notebook_id, page_number, id);
 CREATE INDEX IF NOT EXISTS idx_health_logs_date ON health_logs(log_date DESC);
 CREATE INDEX IF NOT EXISTS idx_finance_entries_date ON finance_entries(entry_date DESC);
 CREATE INDEX IF NOT EXISTS idx_contacts_follow_up ON contacts(next_follow_up);

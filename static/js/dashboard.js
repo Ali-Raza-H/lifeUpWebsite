@@ -901,7 +901,7 @@ const DashboardUI = {
                     end_at: document.getElementById('dashboard-quick-end').value,
                     project_id: this.intOrNull('dashboard-quick-project'),
                     goal_id: this.intOrNull('dashboard-quick-goal'),
-                    sync_task: true
+                    sync_task: document.getElementById('dashboard-quick-sync-task')?.checked !== false
                 });
             } else if (type === 'project') {
                 await API.post('/api/projects/', {

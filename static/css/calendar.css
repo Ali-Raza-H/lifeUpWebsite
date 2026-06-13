@@ -103,7 +103,7 @@
     left: 6px;
     right: 6px;
     border: 1px dashed var(--accent-blue);
-    background: rgba(96, 165, 250, 0.16);
+    background: var(--accent-blue-soft);
     border-radius: var(--radius-sm);
     pointer-events: none;
     z-index: 2;
@@ -149,101 +149,176 @@
     -webkit-line-clamp: 2;
 }
 
+.calendar-month-shell {
+    min-width: 0;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
 .calendar-month-grid {
     display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(7, minmax(112px, 1fr));
+    border-top: 1px solid var(--border-subtle);
+    border-left: 1px solid var(--border-subtle);
+}
+
+.calendar-month-weekday,
+.calendar-month-day {
+    border-right: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .calendar-month-weekday {
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 7px 4px;
+    background: rgba(255, 255, 255, 0.025);
+    color: var(--text-secondary);
     font-family: var(--font-mono);
     font-size: 11px;
-    color: var(--text-secondary);
-    text-transform: uppercase;
     letter-spacing: 0.08em;
-    padding: 2px 4px 6px;
+    text-transform: uppercase;
 }
 
 .calendar-month-day {
-    min-height: 130px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-subtle);
-    background: var(--bg-surface);
+    height: clamp(118px, 15vh, 152px);
+    min-width: 0;
     display: flex;
     flex-direction: column;
-    padding: 8px;
-    text-align: left;
     gap: 6px;
+    padding: 8px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.02);
     cursor: pointer;
 }
 
 .calendar-month-day:hover {
-    border-color: var(--border-focus);
-    background: var(--bg-surface-hover);
+    background: rgba(0, 240, 255, 0.04);
+}
+
+.calendar-month-day:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: -2px;
 }
 
 .calendar-month-day.is-muted {
-    opacity: 0.5;
+    background: rgba(255, 255, 255, 0.01);
+}
+
+.calendar-month-day.is-muted .calendar-month-day-head,
+.calendar-month-day.is-muted .calendar-month-event-pill {
+    opacity: 0.56;
 }
 
 .calendar-month-day.is-selected {
-    border-color: var(--accent-blue);
-    box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.32);
+    box-shadow: inset 0 0 0 1px var(--accent-blue);
 }
 
 .calendar-month-day.is-today {
-    border-color: var(--accent-blue);
+    background: rgba(0, 240, 255, 0.055);
 }
 
 .calendar-month-day-head {
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: var(--space-2);
+    color: var(--text-primary);
     font-family: var(--font-mono);
     font-size: 12px;
-    color: var(--text-primary);
+    line-height: 1;
+}
+
+.calendar-month-day-number {
+    min-width: 22px;
 }
 
 .calendar-month-day-count {
+    min-width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     color: var(--text-secondary);
+    font-size: 10px;
+    line-height: 1;
+}
+
+.calendar-month-day-count:not(:empty) {
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-full);
 }
 
 .calendar-month-day-events {
+    flex: 1 1 auto;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 4px;
-    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 2px;
 }
 
 .calendar-month-event-pill {
-    border: 1px solid var(--border-subtle);
-    border-radius: 4px;
-    background: var(--bg-panel);
+    width: 100%;
+    min-width: 0;
+    border: 1px solid rgba(0, 240, 255, 0.22);
+    background: rgb(5, 15, 16);
     color: var(--text-primary);
-    font-size: 11px;
     display: grid;
-    grid-template-columns: 42px minmax(0, 1fr);
+    grid-template-columns: 38px minmax(0, 1fr);
     gap: 6px;
-    align-items: center;
-    padding: 4px 6px;
+    align-items: start;
+    padding: 5px 6px;
+    font: inherit;
+    font-size: 11px;
+    line-height: 1.25;
+    text-align: left;
     cursor: pointer;
     overflow: hidden;
+    transition: all var(--transition);
 }
 
-.calendar-month-event-pill span:last-child {
+.calendar-month-event-pill:hover,
+.calendar-month-event-pill:focus-visible {
+    border-color: var(--accent-blue);
+    background: rgb(8, 25, 27);
+    outline: none;
+    box-shadow: var(--glow-blue);
+}
+
+.calendar-month-event-time {
+    color: var(--accent-blue);
+    font-size: 10px;
     white-space: nowrap;
+}
+
+.calendar-month-event-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.calendar-month-event-title,
+.calendar-month-event-meta {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.calendar-month-event-pill:hover {
-    border-color: var(--border-focus);
+.calendar-month-event-title {
+    font-weight: 600;
 }
 
-.calendar-month-more {
-    font-size: 11px;
+.calendar-month-event-meta {
     color: var(--text-secondary);
-    padding-left: 2px;
+    font-size: 10px;
 }
 
 .calendar-modal-content {
@@ -301,9 +376,7 @@
     }
 
     .calendar-month-grid {
-        grid-template-columns: repeat(7, minmax(0, 1fr));
-        gap: 4px;
-        overflow-x: visible;
+        grid-template-columns: repeat(7, minmax(96px, 1fr));
     }
 
     .calendar-main-card {
@@ -318,7 +391,7 @@
     }
 
     .calendar-month-day {
-        min-height: 78px;
+        height: 96px;
         padding: 5px;
         gap: 4px;
     }
@@ -332,7 +405,8 @@
         padding: 3px 4px;
     }
 
-    .calendar-month-event-pill span:first-child {
+    .calendar-month-event-time,
+    .calendar-month-event-meta {
         display: none;
     }
 
@@ -365,23 +439,20 @@
 }
 
 .calendar-month-grid {
-    gap: var(--space-3);
+    gap: 0;
 }
 
 .calendar-month-day {
     background: rgba(255, 255, 255, 0.02);
-    border-radius: var(--radius-sm);
 }
 
 .calendar-month-day:hover,
 .calendar-month-day.is-selected,
 .calendar-month-day.is-today {
-    border-color: var(--accent-blue);
     box-shadow: var(--glow-blue);
 }
 
 .calendar-month-event-pill {
-    background: transparent;
     border-radius: 0;
 }
 

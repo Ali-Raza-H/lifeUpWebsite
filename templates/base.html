@@ -17,7 +17,7 @@
 <body class="{% if is_guest_user %}guest-session{% endif %}">
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <i class="ph-fill ph-cpu" id="sidebar-toggle" style="cursor: pointer;"></i>
+            <i class="ph-fill ph-cpu cursor-pointer" id="sidebar-toggle"></i>
             <h2>LifeOS</h2>
         </div>
         <ul class="nav-links">
@@ -40,14 +40,15 @@
             {% if not is_guest_user %}
             <li><a href="{{ url_for('journal') }}" class="nav-link {% if request.endpoint == 'journal' %}active{% endif %}"><i class="ph ph-book-open"></i> <span>Journal</span></a></li>
             <li><a href="{{ url_for('notes') }}" class="nav-link {% if request.endpoint == 'notes' %}active{% endif %}"><i class="ph ph-notepad"></i> <span>Notes</span></a></li>
+            <li><a href="{{ url_for('notebooks') }}" class="nav-link {% if request.endpoint == 'notebooks' %}active{% endif %}"><i class="ph ph-notebook"></i> <span>Notebooks</span></a></li>
             <li><a href="{{ url_for('calendar') }}" class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}"><i class="ph ph-calendar-blank"></i> <span>Calendar</span></a></li>
             <li><a href="{{ url_for('mindset') }}" class="nav-link {% if request.endpoint == 'mindset' %}active{% endif %}"><i class="ph ph-brain"></i> <span>Mindset</span></a></li>
             {% endif %}
             <li><a href="{{ url_for('profile') }}" class="nav-link {% if request.endpoint == 'profile' %}active{% endif %}"><i class="ph ph-fingerprint"></i> <span>Profile</span></a></li>
             {% if not is_guest_user %}
-            <li style="margin-top: auto;"><a href="{{ url_for('settings') }}" class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}"><i class="ph ph-gear"></i> <span>Settings</span></a></li>
+            <li class="mt-auto"><a href="{{ url_for('settings') }}" class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}"><i class="ph ph-gear"></i> <span>Settings</span></a></li>
             {% else %}
-            <li style="margin-top: auto;"><span class="nav-link active"><i class="ph ph-eye"></i> <span>Guest View</span></span></li>
+            <li class="mt-auto"><span class="nav-link active"><i class="ph ph-eye"></i> <span>Guest View</span></span></li>
             {% endif %}
             <li><a href="{{ url_for('logout') }}" class="nav-link"><i class="ph ph-sign-out"></i> <span>Logout</span></a></li>
         </ul>
@@ -55,8 +56,8 @@
     
     <main class="main-wrapper">
         <div class="top-bar">
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <div><i class="ph-fill ph-circle" style="color: var(--accent-blue); font-size: 8px; margin-right: 6px; text-shadow: var(--glow-blue);"></i> {% if is_guest_user %}Guest Viewer{% else %}User Dashboard{% endif %}</div>
+            <div class="flex-center-gap-12">
+                <div><i class="ph-fill ph-circle status-dot-blue"></i> {% if is_guest_user %}Guest Viewer{% else %}User Dashboard{% endif %}</div>
             </div>
             <div class="top-bar-actions">
                 {% if not is_guest_user %}
@@ -86,7 +87,7 @@
         </div>
         <div id="app-alert-region" class="app-alert-region" aria-live="polite"></div>
         {% if is_guest_user %}
-        <div class="content-container" style="padding-top: 16px; padding-bottom: 0;">
+        <div class="content-container pt-16-pb-0">
             <div class="compact-item">
                 <span class="item-desc">Guest account: read-only access to demo-safe sections only. Use Overview for the strongest public snapshot.</span>
             </div>

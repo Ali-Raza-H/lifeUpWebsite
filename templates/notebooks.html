@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Notebooks{% endblock %}
+{% block page_title %}Notebooks{% endblock %}
+
+{% block header_actions %}
+<button class="btn" type="button" onclick="NotebooksUI.showMenuView()"><i class="ph ph-squares-four"></i> Library</button>
+<button class="btn btn-primary" type="button" onclick="NotebooksUI.createFolder()"><i class="ph ph-folder-plus"></i> Folder</button>
+{% endblock %}
+
+{% block content %}
+<section class="notebooks-app full-height-panel">
+    <div id="notebooks-menu-view" class="notebooks-view notebooks-menu-view">
+        <div class="notebooks-view-head">
+            <div>
+                <div class="card-title"><i class="ph ph-folders"></i> Notebook Library</div>
+                <div class="item-desc">Open a project folder or one of your own folders.</div>
+            </div>
+            <input type="search" id="notebooks-folder-search" class="form-control" placeholder="Search folders" oninput="NotebooksUI.renderFolders()">
+        </div>
+        <div id="notebooks-folder-list" class="notebooks-folder-grid">
+            <div class="compact-item"><span class="item-desc">Loading folders...</span></div>
+        </div>
+    </div>
+
+    <div id="notebooks-folder-view" class="notebooks-view notebooks-folder-view" style="display:none;">
+        <div class="notebooks-view-head">
+            <div>
+                <button class="btn btn-sm" type="button" onclick="NotebooksUI.showMenuView()"><i class="ph ph-arrow-left"></i> Folders</button>
+                <div class="card-title" id="notebooks-folder-title"><i class="ph ph-folder"></i> Select a folder</div>
+                <div class="item-desc" id="notebooks-folder-meta">Notes can only be created inside folders.</div>
+            </div>
+            <div class="section-toolbar-actions">
+                <button class="btn btn-sm btn-danger" type="button" onclick="NotebooksUI.deleteCurrentFolder()"><i class="ph ph-trash"></i> Folder</button>
+                <button class="btn btn-sm" type="button" onclick="NotebooksUI.createStandaloneNote()"><i class="ph ph-note-pencil"></i> Note</button>
+                <button class="btn btn-sm btn-primary" type="button" onclick="NotebooksUI.createNotebookInCurrentFolder()"><i class="ph ph-notebook"></i> Notebook</button>
+            </div>
+        </div>
+
+        <div class="notebooks-folder-content">
+            <section>
+                <div class="notebooks-subhead">Standalone Notes</div>
+                <div id="folder-notes-list" class="notebooks-file-grid"></div>
+            </section>
+            <section>
+                <div class="notebooks-subhead">Notebooks</div>
+                <div id="folder-notebooks-list" class="notebooks-file-grid"></div>
+            </section>
+        </div>
+    </div>
+
+    <div id="notebooks-editor-view" class="notebooks-view notebooks-editor-view" style="display:none;">
+        <aside id="notebook-pages-panel" class="notebook-pages-sidebar">
+            <div class="notebook-pages-sidebar-head">
+                <button class="btn btn-sm" type="button" onclick="NotebooksUI.showFolderView()"><i class="ph ph-arrow-left"></i> Folder</button>
+                <div>
+                    <div class="card-title" id="notebook-pages-title">Pages</div>
+                    <div class="item-desc" id="notebook-pages-meta"></div>
+                </div>
+                <div class="section-toolbar-actions">
+                    <button class="btn btn-sm btn-danger" type="button" onclick="NotebooksUI.deleteCurrentNotebook()"><i class="ph ph-trash"></i></button>
+                    <button class="btn btn-sm" type="button" onclick="NotebooksUI.createPage()"><i class="ph ph-plus"></i> Page</button>
+                </div>
+            </div>
+            <div id="notebook-pages-list" class="notebooks-page-list"></div>
+        </aside>
+
+        <main class="notebook-reader">
+            <section id="notebook-editor-panel" class="notebook-editor-panel">
+                <div class="notebook-editor-head">
+                    <div>
+                        <label class="sr-only" for="notebook-item-title">Title</label>
+                        <input id="notebook-item-title" class="notebook-item-title-field" type="text" placeholder="Untitled">
+                        <div class="item-desc" id="notebook-editor-context"></div>
+                    </div>
+                    <div class="notebook-editor-actions">
+                        <span id="notebook-save-status" class="save-status"></span>
+                        <button class="btn" type="button" id="notebook-edit-toggle" onclick="NotebooksUI.toggleEditing()"><i class="ph ph-pencil-simple"></i> Edit</button>
+                        <button class="btn" type="button" id="notebook-autosave-btn" onclick="NotebooksUI.toggleAutosave()"><i class="ph ph-floppy-disk-back"></i> Autosave Off</button>
+                        <button class="btn btn-icon btn-danger" type="button" onclick="NotebooksUI.deleteCurrentItem()" title="Delete"><i class="ph ph-trash"></i></button>
+                        <button class="btn btn-primary" type="button" onclick="NotebooksUI.saveCurrentItem()">Save</button>
+                    </div>
+                </div>
+                <div class="note-format-toolbar" id="notebook-format-toolbar" aria-label="Notebook formatting tools">
+                    <select class="form-control form-control-compact note-format-select" onchange="NotebooksUI.applyBlockFormat(this.value)" title="Text style">
+                        <option value="P">Paragraph</option>
+                        <option value="H1">Heading 1</option>
+                        <option value="H2">Heading 2</option>
+                        <option value="H3">Heading 3</option>
+                        <option value="H4">Heading 4</option>
+                        <option value="H5">Heading 5</option>
+                        <option value="H6">Heading 6</option>
+                    </select>
+                    <button class="btn btn-icon" type="button" onclick="NotebooksUI.applyInlineFormat('bold')" title="Bold"><i class="ph ph-text-b"></i></button>
+                    <button class="btn btn-icon" type="button" onclick="NotebooksUI.applyInlineFormat('italic')" title="Italic"><i class="ph ph-text-italic"></i></button>
+                    <button class="btn btn-icon" type="button" onclick="NotebooksUI.applyInlineFormat('strikeThrough')" title="Strikethrough"><i class="ph ph-text-strikethrough"></i></button>
+                    <button class="btn btn-icon" type="button" onclick="NotebooksUI.applyInlineCode()" title="Inline code"><i class="ph ph-code"></i></button>
+                    <span class="note-toolbar-separator"></span>
+                    <button class="btn btn-icon" type="button" onclick="NotebooksUI.applyInlineFormat('insertUnorderedList')" title="Bulleted list"><i class="ph ph-list-bullets"></i></button>
+                    <button class="btn btn-icon" type="button" onclick="NotebooksUI.applyInlineFormat('insertOrderedList')" title="Numbered list"><i class="ph ph-list-numbers"></i></button>
+                    <button class="btn btn-icon" type="button" onclick="NotebooksUI.insertTaskListItem()" title="Task item"><i class="ph ph-check-square"></i></button>
+                    <button class="btn btn-icon" type="button" onclick="NotebooksUI.applyBlockFormat('BLOCKQUOTE')" title="Quote"><i class="ph ph-quotes"></i></button>
+                    <button class="btn btn-icon" type="button" onclick="NotebooksUI.applyBlockFormat('PRE')" title="Code block"><i class="ph ph-code-block"></i></button>
+                    <span class="note-toolbar-separator"></span>
+                    <button class="btn btn-icon" type="button" onclick="NotebooksUI.insertLink()" title="Link"><i class="ph ph-link"></i></button>
+                    <button class="btn btn-icon" type="button" onclick="NotebooksUI.insertTable()" title="Table"><i class="ph ph-table"></i></button>
+                    <button class="btn btn-icon" type="button" onclick="NotebooksUI.insertHorizontalRule()" title="Divider"><i class="ph ph-minus"></i></button>
+                    <button class="btn btn-sm" type="button" onclick="NotebooksUI.convertClipboardMarkdown()" title="Paste Markdown as formatted text"><i class="ph ph-clipboard-text"></i> Paste MD</button>
+                </div>
+                <div class="notebook-paper">
+                    <article class="note-preview note-rich-content" id="notebook-preview"></article>
+                    <div class="note-rich-editor note-rich-content" id="notebook-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Notebook content"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+</section>
+
+<div id="notebook-action-modal" class="modal-overlay notebook-action-modal" role="dialog" aria-modal="true" aria-labelledby="notebook-action-title" style="display:none;">
+    <form class="modal-content notebook-action-content" onsubmit="event.preventDefault(); NotebooksUI.submitActionModal();">
+        <div class="modal-footer">
+            <div>
+                <h3 class="card-title" id="notebook-action-title">Notebook Action</h3>
+                <div class="item-desc" id="notebook-action-subtitle">Add the details below.</div>
+            </div>
+            <button class="btn btn-icon" type="button" onclick="NotebooksUI.closeActionModal()" title="Close"><i class="ph ph-x"></i></button>
+        </div>
+        <div id="notebook-action-fields" class="notebook-action-fields"></div>
+        <div class="modal-footer">
+            <span class="item-desc" id="notebook-action-hint"></span>
+            <div class="modal-footer-actions">
+                <button class="btn" type="button" onclick="NotebooksUI.closeActionModal()">Cancel</button>
+                <button class="btn btn-primary" type="submit" id="notebook-action-submit">Create</button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/notebooks.js', v=asset_version('js/notebooks.js')) }}"></script>
+{% endblock %}

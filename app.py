@@ -20,6 +20,7 @@ import blueprints.library_api as library_api
 import blueprints.life_api as life_api
 import blueprints.linkedin_api as linkedin_api
 import blueprints.notes_api as notes_api
+import blueprints.notebooks_api as notebooks_api
 import blueprints.notifications_api as notifications_api
 import blueprints.os_api as os_api
 import blueprints.project_notes_api as project_notes_api
@@ -148,6 +149,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(life_api.bp)
     app.register_blueprint(linkedin_api.bp)
     app.register_blueprint(notes_api.bp)
+    app.register_blueprint(notebooks_api.bp)
     app.register_blueprint(notifications_api.bp)
     app.register_blueprint(os_api.bp)
     app.register_blueprint(project_notes_api.bp)
@@ -205,7 +207,7 @@ def _register_routes(app: Flask) -> None:
 
     @app.route("/projects/<int:project_id>/notebook")
     def project_notebook(project_id):
-        return render_template("project_notebook.html", project_id=project_id)
+        return redirect(url_for("notebooks", project_id=project_id))
 
     @app.route("/goals")
     def goals():
@@ -218,6 +220,10 @@ def _register_routes(app: Flask) -> None:
     @app.route("/notes")
     def notes():
         return render_template("notes.html")
+
+    @app.route("/notebooks")
+    def notebooks():
+        return render_template("notebooks.html")
 
     @app.route("/journal")
     def journal():
