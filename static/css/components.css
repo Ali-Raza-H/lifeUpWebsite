@@ -1306,7 +1306,7 @@ input[type="range"]:focus {
 .notebook-reader {
     min-height: 0;
     display: flex;
-    align-items: flex-start;
+    align-items: stretch;
     justify-content: center;
     overflow: hidden;
 }
@@ -1355,10 +1355,10 @@ input[type="range"]:focus {
     --notebook-paper-padding-x: clamp(20px, 5vw, 40px);
     --notebook-paper-padding-top: 20px;
     --page-width: 794px; /* A4 width at 96dpi */
-    --page-height: clamp(520px, calc(100vh - 300px), 1122px); /* A4 height capped to the editor viewport */
     
     flex: 1;
     min-height: 0;
+    height: 100%;
     width: 100%;
     margin: 0;
     padding: var(--space-4);
@@ -1374,9 +1374,9 @@ input[type="range"]:focus {
     box-sizing: border-box;
     flex: 0 0 auto;
     width: min(100%, var(--page-width));
-    height: var(--page-height);
-    min-height: 0;
-    max-height: var(--page-height);
+    height: 100%;
+    min-height: 100%;
+    max-height: 100%;
     padding: var(--notebook-paper-padding-top) var(--notebook-paper-padding-x) 20px;
     border: 1px solid var(--border-subtle);
     background: #000000;
