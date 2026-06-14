@@ -845,6 +845,38 @@ def test_notebooks_create_project_folders_and_pages(client):
     assert len(folder_payload["notebooks"][0]["pages"]) == 2
 
 
+def test_notebooks_support_standalone_notebooks(client):
+    notebook_response = client.post("/api/notebooks/notebooks", json={"title": "Loose Notebook"})
+    assert notebook_response.status_code == 201
+    notebook = notebook_response.get_json()["notebook"]
+    assert notebook["folder_id"] is None
+
+    workspace = client.get("/api/notebooks/workspace").get_json()
+    standalone = next(item for item in workspace["notebooks"] if item["id"] == notebook["id"])
+    assert standalone["title"] == "Loose Notebook"
+    assert standalone["page_count"] == 1
+
+    page_response = client.post(
+        f"/api/notebooks/notebooks/{notebook['id']}/pages",
+        json={"title": "Page 2", "content": "Standalone page body"},
+    )
+    assert page_response.status_code == 201
+    page = page_response.get_json()["page"]
+
+    update_page = client.put(f"/api/notebooks/pages/{page['id']}", json={"content": "Updated standalone body"})
+    assert update_page.status_code == 200
+    assert update_page.get_json()["page"]["content"] == "Updated standalone body"
+
+    workspace = client.get("/api/notebooks/workspace").get_json()
+    standalone = next(item for item in workspace["notebooks"] if item["id"] == notebook["id"])
+    assert standalone["page_count"] == 2
+
+    delete_response = client.delete(f"/api/notebooks/notebooks/{notebook['id']}")
+    assert delete_response.status_code == 200
+    workspace = client.get("/api/notebooks/workspace").get_json()
+    assert all(item["id"] != notebook["id"] for item in workspace["notebooks"])
+
+
 def test_project_notes_backfill_into_folder_notes(client):
     project = client.post("/api/projects/", json={"name": "Legacy Notes Project"}).get_json()["project"]
     legacy = client.post(

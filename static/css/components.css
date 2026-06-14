@@ -1165,9 +1165,29 @@ input[type="range"]:focus {
 
 .notebooks-folder-grid,
 .notebooks-folder-content,
+.notebooks-library-sections,
 .notebooks-file-grid,
 .notebooks-page-list {
     min-height: 0;
+}
+
+.notebooks-library-sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.notebooks-library-sections .notebooks-folder-grid {
+    overflow: visible;
+    padding-right: 0;
+}
+
+.notebooks-library-divider {
+    height: 1px;
+    margin-bottom: var(--space-3);
+    background: var(--border-subtle);
 }
 
 .notebooks-folder-grid {
@@ -1346,8 +1366,7 @@ input[type="range"]:focus {
     justify-content: center;
     align-items: flex-start;
     background-color: var(--bg-base);
-    overflow-y: auto;
-    overflow-x: auto;
+    overflow: hidden;
 }
 
 .notebook-paper .note-preview,
@@ -1367,11 +1386,11 @@ input[type="range"]:focus {
 }
 
 .notebook-paper .note-preview {
-    overflow-y: hidden;
+    overflow-y: auto;
 }
 
 .notebook-paper .note-rich-editor {
-    overflow-y: hidden;
+    overflow-y: auto;
 }
 
 .notebook-action-content {

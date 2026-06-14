@@ -216,7 +216,7 @@ def _ensure_notebook_tables(db: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS notebooks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            folder_id INTEGER NOT NULL,
+            folder_id INTEGER,
             title TEXT NOT NULL,
             is_main INTEGER NOT NULL DEFAULT 0,
             display_order INTEGER NOT NULL DEFAULT 0,
@@ -244,12 +244,74 @@ def _ensure_notebook_tables(db: sqlite3.Connection) -> None:
         db.execute("ALTER TABLE folder_notes ADD COLUMN legacy_project_note_id INTEGER")
     if not _column_exists(db, "notebooks", "is_main"):
         db.execute("ALTER TABLE notebooks ADD COLUMN is_main INTEGER NOT NULL DEFAULT 0")
+    if _notebooks_folder_id_is_required(db):
+        _make_notebooks_folder_id_nullable(db)
     db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_notebook_folders_project_id ON notebook_folders(project_id)")
     db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_folder_notes_legacy_project_note_id ON folder_notes(legacy_project_note_id)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_notebook_folders_type ON notebook_folders(folder_type, name)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_folder_notes_folder_id ON folder_notes(folder_id, updated_at DESC)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_notebooks_folder_id ON notebooks(folder_id, display_order, id)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_notebooks_root ON notebooks(display_order, id) WHERE folder_id IS NULL")
     db.execute("CREATE INDEX IF NOT EXISTS idx_notebook_pages_notebook_id ON notebook_pages(notebook_id, page_number, id)")
+
+
+def _notebooks_folder_id_is_required(db: sqlite3.Connection) -> bool:
+    rows = db.execute("PRAGMA table_info(notebooks)").fetchall()
+    for row in rows:
+        if row["name"] == "folder_id":
+            return bool(row["notnull"])
+    return False
+
+
+def _make_notebooks_folder_id_nullable(db: sqlite3.Connection) -> None:
+    db.execute("PRAGMA foreign_keys = OFF")
+    db.execute("ALTER TABLE notebooks RENAME TO notebooks_old")
+    db.execute("ALTER TABLE notebook_pages RENAME TO notebook_pages_old")
+    db.execute(
+        """
+        CREATE TABLE notebooks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            folder_id INTEGER,
+            title TEXT NOT NULL,
+            is_main INTEGER NOT NULL DEFAULT 0,
+            display_order INTEGER NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (folder_id) REFERENCES notebook_folders(id) ON DELETE CASCADE
+        )
+        """
+    )
+    db.execute(
+        """
+        CREATE TABLE notebook_pages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            notebook_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL DEFAULT '',
+            page_number INTEGER NOT NULL DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE
+        )
+        """
+    )
+    db.execute(
+        """
+        INSERT INTO notebooks (id, folder_id, title, is_main, display_order, created_at, updated_at)
+        SELECT id, folder_id, title, is_main, display_order, created_at, updated_at
+        FROM notebooks_old
+        """
+    )
+    db.execute(
+        """
+        INSERT INTO notebook_pages (id, notebook_id, title, content, page_number, created_at, updated_at)
+        SELECT id, notebook_id, title, content, page_number, created_at, updated_at
+        FROM notebook_pages_old
+        """
+    )
+    db.execute("DROP TABLE notebook_pages_old")
+    db.execute("DROP TABLE notebooks_old")
+    db.execute("PRAGMA foreign_keys = ON")
 
 
 def ensure_project_notebook_folder(project_id: int, project_name: str) -> int:

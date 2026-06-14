@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Optional
+
 from flask import Blueprint, jsonify, request
 
 from database import ensure_project_notebook_folder, execute_db, get_db, query_db
@@ -30,6 +32,36 @@ def _notebook_or_404(notebook_id: int):
     return row_to_dict(notebook), None
 
 
+def _with_page_summaries(notebooks: list[dict]) -> list[dict]:
+    for notebook in notebooks:
+        pages = rows_to_dicts(query_db("SELECT id, title, page_number, updated_at FROM notebook_pages WHERE notebook_id = ? ORDER BY page_number ASC, id ASC", [notebook["id"]]))
+        notebook["pages"] = pages
+        notebook["page_count"] = len(pages)
+    return notebooks
+
+
+def _create_notebook_record(folder_id: Optional[int], title: str, is_main: int = 0) -> dict:
+    db = get_db()
+    if folder_id is not None and is_main:
+        db.execute("UPDATE notebooks SET is_main = 0 WHERE folder_id = ?", (folder_id,))
+    if folder_id is None:
+        order_row = db.execute("SELECT COALESCE(MAX(display_order), 0) + 1 AS next_order FROM notebooks WHERE folder_id IS NULL").fetchone()
+    else:
+        order_row = db.execute("SELECT COALESCE(MAX(display_order), 0) + 1 AS next_order FROM notebooks WHERE folder_id = ?", (folder_id,)).fetchone()
+    cur = db.execute(
+        "INSERT INTO notebooks (folder_id, title, is_main, display_order) VALUES (?, ?, ?, ?)",
+        (folder_id, title, is_main if folder_id is not None else 0, int(order_row["next_order"] or 1)),
+    )
+    notebook_id = int(cur.lastrowid)
+    db.execute(
+        "INSERT INTO notebook_pages (notebook_id, title, content, page_number) VALUES (?, 'Page 1', '', 1)",
+        (notebook_id,),
+    )
+    db.commit()
+    notebook = query_db("SELECT * FROM notebooks WHERE id = ?", [notebook_id], one=True)
+    return row_to_dict(notebook)
+
+
 @bp.route("/workspace", methods=["GET"])
 def workspace():
     _sync_project_folders()
@@ -54,7 +86,10 @@ def workspace():
             """
         )
     )
-    return jsonify({"folders": folders})
+    notebooks = _with_page_summaries(
+        rows_to_dicts(query_db("SELECT * FROM notebooks WHERE folder_id IS NULL ORDER BY display_order ASC, id ASC"))
+    )
+    return jsonify({"folders": folders, "notebooks": notebooks})
 
 
 @bp.route("/folders", methods=["POST"])
@@ -79,12 +114,8 @@ def get_folder(folder_id: int):
         return error
     notes = rows_to_dicts(query_db("SELECT * FROM folder_notes WHERE folder_id = ? ORDER BY updated_at DESC, id DESC", [folder_id]))
     notebooks = rows_to_dicts(query_db("SELECT * FROM notebooks WHERE folder_id = ? ORDER BY is_main DESC, display_order ASC, id ASC", [folder_id]))
-    for notebook in notebooks:
-        pages = rows_to_dicts(query_db("SELECT id, title, page_number, updated_at FROM notebook_pages WHERE notebook_id = ? ORDER BY page_number ASC, id ASC", [notebook["id"]]))
-        notebook["pages"] = pages
-        notebook["page_count"] = len(pages)
     folder["notes"] = notes
-    folder["notebooks"] = notebooks
+    folder["notebooks"] = _with_page_summaries(notebooks)
     return jsonify(folder)
 
 
@@ -167,22 +198,16 @@ def create_notebook(folder_id: int):
     payload = require_object(request.get_json(silent=True))
     title = get_required_string(payload, "title", max_length=140)
     is_main = get_optional_int(payload, "is_main", default=0, minimum=0, maximum=1) or 0
-    db = get_db()
-    if is_main:
-        db.execute("UPDATE notebooks SET is_main = 0 WHERE folder_id = ?", (folder_id,))
-    order_row = db.execute("SELECT COALESCE(MAX(display_order), 0) + 1 AS next_order FROM notebooks WHERE folder_id = ?", (folder_id,)).fetchone()
-    cur = db.execute(
-        "INSERT INTO notebooks (folder_id, title, is_main, display_order) VALUES (?, ?, ?, ?)",
-        (folder_id, title, is_main, int(order_row["next_order"] or 1)),
-    )
-    notebook_id = int(cur.lastrowid)
-    db.execute(
-        "INSERT INTO notebook_pages (notebook_id, title, content, page_number) VALUES (?, 'Page 1', '', 1)",
-        (notebook_id,),
-    )
-    db.commit()
-    notebook = query_db("SELECT * FROM notebooks WHERE id = ?", [notebook_id], one=True)
-    return jsonify({"notebook": row_to_dict(notebook), "message": "Notebook created."}), 201
+    notebook = _create_notebook_record(folder_id, title, is_main)
+    return jsonify({"notebook": notebook, "message": "Notebook created."}), 201
+
+
+@bp.route("/notebooks", methods=["POST"])
+def create_standalone_notebook():
+    payload = require_object(request.get_json(silent=True))
+    title = get_required_string(payload, "title", max_length=140)
+    notebook = _create_notebook_record(None, title, 0)
+    return jsonify({"notebook": notebook, "message": "Notebook created."}), 201
 
 
 @bp.route("/notebooks/<int:notebook_id>", methods=["PUT"])
@@ -194,7 +219,9 @@ def update_notebook(notebook_id: int):
     title = get_optional_string(payload, "title", max_length=140, default=notebook["title"]) or notebook["title"]
     is_main = get_optional_int(payload, "is_main", default=notebook.get("is_main", 0), minimum=0, maximum=1)
     db = get_db()
-    if is_main:
+    if notebook.get("folder_id") is None:
+        is_main = 0
+    elif is_main:
         db.execute("UPDATE notebooks SET is_main = 0 WHERE folder_id = ?", (notebook["folder_id"],))
     db.execute(
         "UPDATE notebooks SET title = ?, is_main = ?, updated_at = ? WHERE id = ?",
