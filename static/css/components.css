@@ -1165,9 +1165,29 @@ input[type="range"]:focus {
 
 .notebooks-folder-grid,
 .notebooks-folder-content,
+.notebooks-library-sections,
 .notebooks-file-grid,
 .notebooks-page-list {
     min-height: 0;
+}
+
+.notebooks-library-sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.notebooks-library-sections .notebooks-folder-grid {
+    overflow: visible;
+    padding-right: 0;
+}
+
+.notebooks-library-divider {
+    height: 1px;
+    margin-bottom: var(--space-3);
+    background: var(--border-subtle);
 }
 
 .notebooks-folder-grid {
@@ -1192,9 +1212,9 @@ input[type="range"]:focus {
     grid-template-columns: 34px minmax(0, 1fr);
     gap: var(--space-3);
     align-items: flex-start;
-    border: 1px solid /*var(--border-subtle)*/ rgb(0, 240, 255);
+    border: transparent /*var(--border-subtle)*/;
     border-radius: var(--radius-md);
-    background: /*var(--bg-surface);*/ rgba(0, 0, 0, 1);
+    background: transparent;
     color: var(--text-primary);
     text-align: left;
     cursor: pointer;
@@ -1211,11 +1231,11 @@ input[type="range"]:focus {
 }
 
 .notebooks-folder-card:hover,
-.notebooks-folder-card.active,
+/*.notebooks-folder-card.active,*/ /*Don't delete this in case i want to incorporate a tracker of last opened*/
 .notebooks-item-row:hover,
 .notebooks-item-row.active {
-    border-color: var(--border-focus);
-    background: var(--bg-surface-hover);
+    border: 1px solid var(--accent-blue);
+    background: transparent;
 }
 
 .notebooks-folder-icon,
@@ -1286,7 +1306,7 @@ input[type="range"]:focus {
 .notebook-reader {
     min-height: 0;
     display: flex;
-    align-items: flex-start;
+    align-items: stretch;
     justify-content: center;
     overflow: hidden;
 }
@@ -1335,10 +1355,10 @@ input[type="range"]:focus {
     --notebook-paper-padding-x: clamp(20px, 5vw, 40px);
     --notebook-paper-padding-top: 20px;
     --page-width: 794px; /* A4 width at 96dpi */
-    --page-height: 1122px; /* A4 size at 96dpi */
     
     flex: 1;
     min-height: 0;
+    height: 100%;
     width: 100%;
     margin: 0;
     padding: var(--space-4);
@@ -1346,8 +1366,7 @@ input[type="range"]:focus {
     justify-content: center;
     align-items: flex-start;
     background-color: var(--bg-base);
-    overflow-y: auto;
-    overflow-x: auto;
+    overflow: hidden;
 }
 
 .notebook-paper .note-preview,
@@ -1355,8 +1374,9 @@ input[type="range"]:focus {
     box-sizing: border-box;
     flex: 0 0 auto;
     width: min(100%, var(--page-width));
-    height: var(--page-height);
-    min-height: var(--page-height);
+    height: 100%;
+    min-height: 100%;
+    max-height: 100%;
     padding: var(--notebook-paper-padding-top) var(--notebook-paper-padding-x) 20px;
     border: 1px solid var(--border-subtle);
     background: #000000;
@@ -1367,11 +1387,11 @@ input[type="range"]:focus {
 }
 
 .notebook-paper .note-preview {
-    overflow-y: hidden;
+    overflow-y: auto;
 }
 
 .notebook-paper .note-rich-editor {
-    overflow-y: hidden;
+    overflow-y: auto;
 }
 
 .notebook-action-content {

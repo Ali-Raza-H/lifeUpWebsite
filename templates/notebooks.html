@@ -4,8 +4,8 @@
 {% block page_title %}Notebooks{% endblock %}
 
 {% block header_actions %}
-<button class="btn" type="button" onclick="NotebooksUI.showMenuView()"><i class="ph ph-squares-four"></i> Library</button>
-<button class="btn btn-primary" type="button" onclick="NotebooksUI.createFolder()"><i class="ph ph-folder-plus"></i> Folder</button>
+<button class="btn" type="button" id="notebooks-header-folder-btn" onclick="NotebooksUI.createFolder()"><i class="ph ph-folder-plus"></i> Folder</button>
+<button class="btn btn-primary" type="button" id="notebooks-header-notebook-btn" onclick="NotebooksUI.createStandaloneNotebook()"><i class="ph ph-notebook"></i> Notebook</button>
 {% endblock %}
 
 {% block content %}
@@ -16,10 +16,22 @@
                 <div class="card-title"><i class="ph ph-folders"></i> Notebook Library</div>
                 <div class="item-desc">Open a project folder or one of your own folders.</div>
             </div>
-            <input type="search" id="notebooks-folder-search" class="form-control" placeholder="Search folders" oninput="NotebooksUI.renderFolders()">
+            <input type="search" id="notebooks-folder-search" class="form-control" placeholder="Search folders and notebooks" oninput="NotebooksUI.renderFolders()">
         </div>
-        <div id="notebooks-folder-list" class="notebooks-folder-grid">
-            <div class="compact-item"><span class="item-desc">Loading folders...</span></div>
+        <div class="notebooks-library-sections">
+            <section>
+                <div class="notebooks-subhead">Folders</div>
+                <div id="notebooks-folder-list" class="notebooks-folder-grid">
+                    <div class="compact-item"><span class="item-desc">Loading folders...</span></div>
+                </div>
+            </section>
+            <section>
+                <div class="notebooks-library-divider"></div>
+                <div class="notebooks-subhead">Standalone Notebooks</div>
+                <div id="standalone-notebooks-list" class="notebooks-folder-grid">
+                    <div class="compact-item"><span class="item-desc">Loading notebooks...</span></div>
+                </div>
+            </section>
         </div>
     </div>
 
@@ -52,14 +64,14 @@
     <div id="notebooks-editor-view" class="notebooks-view notebooks-editor-view" style="display:none;">
         <aside id="notebook-pages-panel" class="notebook-pages-sidebar">
             <div class="notebook-pages-sidebar-head">
-                <button class="btn btn-sm" type="button" onclick="NotebooksUI.showFolderView()"><i class="ph ph-arrow-left"></i> Folder</button>
+                <button class="btn btn-sm" type="button" id="notebook-sidebar-back-btn" onclick="NotebooksUI.goBackFromEditor()"><i class="ph ph-arrow-left"></i> <span id="notebook-sidebar-back-label">Folder</span></button>
                 <div>
                     <div class="card-title" id="notebook-pages-title">Pages</div>
                     <div class="item-desc" id="notebook-pages-meta"></div>
                 </div>
                 <div class="section-toolbar-actions">
-                    <button class="btn btn-sm btn-danger" type="button" onclick="NotebooksUI.deleteCurrentNotebook()"><i class="ph ph-trash"></i></button>
-                    <button class="btn btn-sm" type="button" onclick="NotebooksUI.createPage()"><i class="ph ph-plus"></i> Page</button>
+                    <button class="btn btn-sm btn-danger" type="button" id="notebook-sidebar-delete-btn" onclick="NotebooksUI.deleteCurrentNotebook()"><i class="ph ph-trash"></i></button>
+                    <button class="btn btn-sm" type="button" id="notebook-sidebar-create-btn" onclick="NotebooksUI.createPage()"><i class="ph ph-plus"></i> <span id="notebook-sidebar-create-label">Page</span></button>
                 </div>
             </div>
             <div id="notebook-pages-list" class="notebooks-page-list"></div>

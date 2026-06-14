@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS folder_notes (
 
 CREATE TABLE IF NOT EXISTS notebooks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    folder_id INTEGER NOT NULL,
+    folder_id INTEGER,
     title TEXT NOT NULL,
     is_main INTEGER NOT NULL DEFAULT 0,
     display_order INTEGER NOT NULL DEFAULT 0,
@@ -390,6 +390,7 @@ CREATE INDEX IF NOT EXISTS idx_project_milestones_project_id ON project_mileston
 CREATE INDEX IF NOT EXISTS idx_notebook_folders_type ON notebook_folders(folder_type, name);
 CREATE INDEX IF NOT EXISTS idx_folder_notes_folder_id ON folder_notes(folder_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notebooks_folder_id ON notebooks(folder_id, display_order, id);
+CREATE INDEX IF NOT EXISTS idx_notebooks_root ON notebooks(display_order, id) WHERE folder_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_notebook_pages_notebook_id ON notebook_pages(notebook_id, page_number, id);
 CREATE INDEX IF NOT EXISTS idx_health_logs_date ON health_logs(log_date DESC);
 CREATE INDEX IF NOT EXISTS idx_finance_entries_date ON finance_entries(entry_date DESC);

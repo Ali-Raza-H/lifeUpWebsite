@@ -1,4 +1,7 @@
+import sqlite3
 from datetime import date, timedelta
+
+from app import create_app
 
 
 def test_page_routes_require_login(anon_client):
@@ -843,6 +846,87 @@ def test_notebooks_create_project_folders_and_pages(client):
     assert any(item["id"] == folder_note["id"] for item in folder_payload["notes"])
     assert folder_payload["notebooks"][0]["id"] == notebook["id"]
     assert len(folder_payload["notebooks"][0]["pages"]) == 2
+
+
+def test_notebooks_support_standalone_notebooks(client):
+    notebook_response = client.post("/api/notebooks/notebooks", json={"title": "Loose Notebook"})
+    assert notebook_response.status_code == 201
+    notebook = notebook_response.get_json()["notebook"]
+    assert notebook["folder_id"] is None
+
+    workspace = client.get("/api/notebooks/workspace").get_json()
+    standalone = next(item for item in workspace["notebooks"] if item["id"] == notebook["id"])
+    assert standalone["title"] == "Loose Notebook"
+    assert standalone["page_count"] == 1
+
+    page_response = client.post(
+        f"/api/notebooks/notebooks/{notebook['id']}/pages",
+        json={"title": "Page 2", "content": "Standalone page body"},
+    )
+    assert page_response.status_code == 201
+    page = page_response.get_json()["page"]
+
+    update_page = client.put(f"/api/notebooks/pages/{page['id']}", json={"content": "Updated standalone body"})
+    assert update_page.status_code == 200
+    assert update_page.get_json()["page"]["content"] == "Updated standalone body"
+
+    workspace = client.get("/api/notebooks/workspace").get_json()
+    standalone = next(item for item in workspace["notebooks"] if item["id"] == notebook["id"])
+    assert standalone["page_count"] == 2
+
+    delete_response = client.delete(f"/api/notebooks/notebooks/{notebook['id']}")
+    assert delete_response.status_code == 200
+    workspace = client.get("/api/notebooks/workspace").get_json()
+    assert all(item["id"] != notebook["id"] for item in workspace["notebooks"])
+
+
+def test_notebooks_repair_stale_page_foreign_key_for_standalone_notebooks(tmp_path):
+    database_path = tmp_path / "stale_notebook_pages.db"
+    db = sqlite3.connect(database_path)
+    db.executescript(
+        """
+        CREATE TABLE notebooks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            folder_id INTEGER,
+            title TEXT NOT NULL,
+            is_main INTEGER NOT NULL DEFAULT 0,
+            display_order INTEGER NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE notebook_pages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            notebook_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL DEFAULT '',
+            page_number INTEGER NOT NULL DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (notebook_id) REFERENCES notebooks_old(id) ON DELETE CASCADE
+        );
+        """
+    )
+    db.close()
+
+    app = create_app(
+        {
+            "TESTING": True,
+            "DATABASE": str(database_path),
+            "SECRET_KEY": "test-secret",
+            "AUTH_USERNAME": "tester",
+            "AUTH_PASSWORD": "test-password",
+            "SESSION_COOKIE_SECURE": False,
+        }
+    )
+    with app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess["logged_in"] = True
+        response = client.post("/api/notebooks/notebooks", json={"title": "Repaired Notebook"})
+
+    assert response.status_code == 201
+    with sqlite3.connect(database_path) as db:
+        fk_rows = db.execute("PRAGMA foreign_key_list(notebook_pages)").fetchall()
+    assert fk_rows[0][2] == "notebooks"
 
 
 def test_project_notes_backfill_into_folder_notes(client):

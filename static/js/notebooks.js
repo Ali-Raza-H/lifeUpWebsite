@@ -1,5 +1,6 @@
 const NotebooksUI = {
     folders: [],
+    standaloneNotebooks: [],
     currentFolder: null,
     currentNotebook: null,
     currentItem: null,
@@ -12,12 +13,15 @@ const NotebooksUI = {
     pageOverflowInFlight: false,
     pageOverflowQueued: false,
     pageOverflowSnapshot: null,
+    pageNavigationInFlight: false,
     actionModalResolver: null,
 
     async init() {
         document.getElementById('notebook-item-title')?.addEventListener('input', () => this.handleEditableInput());
         document.getElementById('notebook-editor')?.addEventListener('beforeinput', (event) => this.capturePageInputSnapshot(event));
         document.getElementById('notebook-editor')?.addEventListener('input', () => this.handleEditableInput());
+        document.getElementById('notebook-editor')?.addEventListener('wheel', (event) => this.handlePageWheel(event), { passive: false });
+        document.getElementById('notebook-preview')?.addEventListener('wheel', (event) => this.handlePageWheel(event), { passive: false });
         document.getElementById('notebook-action-modal')?.addEventListener('click', (event) => {
             if (event.target.id === 'notebook-action-modal') this.closeActionModal();
         });
@@ -29,6 +33,7 @@ const NotebooksUI = {
         try {
             const payload = await API.get('/api/notebooks/workspace');
             this.folders = payload.folders || [];
+            this.standaloneNotebooks = payload.notebooks || [];
             this.renderFolders();
         } catch (error) {
             CoreUI.showError(error.message || 'Failed to load notebooks.');
@@ -54,6 +59,13 @@ const NotebooksUI = {
         document.getElementById('notebooks-menu-view').style.display = view === 'menu' ? 'flex' : 'none';
         document.getElementById('notebooks-folder-view').style.display = view === 'folder' ? 'flex' : 'none';
         document.getElementById('notebooks-editor-view').style.display = view === 'editor' ? 'grid' : 'none';
+        this.setHeaderActionsVisible(view === 'menu');
+    },
+
+    setHeaderActionsVisible(visible) {
+        const display = visible ? 'inline-flex' : 'none';
+        document.getElementById('notebooks-header-folder-btn')?.style.setProperty('display', display);
+        document.getElementById('notebooks-header-notebook-btn')?.style.setProperty('display', display);
     },
 
     showMenuView() {
@@ -72,16 +84,14 @@ const NotebooksUI = {
 
     renderFolders() {
         const list = document.getElementById('notebooks-folder-list');
+        const notebookList = document.getElementById('standalone-notebooks-list');
         const query = (document.getElementById('notebooks-folder-search')?.value || '').trim().toLowerCase();
-        if (!list) return;
+        if (!list || !notebookList) return;
 
         const folders = this.folders.filter((folder) => `${folder.name} ${folder.folder_type}`.toLowerCase().includes(query));
-        if (!folders.length) {
-            CoreUI.setEmptyState(list, 'No folders found.');
-            return;
-        }
+        const notebooks = this.standaloneNotebooks.filter((notebook) => `${notebook.title} standalone notebook`.toLowerCase().includes(query));
 
-        list.innerHTML = folders.map((folder) => `
+        list.innerHTML = folders.length ? folders.map((folder) => `
             <button type="button" class="notebooks-folder-card ${this.currentFolder?.id === folder.id ? 'active' : ''}" onclick="NotebooksUI.selectFolder(${folder.id})">
                 <span class="notebooks-folder-icon"><i class="${folder.project_id ? 'ph ph-kanban' : 'ph ph-folder'}"></i></span>
                 <span class="notebooks-folder-main">
@@ -89,7 +99,17 @@ const NotebooksUI = {
                     <span class="item-desc">${CoreUI.escapeHtml(folder.folder_type)} - ${folder.notebook_count || 0} notebooks - ${folder.note_count || 0} notes</span>
                 </span>
             </button>
-        `).join('');
+        `).join('') : '<div class="compact-item"><span class="item-desc">No folders found.</span></div>';
+
+        notebookList.innerHTML = notebooks.length ? notebooks.map((notebook) => `
+            <button type="button" class="notebooks-folder-card ${this.currentNotebook?.id === notebook.id ? 'active' : ''}" onclick="NotebooksUI.openNotebook(${notebook.id})">
+                <span class="notebooks-folder-icon"><i class="ph ph-notebook"></i></span>
+                <span class="notebooks-folder-main">
+                    <span class="item-title">${CoreUI.escapeHtml(notebook.title)}</span>
+                    <span class="item-desc">Standalone - ${notebook.page_count || 0} pages</span>
+                </span>
+            </button>
+        `).join('') : '<div class="compact-item"><span class="item-desc">No standalone notebooks found.</span></div>';
     },
 
     async selectFolder(folderId, options = {}) {
@@ -137,14 +157,17 @@ const NotebooksUI = {
     },
 
     async openNotebook(notebookId) {
-        this.currentNotebook = (this.currentFolder?.notebooks || []).find((notebook) => notebook.id === notebookId);
+        const notebook = this.findNotebook(notebookId);
+        this.currentNotebook = notebook;
         if (!this.currentNotebook) return;
+        if (!this.currentNotebook.folder_id) this.currentFolder = null;
 
         this.currentItem = null;
         this.currentItemType = null;
         document.getElementById('notebooks-editor-view').classList.remove('is-folder-note');
         document.getElementById('notebook-pages-panel').style.display = 'flex';
         this.setView('editor');
+        this.setSidebarMode('pages');
         this.renderPages();
 
         const firstPage = this.currentNotebook.pages?.[0];
@@ -155,6 +178,12 @@ const NotebooksUI = {
         }
     },
 
+    findNotebook(notebookId) {
+        const id = Number(notebookId);
+        return (this.currentFolder?.notebooks || []).find((notebook) => Number(notebook.id) === id)
+            || this.standaloneNotebooks.find((notebook) => Number(notebook.id) === id);
+    },
+
     renderPages() {
         const title = document.getElementById('notebook-pages-title');
         const meta = document.getElementById('notebook-pages-meta');
@@ -162,7 +191,7 @@ const NotebooksUI = {
         if (!this.currentNotebook) return;
 
         title.textContent = this.currentNotebook.title;
-        meta.textContent = `${this.currentNotebook.page_count || 0} pages`;
+        meta.textContent = `${this.currentNotebook.page_count || 0} pages${this.currentNotebook.folder_id ? '' : ' - Standalone'}`;
         list.innerHTML = (this.currentNotebook.pages || []).map((page) => `
             <button type="button" class="notebooks-item-row ${this.currentItemType === 'page' && this.currentItem?.id === page.id ? 'active' : ''}" onclick="NotebooksUI.selectPage(${page.id})">
                 <i class="ph ph-file-text"></i>
@@ -171,14 +200,33 @@ const NotebooksUI = {
         `).join('') || '<div class="compact-item"><span class="item-desc">No pages yet.</span></div>';
     },
 
+    renderStandaloneNotes() {
+        const title = document.getElementById('notebook-pages-title');
+        const meta = document.getElementById('notebook-pages-meta');
+        const list = document.getElementById('notebook-pages-list');
+        if (!this.currentFolder) return;
+
+        const notes = this.currentFolder.notes || [];
+        title.textContent = 'Standalone Notes';
+        meta.textContent = `${notes.length} note${notes.length === 1 ? '' : 's'}`;
+        list.innerHTML = notes.map((note) => `
+            <button type="button" class="notebooks-item-row ${this.currentItemType === 'note' && this.currentItem?.id === note.id ? 'active' : ''}" onclick="NotebooksUI.selectStandaloneNote(${note.id})">
+                <i class="ph ph-note"></i>
+                <span><span class="item-title">${CoreUI.escapeHtml(note.title)}</span><span class="item-desc">${CoreUI.escapeHtml(this.plainPreview(note.content))}</span></span>
+            </button>
+        `).join('') || '<div class="compact-item"><span class="item-desc">No standalone notes yet.</span></div>';
+    },
+
     selectStandaloneNote(noteId) {
         const note = (this.currentFolder?.notes || []).find((item) => item.id === noteId);
         if (!note) return;
         this.currentNotebook = null;
         this.currentItem = note;
         this.currentItemType = 'note';
-        document.getElementById('notebooks-editor-view').classList.add('is-folder-note');
-        document.getElementById('notebook-pages-panel').style.display = 'none';
+        document.getElementById('notebooks-editor-view').classList.remove('is-folder-note');
+        document.getElementById('notebook-pages-panel').style.display = 'flex';
+        this.setSidebarMode('notes');
+        this.renderStandaloneNotes();
         this.openEditor(note.title, note.content, 'Standalone folder note');
         this.renderFolder();
     },
@@ -195,12 +243,72 @@ const NotebooksUI = {
         }
     },
 
+    async handlePageWheel(event) {
+        if (this.currentItemType !== 'page' || !this.currentNotebook || this.pageNavigationInFlight) return;
+        if (Math.abs(event.deltaY) < Math.abs(event.deltaX)) return;
+
+        const pageEl = event.currentTarget;
+        const atTop = pageEl.scrollTop <= 2;
+        const atBottom = pageEl.scrollTop + pageEl.clientHeight >= pageEl.scrollHeight - 2;
+        if (event.deltaY > 0 && atBottom) {
+            event.preventDefault();
+            await this.navigatePageByScroll(1);
+        } else if (event.deltaY < 0 && atTop) {
+            event.preventDefault();
+            await this.navigatePageByScroll(-1);
+        }
+    },
+
+    async navigatePageByScroll(direction) {
+        const pages = this.currentNotebook?.pages || [];
+        const index = pages.findIndex((page) => page.id === this.currentItem?.id);
+        const nextPage = pages[index + direction];
+        if (!nextPage) return;
+
+        this.pageNavigationInFlight = true;
+        try {
+            if (this.isEditing) await this.saveCurrentItem({ silent: true });
+            await this.selectPage(nextPage.id);
+        } finally {
+            this.pageNavigationInFlight = false;
+        }
+    },
+
     openEditor(title, markdown, context) {
         this.setView('editor');
         document.getElementById('notebook-item-title').value = title || '';
         document.getElementById('notebook-editor-context').textContent = context || '';
         this.setContentFromMarkdown(markdown || '');
         this.setEditing(false);
+    },
+
+    setSidebarMode(mode) {
+        const backLabel = document.getElementById('notebook-sidebar-back-label');
+        const deleteButton = document.getElementById('notebook-sidebar-delete-btn');
+        const createButton = document.getElementById('notebook-sidebar-create-btn');
+        const createLabel = document.getElementById('notebook-sidebar-create-label');
+        if (!deleteButton || !createButton || !createLabel) return;
+
+        if (mode === 'notes') {
+            if (backLabel) backLabel.textContent = 'Folder';
+            deleteButton.style.display = 'none';
+            createButton.setAttribute('onclick', 'NotebooksUI.createStandaloneNote()');
+            createLabel.textContent = 'Note';
+            return;
+        }
+
+        if (backLabel) backLabel.textContent = this.currentNotebook?.folder_id ? 'Folder' : 'Library';
+        deleteButton.style.display = 'inline-flex';
+        createButton.setAttribute('onclick', 'NotebooksUI.createPage()');
+        createLabel.textContent = 'Page';
+    },
+
+    goBackFromEditor() {
+        if (this.currentNotebook?.folder_id || this.currentItemType === 'note') {
+            this.showFolderView();
+            return;
+        }
+        this.showMenuView();
     },
 
     async createFolder() {
@@ -295,9 +403,32 @@ const NotebooksUI = {
         }
     },
 
+    async createStandaloneNotebook() {
+        const values = await this.openActionModal({
+            title: 'Create Notebook',
+            subtitle: 'Add a standalone notebook to the main library.',
+            submitText: 'Create Notebook',
+            fields: [
+                { id: 'title', label: 'Notebook title', placeholder: 'New notebook', value: 'New notebook', required: true }
+            ]
+        });
+        if (!values) return;
+        try {
+            const response = await API.post('/api/notebooks/notebooks', {
+                title: values.title || 'New notebook'
+            });
+            await this.loadWorkspace();
+            this.currentFolder = null;
+            await this.openNotebook(response.notebook.id);
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to create notebook.');
+        }
+    },
+
     async createPage(options = {}) {
         if (!this.currentNotebook) return CoreUI.showError('Select a notebook first.');
         const notebookId = this.currentNotebook.id;
+        const folderId = this.currentNotebook.folder_id || null;
         const defaultTitle = `Page ${(this.currentNotebook.pages?.length || 0) + 1}`;
         let title = options.title || defaultTitle;
         if (!options.skipModal) {
@@ -317,10 +448,16 @@ const NotebooksUI = {
                 title,
                 content: options.content || ''
             });
-            await this.selectFolder(this.currentFolder.id);
-            this.currentNotebook = (this.currentFolder?.notebooks || []).find((notebook) => notebook.id === notebookId);
+            if (folderId) {
+                await this.selectFolder(folderId);
+            } else {
+                await this.loadWorkspace();
+                this.currentFolder = null;
+            }
+            this.currentNotebook = this.findNotebook(notebookId);
             document.getElementById('notebook-pages-panel').style.display = 'flex';
             this.setView('editor');
+            this.setSidebarMode('pages');
             this.renderPages();
             await this.selectPage(response.page.id);
             this.setEditing(true);
@@ -345,8 +482,13 @@ const NotebooksUI = {
             this.currentNotebook = null;
             this.currentItem = null;
             this.currentItemType = null;
-            await this.selectFolder(this.currentFolder.id);
-            this.showFolderView();
+            if (this.currentFolder) {
+                await this.selectFolder(this.currentFolder.id);
+                this.showFolderView();
+            } else {
+                await this.loadWorkspace();
+                this.showMenuView();
+            }
         } catch (error) {
             CoreUI.showError(error.message || 'Failed to delete notebook.');
         }
@@ -363,13 +505,21 @@ const NotebooksUI = {
                 this.showFolderView();
             } else {
                 const notebookId = this.currentNotebook?.id;
+                const folderId = this.currentNotebook?.folder_id || null;
                 await API.delete(`/api/notebooks/pages/${this.currentItem.id}`);
-                await this.selectFolder(this.currentFolder.id);
-                this.currentNotebook = (this.currentFolder?.notebooks || []).find((notebook) => notebook.id === notebookId);
+                if (folderId) {
+                    await this.selectFolder(folderId);
+                } else {
+                    await this.loadWorkspace();
+                    this.currentFolder = null;
+                }
+                this.currentNotebook = this.findNotebook(notebookId);
                 if (this.currentNotebook?.pages?.[0]) {
                     await this.openNotebook(this.currentNotebook.id);
-                } else {
+                } else if (folderId) {
                     this.showFolderView();
+                } else {
+                    this.showMenuView();
                 }
             }
         } catch (error) {
@@ -380,8 +530,12 @@ const NotebooksUI = {
     setContentFromMarkdown(markdown) {
         const html = this.markdownToSafeHtml(markdown || '');
         this.suppressInput = true;
-        document.getElementById('notebook-preview').innerHTML = html || '<p class="note-placeholder">No content yet.</p>';
-        document.getElementById('notebook-editor').innerHTML = html || '<p><br></p>';
+        const preview = document.getElementById('notebook-preview');
+        const editor = document.getElementById('notebook-editor');
+        preview.innerHTML = html || '<p class="note-placeholder">No content yet.</p>';
+        editor.innerHTML = html || '<p><br></p>';
+        preview.scrollTop = 0;
+        editor.scrollTop = 0;
         this.suppressInput = false;
     },
 
@@ -508,6 +662,7 @@ const NotebooksUI = {
             if (!options.silent) CoreUI.showError('Saved.', true);
             this.patchCurrentItemInMemory(payload);
             if (this.currentFolder) this.renderFolder();
+            if (this.currentItemType === 'note') this.renderStandaloneNotes();
             if (this.currentNotebook) this.renderPages();
         } catch (error) {
             status.textContent = 'Save failed';
@@ -764,7 +919,9 @@ const NotebooksUI = {
     plainPreview(markdown) {
         const wrapper = document.createElement('div');
         wrapper.innerHTML = this.markdownToSafeHtml(markdown || '');
-        return (wrapper.textContent || 'No content yet.').replace(/\s+/g, ' ').trim().slice(0, 90);
+        const preview = (wrapper.textContent || 'No content yet.').replace(/\s+/g, ' ').trim();
+        const maxLength = 90;
+        return preview.length > maxLength ? `${preview.slice(0, maxLength - 3)}...` : preview;
     },
 
     htmlToMarkdown(html) {
