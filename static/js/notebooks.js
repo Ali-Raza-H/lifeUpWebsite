@@ -143,9 +143,9 @@ const NotebooksUI = {
         this.currentItem = null;
         this.currentItemType = null;
         document.getElementById('notebooks-editor-view').classList.remove('is-folder-note');
-        this.setFolderNoteBackButton(false);
         document.getElementById('notebook-pages-panel').style.display = 'flex';
         this.setView('editor');
+        this.setSidebarMode('pages');
         this.renderPages();
 
         const firstPage = this.currentNotebook.pages?.[0];
@@ -172,15 +172,33 @@ const NotebooksUI = {
         `).join('') || '<div class="compact-item"><span class="item-desc">No pages yet.</span></div>';
     },
 
+    renderStandaloneNotes() {
+        const title = document.getElementById('notebook-pages-title');
+        const meta = document.getElementById('notebook-pages-meta');
+        const list = document.getElementById('notebook-pages-list');
+        if (!this.currentFolder) return;
+
+        const notes = this.currentFolder.notes || [];
+        title.textContent = 'Standalone Notes';
+        meta.textContent = `${notes.length} note${notes.length === 1 ? '' : 's'}`;
+        list.innerHTML = notes.map((note) => `
+            <button type="button" class="notebooks-item-row ${this.currentItemType === 'note' && this.currentItem?.id === note.id ? 'active' : ''}" onclick="NotebooksUI.selectStandaloneNote(${note.id})">
+                <i class="ph ph-note"></i>
+                <span><span class="item-title">${CoreUI.escapeHtml(note.title)}</span><span class="item-desc">${CoreUI.escapeHtml(this.plainPreview(note.content))}</span></span>
+            </button>
+        `).join('') || '<div class="compact-item"><span class="item-desc">No standalone notes yet.</span></div>';
+    },
+
     selectStandaloneNote(noteId) {
         const note = (this.currentFolder?.notes || []).find((item) => item.id === noteId);
         if (!note) return;
         this.currentNotebook = null;
         this.currentItem = note;
         this.currentItemType = 'note';
-        document.getElementById('notebooks-editor-view').classList.add('is-folder-note');
-        this.setFolderNoteBackButton(true);
-        document.getElementById('notebook-pages-panel').style.display = 'none';
+        document.getElementById('notebooks-editor-view').classList.remove('is-folder-note');
+        document.getElementById('notebook-pages-panel').style.display = 'flex';
+        this.setSidebarMode('notes');
+        this.renderStandaloneNotes();
         this.openEditor(note.title, note.content, 'Standalone folder note');
         this.renderFolder();
     },
@@ -205,9 +223,22 @@ const NotebooksUI = {
         this.setEditing(false);
     },
 
-    setFolderNoteBackButton(visible) {
-        const button = document.getElementById('notebook-folder-back-btn');
-        if (button) button.style.display = visible ? 'inline-flex' : 'none';
+    setSidebarMode(mode) {
+        const deleteButton = document.getElementById('notebook-sidebar-delete-btn');
+        const createButton = document.getElementById('notebook-sidebar-create-btn');
+        const createLabel = document.getElementById('notebook-sidebar-create-label');
+        if (!deleteButton || !createButton || !createLabel) return;
+
+        if (mode === 'notes') {
+            deleteButton.style.display = 'none';
+            createButton.setAttribute('onclick', 'NotebooksUI.createStandaloneNote()');
+            createLabel.textContent = 'Note';
+            return;
+        }
+
+        deleteButton.style.display = 'inline-flex';
+        createButton.setAttribute('onclick', 'NotebooksUI.createPage()');
+        createLabel.textContent = 'Page';
     },
 
     async createFolder() {
@@ -515,6 +546,7 @@ const NotebooksUI = {
             if (!options.silent) CoreUI.showError('Saved.', true);
             this.patchCurrentItemInMemory(payload);
             if (this.currentFolder) this.renderFolder();
+            if (this.currentItemType === 'note') this.renderStandaloneNotes();
             if (this.currentNotebook) this.renderPages();
         } catch (error) {
             status.textContent = 'Save failed';
