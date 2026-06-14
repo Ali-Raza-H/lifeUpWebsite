@@ -1355,7 +1355,7 @@ input[type="range"]:focus {
     --notebook-paper-padding-x: clamp(20px, 5vw, 40px);
     --notebook-paper-padding-top: 20px;
     --page-width: 794px; /* A4 width at 96dpi */
-    --page-height: 1122px; /* A4 size at 96dpi */
+    --page-height: clamp(520px, calc(100vh - 300px), 1122px); /* A4 height capped to the editor viewport */
     
     flex: 1;
     min-height: 0;
@@ -1375,7 +1375,8 @@ input[type="range"]:focus {
     flex: 0 0 auto;
     width: min(100%, var(--page-width));
     height: var(--page-height);
-    min-height: var(--page-height);
+    min-height: 0;
+    max-height: var(--page-height);
     padding: var(--notebook-paper-padding-top) var(--notebook-paper-padding-x) 20px;
     border: 1px solid var(--border-subtle);
     background: #000000;

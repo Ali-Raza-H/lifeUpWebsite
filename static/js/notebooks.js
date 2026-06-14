@@ -13,12 +13,15 @@ const NotebooksUI = {
     pageOverflowInFlight: false,
     pageOverflowQueued: false,
     pageOverflowSnapshot: null,
+    pageNavigationInFlight: false,
     actionModalResolver: null,
 
     async init() {
         document.getElementById('notebook-item-title')?.addEventListener('input', () => this.handleEditableInput());
         document.getElementById('notebook-editor')?.addEventListener('beforeinput', (event) => this.capturePageInputSnapshot(event));
         document.getElementById('notebook-editor')?.addEventListener('input', () => this.handleEditableInput());
+        document.getElementById('notebook-editor')?.addEventListener('wheel', (event) => this.handlePageWheel(event), { passive: false });
+        document.getElementById('notebook-preview')?.addEventListener('wheel', (event) => this.handlePageWheel(event), { passive: false });
         document.getElementById('notebook-action-modal')?.addEventListener('click', (event) => {
             if (event.target.id === 'notebook-action-modal') this.closeActionModal();
         });
@@ -237,6 +240,37 @@ const NotebooksUI = {
             this.renderPages();
         } catch (error) {
             CoreUI.showError(error.message || 'Failed to open page.');
+        }
+    },
+
+    async handlePageWheel(event) {
+        if (this.currentItemType !== 'page' || !this.currentNotebook || this.pageNavigationInFlight) return;
+        if (Math.abs(event.deltaY) < Math.abs(event.deltaX)) return;
+
+        const pageEl = event.currentTarget;
+        const atTop = pageEl.scrollTop <= 2;
+        const atBottom = pageEl.scrollTop + pageEl.clientHeight >= pageEl.scrollHeight - 2;
+        if (event.deltaY > 0 && atBottom) {
+            event.preventDefault();
+            await this.navigatePageByScroll(1);
+        } else if (event.deltaY < 0 && atTop) {
+            event.preventDefault();
+            await this.navigatePageByScroll(-1);
+        }
+    },
+
+    async navigatePageByScroll(direction) {
+        const pages = this.currentNotebook?.pages || [];
+        const index = pages.findIndex((page) => page.id === this.currentItem?.id);
+        const nextPage = pages[index + direction];
+        if (!nextPage) return;
+
+        this.pageNavigationInFlight = true;
+        try {
+            if (this.isEditing) await this.saveCurrentItem({ silent: true });
+            await this.selectPage(nextPage.id);
+        } finally {
+            this.pageNavigationInFlight = false;
         }
     },
 
@@ -496,8 +530,12 @@ const NotebooksUI = {
     setContentFromMarkdown(markdown) {
         const html = this.markdownToSafeHtml(markdown || '');
         this.suppressInput = true;
-        document.getElementById('notebook-preview').innerHTML = html || '<p class="note-placeholder">No content yet.</p>';
-        document.getElementById('notebook-editor').innerHTML = html || '<p><br></p>';
+        const preview = document.getElementById('notebook-preview');
+        const editor = document.getElementById('notebook-editor');
+        preview.innerHTML = html || '<p class="note-placeholder">No content yet.</p>';
+        editor.innerHTML = html || '<p><br></p>';
+        preview.scrollTop = 0;
+        editor.scrollTop = 0;
         this.suppressInput = false;
     },
 
