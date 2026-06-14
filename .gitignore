@@ -1,3 +1,4 @@
 lifeup.db
 .env
 /.run-state
+/uploads/

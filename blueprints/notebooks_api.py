@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import re
+import uuid
+from io import BytesIO
+from pathlib import Path
 from typing import Optional
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, send_from_directory, url_for
 
 from database import ensure_project_notebook_folder, execute_db, get_db, query_db
 from utils import (
@@ -16,6 +20,7 @@ from utils import (
 )
 
 bp = Blueprint("notebooks_api", __name__, url_prefix="/api/notebooks")
+IMAGE_FILENAME_RE = re.compile(r"^[a-f0-9]{32}\.webp$")
 
 
 def _folder_or_404(folder_id: int):
@@ -60,6 +65,17 @@ def _create_notebook_record(folder_id: Optional[int], title: str, is_main: int =
     db.commit()
     notebook = query_db("SELECT * FROM notebooks WHERE id = ?", [notebook_id], one=True)
     return row_to_dict(notebook)
+
+
+def _notebook_image_dir() -> Path:
+    return Path(current_app.config["NOTEBOOK_IMAGE_UPLOAD_DIR"])
+
+
+def _notebook_image_storage_used() -> int:
+    upload_dir = _notebook_image_dir()
+    if not upload_dir.exists():
+        return 0
+    return sum(path.stat().st_size for path in upload_dir.glob("*.webp") if path.is_file())
 
 
 @bp.route("/workspace", methods=["GET"])
@@ -297,6 +313,73 @@ def delete_page(page_id: int):
         return jsonify({"error": "Page not found."}), 404
     execute_db("DELETE FROM notebook_pages WHERE id = ?", [page_id])
     return jsonify({"message": "Page deleted."})
+
+
+@bp.route("/images", methods=["POST"])
+def upload_notebook_image():
+    upload = request.files.get("image")
+    if not upload or not upload.filename:
+        return jsonify({"error": "Image file is required."}), 400
+    if not (upload.mimetype or "").startswith("image/"):
+        return jsonify({"error": "Only image uploads are supported."}), 400
+
+    max_upload_bytes = int(current_app.config["NOTEBOOK_IMAGE_MAX_UPLOAD_BYTES"])
+    if request.content_length and request.content_length > max_upload_bytes:
+        return jsonify({"error": f"Image upload must be at most {max_upload_bytes // (1024 * 1024)}MB."}), 413
+
+    try:
+        from PIL import Image, ImageOps, UnidentifiedImageError
+    except ImportError:
+        return jsonify({"error": "Image support is not installed. Install Pillow from requirements.txt."}), 500
+
+    try:
+        image = Image.open(upload.stream)
+        if getattr(image, "is_animated", False):
+            image.seek(0)
+        image = ImageOps.exif_transpose(image)
+    except UnidentifiedImageError:
+        return jsonify({"error": "Uploaded file is not a valid image."}), 400
+
+    max_dimension = int(current_app.config["NOTEBOOK_IMAGE_MAX_DIMENSION"])
+    quality = int(current_app.config["NOTEBOOK_IMAGE_WEBP_QUALITY"])
+    image.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
+    if image.mode not in {"RGB", "RGBA"}:
+        image = image.convert("RGBA" if "A" in image.getbands() else "RGB")
+
+    buffer = BytesIO()
+    try:
+        image.save(buffer, format="WEBP", quality=quality, method=6)
+    except Exception:
+        current_app.logger.exception("Failed to convert notebook image to WebP")
+        return jsonify({"error": "Failed to process image."}), 500
+
+    image_bytes = buffer.getvalue()
+    storage_limit = int(current_app.config["NOTEBOOK_IMAGE_STORAGE_LIMIT_BYTES"])
+    if _notebook_image_storage_used() + len(image_bytes) > storage_limit:
+        return jsonify({"error": "Notebook image storage limit reached. Delete unused images before uploading more."}), 409
+
+    upload_dir = _notebook_image_dir()
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid.uuid4().hex}.webp"
+    output_path = upload_dir / filename
+    output_path.write_bytes(image_bytes)
+
+    return jsonify(
+        {
+            "filename": filename,
+            "url": url_for("notebooks_api.get_notebook_image", filename=filename),
+            "size_bytes": len(image_bytes),
+            "width": image.width,
+            "height": image.height,
+        }
+    ), 201
+
+
+@bp.route("/images/<path:filename>", methods=["GET"])
+def get_notebook_image(filename: str):
+    if not IMAGE_FILENAME_RE.match(filename):
+        return jsonify({"error": "Image not found."}), 404
+    return send_from_directory(_notebook_image_dir(), filename, mimetype="image/webp", max_age=604800)
 
 
 def _sync_project_folders() -> None:

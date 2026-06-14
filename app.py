@@ -87,9 +87,14 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.config.from_mapping(
         SECRET_KEY=os.environ.get("SECRET_KEY", "lifeweb-secure-session-key-998811"),
         DATABASE=str(BASE_DIR / os.environ.get("LIFEUP_DATABASE", "lifeup.db")),
-        MAX_CONTENT_LENGTH=1024 * 1024,
+        MAX_CONTENT_LENGTH=int(os.environ.get("MAX_CONTENT_LENGTH_BYTES", str(5 * 1024 * 1024))),
         JSON_SORT_KEYS=False,
         APP_VERSION=os.environ.get("APP_VERSION", "1.0.0"),
+        NOTEBOOK_IMAGE_UPLOAD_DIR=os.environ.get("NOTEBOOK_IMAGE_UPLOAD_DIR", str(BASE_DIR / "uploads" / "notebooks")),
+        NOTEBOOK_IMAGE_STORAGE_LIMIT_BYTES=int(os.environ.get("NOTEBOOK_IMAGE_STORAGE_LIMIT_BYTES", str(50 * 1024 * 1024))),
+        NOTEBOOK_IMAGE_MAX_UPLOAD_BYTES=int(os.environ.get("NOTEBOOK_IMAGE_MAX_UPLOAD_BYTES", str(5 * 1024 * 1024))),
+        NOTEBOOK_IMAGE_MAX_DIMENSION=int(os.environ.get("NOTEBOOK_IMAGE_MAX_DIMENSION", "500")),
+        NOTEBOOK_IMAGE_WEBP_QUALITY=int(os.environ.get("NOTEBOOK_IMAGE_WEBP_QUALITY", "75")),
         # Security Credentials
         AUTH_USERNAME=os.environ.get("AUTH_USERNAME", "admin"),
         AUTH_PASSWORD=os.environ.get("AUTH_PASSWORD", "2008Ali2008uk##"),

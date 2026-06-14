@@ -19,6 +19,9 @@ const NotebooksUI = {
         const editor = document.getElementById('notebook-editor');
         document.getElementById('notebook-item-title')?.addEventListener('input', () => this.handleEditableInput());
         editor?.addEventListener('input', () => this.handleEditableInput());
+        editor?.addEventListener('paste', (event) => this.handleEditorPaste(event));
+        editor?.addEventListener('dragover', (event) => this.handleEditorDragOver(event));
+        editor?.addEventListener('drop', (event) => this.handleEditorDrop(event));
         editor?.addEventListener('click', (event) => this.handleEditorClick(event));
         editor?.addEventListener('mousedown', (event) => this.startImageResize(event));
         document.addEventListener('mousemove', (event) => this.resizeSelectedImage(event));
@@ -564,6 +567,125 @@ const NotebooksUI = {
     handleEditableInput() {
         if (this.suppressInput || !this.isEditing) return;
         if (this.autosaveEnabled) this.saveCurrentItem({ silent: true });
+    },
+
+    async handleEditorPaste(event) {
+        if (!this.isEditing) return;
+        const files = this.imageFilesFromDataTransfer(event.clipboardData);
+        const html = event.clipboardData?.getData('text/html') || '';
+        const hasEmbeddedImages = /<img\b[^>]*src=["']data:image\//i.test(html);
+        if (!files.length && !hasEmbeddedImages) return;
+
+        event.preventDefault();
+        const range = this.getEditorSelectionRange();
+        try {
+            if (hasEmbeddedImages) {
+                const uploadedHtml = await this.uploadEmbeddedImagesInHtml(html);
+                this.restoreEditorSelection(range);
+                document.execCommand('insertHTML', false, uploadedHtml);
+            }
+            for (const file of hasEmbeddedImages ? [] : files) {
+                const image = await this.uploadNotebookImage(file);
+                this.restoreEditorSelection(range);
+                this.insertUploadedImage(image);
+            }
+            this.handleEditableInput();
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to upload image.');
+        } finally {
+            this.clearUploadStatusSoon();
+        }
+    },
+
+    handleEditorDragOver(event) {
+        if (!this.isEditing || !this.imageFilesFromDataTransfer(event.dataTransfer).length) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+    },
+
+    async handleEditorDrop(event) {
+        if (!this.isEditing) return;
+        const files = this.imageFilesFromDataTransfer(event.dataTransfer);
+        if (!files.length) return;
+
+        event.preventDefault();
+        const range = this.rangeFromPoint(event.clientX, event.clientY) || this.getEditorSelectionRange();
+        try {
+            for (const file of files) {
+                const image = await this.uploadNotebookImage(file);
+                this.restoreEditorSelection(range);
+                this.insertUploadedImage(image);
+            }
+            this.handleEditableInput();
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to upload image.');
+        } finally {
+            this.clearUploadStatusSoon();
+        }
+    },
+
+    imageFilesFromDataTransfer(dataTransfer) {
+        if (!dataTransfer) return [];
+        const files = [...(dataTransfer.files || [])].filter((file) => file.type?.startsWith('image/'));
+        if (files.length) return files;
+        return [...(dataTransfer.items || [])]
+            .filter((item) => item.kind === 'file' && item.type?.startsWith('image/'))
+            .map((item) => item.getAsFile())
+            .filter(Boolean);
+    },
+
+    async uploadEmbeddedImagesInHtml(html) {
+        const template = document.createElement('template');
+        template.innerHTML = html;
+        const images = [...template.content.querySelectorAll('img[src^="data:image/"]')];
+        for (const [index, image] of images.entries()) {
+            const response = await fetch(image.getAttribute('src'));
+            const blob = await response.blob();
+            const uploaded = await this.uploadNotebookImage(blob, `pasted-image-${index + 1}.png`);
+            image.setAttribute('src', uploaded.url);
+        }
+        return this.sanitizeHtml(template.innerHTML);
+    },
+
+    async uploadNotebookImage(fileOrBlob, filename = 'notebook-image.png') {
+        this.setUploadStatus('Uploading image...');
+        const formData = new FormData();
+        formData.append('image', fileOrBlob, fileOrBlob.name || filename);
+        return API.postForm('/api/notebooks/images', formData);
+    },
+
+    insertUploadedImage(image) {
+        const alt = CoreUI.escapeHtml(image.filename || 'Notebook image');
+        const src = CoreUI.escapeHtml(image.url);
+        document.execCommand('insertHTML', false, `<p><img src="${src}" alt="${alt}"></p>`);
+    },
+
+    rangeFromPoint(x, y) {
+        const editor = this.getEditorElement();
+        let range = null;
+        if (document.caretRangeFromPoint) {
+            range = document.caretRangeFromPoint(x, y);
+        } else if (document.caretPositionFromPoint) {
+            const position = document.caretPositionFromPoint(x, y);
+            if (position) {
+                range = document.createRange();
+                range.setStart(position.offsetNode, position.offset);
+            }
+        }
+        if (!range || !editor?.contains(range.commonAncestorContainer)) return null;
+        range.collapse(true);
+        return range;
+    },
+
+    setUploadStatus(message) {
+        const status = document.getElementById('notebook-save-status');
+        status.textContent = message;
+        status.classList.add('visible');
+    },
+
+    clearUploadStatusSoon() {
+        const status = document.getElementById('notebook-save-status');
+        window.setTimeout(() => status.classList.remove('visible'), 1400);
     },
 
     getEditorElement() {

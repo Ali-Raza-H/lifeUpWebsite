@@ -14,7 +14,9 @@ const API = {
             }
         };
 
-        if (data) {
+        if (data instanceof FormData) {
+            options.body = data;
+        } else if (data) {
             options.headers['Content-Type'] = 'application/json';
             options.body = JSON.stringify(data);
         }
@@ -42,6 +44,10 @@ const API = {
 
     post(endpoint, data) {
         return this.request(endpoint, 'POST', data);
+    },
+
+    postForm(endpoint, formData) {
+        return this.request(endpoint, 'POST', formData);
     },
 
     put(endpoint, data) {
