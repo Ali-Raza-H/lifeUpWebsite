@@ -89,6 +89,7 @@
                         <span id="notebook-save-status" class="save-status"></span>
                         <button class="btn" type="button" id="notebook-edit-toggle" onclick="NotebooksUI.toggleEditing()"><i class="ph ph-pencil-simple"></i> Edit</button>
                         <button class="btn" type="button" id="notebook-autosave-btn" onclick="NotebooksUI.toggleAutosave()"><i class="ph ph-floppy-disk-back"></i> Autosave Off</button>
+                        <button class="btn" type="button" id="notebook-fullscreen-toggle" onclick="NotebooksUI.toggleFullscreen()"><i class="ph ph-corners-out"></i> Fullscreen</button>
                         <button class="btn btn-icon btn-danger" type="button" onclick="NotebooksUI.deleteCurrentItem()" title="Delete"><i class="ph ph-trash"></i></button>
                         <button class="btn btn-primary" type="button" onclick="NotebooksUI.saveCurrentItem()">Save</button>
                     </div>
@@ -120,7 +121,7 @@
                     <button class="btn btn-sm" type="button" onclick="NotebooksUI.convertClipboardMarkdown()" title="Paste Markdown as formatted text"><i class="ph ph-clipboard-text"></i> Paste MD</button>
                 </div>
                 <div class="notebook-paper">
-                    <article class="note-preview note-rich-content" id="notebook-preview"></article>
+                    <div class="notebook-preview-pages" id="notebook-preview-pages" aria-label="Notebook preview pages"></div>
                     <div class="note-rich-editor note-rich-content" id="notebook-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Notebook content"></div>
                 </div>
             </section>

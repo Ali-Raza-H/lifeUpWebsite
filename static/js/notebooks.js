@@ -10,18 +10,20 @@ const NotebooksUI = {
     saveInFlight: false,
     saveQueued: false,
     suppressInput: false,
-    pageOverflowInFlight: false,
-    pageOverflowQueued: false,
-    pageOverflowSnapshot: null,
-    pageNavigationInFlight: false,
+    isFullscreen: false,
     actionModalResolver: null,
+    selectedImage: null,
+    imageResizeState: null,
 
     async init() {
+        const editor = document.getElementById('notebook-editor');
         document.getElementById('notebook-item-title')?.addEventListener('input', () => this.handleEditableInput());
-        document.getElementById('notebook-editor')?.addEventListener('beforeinput', (event) => this.capturePageInputSnapshot(event));
-        document.getElementById('notebook-editor')?.addEventListener('input', () => this.handleEditableInput());
-        document.getElementById('notebook-editor')?.addEventListener('wheel', (event) => this.handlePageWheel(event), { passive: false });
-        document.getElementById('notebook-preview')?.addEventListener('wheel', (event) => this.handlePageWheel(event), { passive: false });
+        editor?.addEventListener('input', () => this.handleEditableInput());
+        editor?.addEventListener('click', (event) => this.handleEditorClick(event));
+        editor?.addEventListener('mousedown', (event) => this.startImageResize(event));
+        document.addEventListener('mousemove', (event) => this.resizeSelectedImage(event));
+        document.addEventListener('mouseup', () => this.stopImageResize());
+        window.addEventListener('resize', () => this.updatePreviewViewportWidth());
         document.getElementById('notebook-action-modal')?.addEventListener('click', (event) => {
             if (event.target.id === 'notebook-action-modal') this.closeActionModal();
         });
@@ -59,6 +61,7 @@ const NotebooksUI = {
         document.getElementById('notebooks-menu-view').style.display = view === 'menu' ? 'flex' : 'none';
         document.getElementById('notebooks-folder-view').style.display = view === 'folder' ? 'flex' : 'none';
         document.getElementById('notebooks-editor-view').style.display = view === 'editor' ? 'grid' : 'none';
+        if (view !== 'editor') this.setFullscreen(false);
         this.setHeaderActionsVisible(view === 'menu');
     },
 
@@ -240,37 +243,6 @@ const NotebooksUI = {
             this.renderPages();
         } catch (error) {
             CoreUI.showError(error.message || 'Failed to open page.');
-        }
-    },
-
-    async handlePageWheel(event) {
-        if (this.currentItemType !== 'page' || !this.currentNotebook || this.pageNavigationInFlight) return;
-        if (Math.abs(event.deltaY) < Math.abs(event.deltaX)) return;
-
-        const pageEl = event.currentTarget;
-        const atTop = pageEl.scrollTop <= 2;
-        const atBottom = pageEl.scrollTop + pageEl.clientHeight >= pageEl.scrollHeight - 2;
-        if (event.deltaY > 0 && atBottom) {
-            event.preventDefault();
-            await this.navigatePageByScroll(1);
-        } else if (event.deltaY < 0 && atTop) {
-            event.preventDefault();
-            await this.navigatePageByScroll(-1);
-        }
-    },
-
-    async navigatePageByScroll(direction) {
-        const pages = this.currentNotebook?.pages || [];
-        const index = pages.findIndex((page) => page.id === this.currentItem?.id);
-        const nextPage = pages[index + direction];
-        if (!nextPage) return;
-
-        this.pageNavigationInFlight = true;
-        try {
-            if (this.isEditing) await this.saveCurrentItem({ silent: true });
-            await this.selectPage(nextPage.id);
-        } finally {
-            this.pageNavigationInFlight = false;
         }
     },
 
@@ -530,29 +502,31 @@ const NotebooksUI = {
     setContentFromMarkdown(markdown) {
         const html = this.markdownToSafeHtml(markdown || '');
         this.suppressInput = true;
-        const preview = document.getElementById('notebook-preview');
         const editor = document.getElementById('notebook-editor');
-        preview.innerHTML = html || '<p class="note-placeholder">No content yet.</p>';
         editor.innerHTML = html || '<p><br></p>';
-        preview.scrollTop = 0;
         editor.scrollTop = 0;
         this.suppressInput = false;
     },
 
     setEditing(enabled) {
         this.isEditing = enabled;
-        document.getElementById('notebook-editor').style.display = enabled ? 'block' : 'none';
-        document.getElementById('notebook-preview').style.display = enabled ? 'none' : 'block';
+        const editor = document.getElementById('notebook-editor');
+        const previewPages = document.getElementById('notebook-preview-pages');
+        editor.style.display = enabled ? 'block' : 'none';
+        if (previewPages) {
+            previewPages.hidden = enabled;
+            if (!enabled) this.refreshPreviewFromEditor();
+        }
         document.getElementById('notebook-format-toolbar').style.display = enabled ? 'flex' : 'none';
         document.getElementById('notebook-item-title').readOnly = !enabled;
         const button = document.getElementById('notebook-edit-toggle');
         button.classList.toggle('active', enabled);
         button.innerHTML = enabled ? '<i class="ph ph-eye"></i> Preview' : '<i class="ph ph-pencil-simple"></i> Edit';
+        this.clearSelectedImage();
     },
 
     toggleEditing() {
         if (this.isEditing) {
-            this.refreshPreviewFromEditor();
             this.setEditing(false);
             return;
         }
@@ -568,71 +542,175 @@ const NotebooksUI = {
         if (this.autosaveEnabled) this.saveCurrentItem({ silent: true });
     },
 
+    toggleFullscreen() {
+        this.setFullscreen(!this.isFullscreen);
+    },
+
+    setFullscreen(enabled) {
+        this.isFullscreen = Boolean(enabled);
+        const panel = document.getElementById('notebook-editor-panel');
+        const button = document.getElementById('notebook-fullscreen-toggle');
+        panel?.classList.toggle('is-fullscreen', this.isFullscreen);
+        document.body.classList.toggle('notebook-fullscreen-open', this.isFullscreen);
+        if (button) {
+            button.classList.toggle('active', this.isFullscreen);
+            button.innerHTML = this.isFullscreen
+                ? '<i class="ph ph-corners-in"></i> Exit Fullscreen'
+                : '<i class="ph ph-corners-out"></i> Fullscreen';
+        }
+        window.requestAnimationFrame(() => this.updatePreviewViewportWidth());
+    },
+
     handleEditableInput() {
         if (this.suppressInput || !this.isEditing) return;
-        if (this.isCurrentPageOverflowing()) {
-            this.handlePageOverflow();
-            return;
-        }
         if (this.autosaveEnabled) this.saveCurrentItem({ silent: true });
     },
 
-    capturePageInputSnapshot(event) {
-        if (this.suppressInput || !this.isEditing || this.currentItemType !== 'page') return;
-        const editor = document.getElementById('notebook-editor');
-        if (!editor) return;
-        this.pageOverflowSnapshot = {
-            html: editor.innerHTML,
-            data: event.data || '',
-            insertedText: event.data || event.dataTransfer?.getData('text/plain') || '',
-            inputType: event.inputType || ''
-        };
+    getEditorElement() {
+        return document.getElementById('notebook-editor');
     },
 
-    isCurrentPageOverflowing() {
-        const editor = document.getElementById('notebook-editor');
-        return Boolean(
-            this.currentItemType === 'page'
-            && this.currentNotebook
-            && editor
-            && editor.clientHeight > 0
-            && editor.scrollHeight > editor.clientHeight + 2
-        );
-    },
+    renderPreviewPagesFromHtml(html) {
+        const container = document.getElementById('notebook-preview-pages');
+        if (!container) return;
+        container.innerHTML = '';
 
-    async handlePageOverflow() {
-        if (this.pageOverflowInFlight || !this.isCurrentPageOverflowing()) return;
-        if (this.saveInFlight) {
-            this.pageOverflowQueued = true;
-            return;
-        }
+        const source = document.createElement('div');
+        source.innerHTML = this.sanitizeHtml(html || '') || '<p class="note-placeholder">No content yet.</p>';
+        let page = this.createPreviewPage();
+        container.appendChild(page);
 
-        const editor = document.getElementById('notebook-editor');
-        const snapshot = this.pageOverflowSnapshot;
-        const canMoveInsertedText = snapshot
-            && ['insertText', 'insertFromPaste'].includes(snapshot.inputType)
-            && snapshot.insertedText;
-        this.pageOverflowInFlight = true;
-
-        try {
-            if (snapshot?.html) {
-                this.suppressInput = true;
-                editor.innerHTML = snapshot.html;
-                this.suppressInput = false;
+        [...source.childNodes].forEach((node) => {
+            page.appendChild(node);
+            let guard = 0;
+            while (page.scrollHeight > page.clientHeight + 2 && guard < 40) {
+                if (page.childNodes.length === 1 && !this.findTrailingTextNode(page.lastChild)) break;
+                const nextPage = this.createPreviewPage();
+                container.appendChild(nextPage);
+                const moved = this.moveOverflowContent(page, nextPage, { focus: false });
+                if (!moved) {
+                    nextPage.remove();
+                    break;
+                }
+                page = nextPage;
+                guard += 1;
             }
-            await this.saveCurrentItem({ silent: true });
-            await this.createPage({
-                title: `Page ${(this.currentNotebook?.pages?.length || 0) + 1}`,
-                content: canMoveInsertedText ? snapshot.insertedText : '',
-                skipModal: true
-            });
-        } catch (error) {
-            CoreUI.showError(error.message || 'Failed to create the next page.');
-        } finally {
-            this.pageOverflowInFlight = false;
-            this.pageOverflowQueued = false;
-            this.pageOverflowSnapshot = null;
+        });
+        window.requestAnimationFrame(() => this.updatePreviewViewportWidth());
+    },
+
+    updatePreviewViewportWidth() {
+        const container = document.getElementById('notebook-preview-pages');
+        if (!container || container.hidden) return;
+        const pages = [...container.querySelectorAll('.notebook-preview-page')];
+        if (!pages.length) return;
+
+        const pageWidth = pages[0].getBoundingClientRect().width;
+        if (!pageWidth) return;
+
+        const styles = window.getComputedStyle(container);
+        const gap = Number.parseFloat(styles.columnGap || styles.gap) || 0;
+        const visiblePages = Math.min(2, pages.length);
+        const twoPageWidth = (pageWidth * visiblePages) + (gap * Math.max(0, visiblePages - 1));
+        const parentWidth = container.parentElement?.clientWidth || twoPageWidth;
+        container.style.width = `${Math.min(parentWidth, twoPageWidth)}px`;
+    },
+
+    createPreviewPage() {
+        const page = document.createElement('article');
+        page.className = 'notebook-preview-page note-rich-content';
+        return page;
+    },
+
+    moveOverflowContent(sourceEditor, targetEditor, options = {}) {
+        const originalFirstTarget = targetEditor.firstChild;
+        let insertionPoint = originalFirstTarget;
+        let moved = 0;
+        let safety = 0;
+
+        while (sourceEditor.scrollHeight > sourceEditor.clientHeight + 2 && sourceEditor.lastChild && safety < 80) {
+            const splitNode = this.splitTrailingTextToFit(sourceEditor);
+            const node = splitNode || sourceEditor.lastChild;
+            if (!node) break;
+            targetEditor.insertBefore(node, insertionPoint);
+            insertionPoint = node.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? targetEditor.firstChild : node;
+            moved += 1;
+            safety += 1;
         }
+
+        if (!sourceEditor.childNodes.length) sourceEditor.innerHTML = '<p><br></p>';
+        if (!moved) return 0;
+
+        if (options.focus) {
+            const marker = document.createElement('span');
+            marker.dataset.overflowCaret = 'true';
+            targetEditor.insertBefore(marker, originalFirstTarget);
+            this.focusOverflowCaret(targetEditor);
+        }
+        return moved;
+    },
+
+    splitTrailingTextToFit(sourceEditor) {
+        const textNode = this.findTrailingTextNode(sourceEditor.lastChild);
+        if (!textNode || textNode.data.length < 2) return null;
+
+        const original = textNode.data;
+        let low = 1;
+        let high = original.length;
+        let best = original.length;
+
+        while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            textNode.data = original.slice(0, original.length - mid);
+            if (sourceEditor.scrollHeight <= sourceEditor.clientHeight + 2) {
+                best = mid;
+                high = mid - 1;
+            } else {
+                low = mid + 1;
+            }
+        }
+
+        const prefix = original.slice(0, original.length - best);
+        const suffix = original.slice(original.length - best);
+        textNode.data = prefix;
+        return this.cloneTextSuffixForMove(sourceEditor, textNode, suffix);
+    },
+
+    findTrailingTextNode(node) {
+        if (!node) return null;
+        if (node.nodeType === Node.TEXT_NODE) return node.data ? node : null;
+        for (let index = node.childNodes.length - 1; index >= 0; index -= 1) {
+            const match = this.findTrailingTextNode(node.childNodes[index]);
+            if (match) return match;
+        }
+        return null;
+    },
+
+    cloneTextSuffixForMove(sourceEditor, textNode, suffix) {
+        let root = textNode;
+        while (root.parentNode && root.parentNode !== sourceEditor) {
+            root = root.parentNode;
+        }
+        if (root === textNode) return document.createTextNode(suffix);
+
+        const rootClone = root.cloneNode(false);
+        rootClone.removeAttribute?.('id');
+        let cloneCursor = rootClone;
+        const ancestors = [];
+        let parent = textNode.parentNode;
+        while (parent && parent !== root) {
+            ancestors.unshift(parent);
+            parent = parent.parentNode;
+        }
+
+        ancestors.forEach((ancestor) => {
+            const clone = ancestor.cloneNode(false);
+            clone.removeAttribute?.('id');
+            cloneCursor.appendChild(clone);
+            cloneCursor = clone;
+        });
+        cloneCursor.appendChild(document.createTextNode(suffix));
+        return rootClone;
     },
 
     async saveCurrentItem(options = {}) {
@@ -657,7 +735,7 @@ const NotebooksUI = {
                 : `/api/notebooks/pages/${this.currentItem.id}`;
             const response = await API.put(endpoint, payload);
             this.currentItem = this.currentItemType === 'note' ? response.note : response.page;
-            this.refreshPreviewFromEditor();
+            if (!this.isEditing) this.refreshPreviewFromEditor();
             status.textContent = 'Saved';
             if (!options.silent) CoreUI.showError('Saved.', true);
             this.patchCurrentItemInMemory(payload);
@@ -674,10 +752,6 @@ const NotebooksUI = {
                 this.saveQueued = false;
                 this.saveCurrentItem({ silent: true });
                 return;
-            }
-            if (this.pageOverflowQueued) {
-                this.pageOverflowQueued = false;
-                this.handlePageOverflow();
             }
         }
     },
@@ -757,6 +831,60 @@ const NotebooksUI = {
         this.handleEditableInput();
     },
 
+    handleEditorClick(event) {
+        if (!this.isEditing) return;
+        if (event.target?.tagName === 'IMG') {
+            this.selectImage(event.target);
+            return;
+        }
+        this.clearSelectedImage();
+    },
+
+    selectImage(image) {
+        this.clearSelectedImage();
+        this.selectedImage = image;
+        image.classList.add('is-resizing-target');
+    },
+
+    clearSelectedImage() {
+        if (this.selectedImage) {
+            this.selectedImage.classList.remove('is-resizing-target');
+        }
+        this.selectedImage = null;
+    },
+
+    startImageResize(event) {
+        if (!this.isEditing || event.button !== 0 || event.target?.tagName !== 'IMG') return;
+        const image = event.target;
+        const rect = image.getBoundingClientRect();
+        const handleSize = 18;
+        const nearResizeHandle = event.clientX >= rect.right - handleSize && event.clientY >= rect.bottom - handleSize;
+        this.selectImage(image);
+        if (!nearResizeHandle) return;
+
+        event.preventDefault();
+        this.imageResizeState = {
+            image,
+            startX: event.clientX,
+            startWidth: rect.width,
+            maxWidth: image.closest('.note-rich-editor')?.clientWidth || rect.width
+        };
+    },
+
+    resizeSelectedImage(event) {
+        if (!this.imageResizeState) return;
+        const { image, startX, startWidth, maxWidth } = this.imageResizeState;
+        const nextWidth = Math.max(80, Math.min(maxWidth, Math.round(startWidth + event.clientX - startX)));
+        image.style.width = `${nextWidth}px`;
+        image.style.height = 'auto';
+    },
+
+    stopImageResize() {
+        if (!this.imageResizeState) return;
+        this.imageResizeState = null;
+        this.handleEditableInput();
+    },
+
     async convertClipboardMarkdown() {
         let markdown = '';
         const range = this.getEditorSelectionRange();
@@ -781,7 +909,7 @@ const NotebooksUI = {
     },
 
     getEditorSelectionRange() {
-        const editor = document.getElementById('notebook-editor');
+        const editor = this.getEditorElement();
         const selection = window.getSelection();
         if (!editor || !selection || selection.rangeCount === 0) return null;
         const range = selection.getRangeAt(0);
@@ -789,7 +917,8 @@ const NotebooksUI = {
     },
 
     restoreEditorSelection(range) {
-        const editor = document.getElementById('notebook-editor');
+        const editor = this.getEditorElement();
+        if (!editor) return;
         editor.focus();
         if (!range) return;
         const selection = window.getSelection();
@@ -868,11 +997,11 @@ const NotebooksUI = {
 
     ensureEditing() {
         if (!this.isEditing) this.setEditing(true);
-        document.getElementById('notebook-editor').focus();
+        const editor = this.getEditorElement() || document.getElementById('notebook-editor');
+        editor.focus();
     },
 
-    focusEditorEnd() {
-        const editor = document.getElementById('notebook-editor');
+    focusEditorEnd(editor = document.getElementById('notebook-editor')) {
         if (!editor) return;
         editor.focus();
         const range = document.createRange();
@@ -884,7 +1013,7 @@ const NotebooksUI = {
     },
 
     refreshPreviewFromEditor() {
-        document.getElementById('notebook-preview').innerHTML = this.sanitizeHtml(document.getElementById('notebook-editor').innerHTML) || '<p class="note-placeholder">No content yet.</p>';
+        this.renderPreviewPagesFromHtml(document.getElementById('notebook-editor').innerHTML);
     },
 
     markdownToSafeHtml(markdown) {
@@ -904,16 +1033,31 @@ const NotebooksUI = {
             }
             [...el.attributes].forEach((attr) => {
                 const ok = (el.tagName === 'A' && ['href', 'title'].includes(attr.name))
-                    || (el.tagName === 'IMG' && ['src', 'alt', 'title'].includes(attr.name))
+                    || (el.tagName === 'IMG' && ['src', 'alt', 'title', 'style'].includes(attr.name))
                     || (el.tagName === 'INPUT' && ['type', 'checked', 'disabled'].includes(attr.name));
                 if (!ok) el.removeAttribute(attr.name);
             });
+            if (el.tagName === 'IMG') {
+                const style = this.sanitizeImageStyle(el.getAttribute('style') || '');
+                if (style) {
+                    el.setAttribute('style', style);
+                } else {
+                    el.removeAttribute('style');
+                }
+            }
             if (el.tagName === 'INPUT') {
                 el.setAttribute('type', 'checkbox');
                 el.setAttribute('disabled', '');
             }
         });
         return template.innerHTML;
+    },
+
+    sanitizeImageStyle(style) {
+        const widthMatch = style.match(/width\s*:\s*(\d+(?:\.\d+)?)px/i);
+        if (!widthMatch) return '';
+        const width = Math.max(40, Math.min(1200, Math.round(Number(widthMatch[1]))));
+        return `width: ${width}px; height: auto;`;
     },
 
     plainPreview(markdown) {
@@ -949,6 +1093,20 @@ const NotebooksUI = {
         if (tag === 'PRE') return `\`\`\`\n${node.textContent.trim()}\n\`\`\`\n\n`;
         if (tag === 'BLOCKQUOTE') return `${content.split('\n').filter(Boolean).map((line) => `> ${line}`).join('\n')}\n\n`;
         if (tag === 'A') return `[${content || node.href}](${node.getAttribute('href') || ''})`;
+        if (tag === 'IMG') {
+            const src = node.getAttribute('src') || '';
+            if (!src) return '';
+            const alt = CoreUI.escapeHtml(node.getAttribute('alt') || '');
+            const title = CoreUI.escapeHtml(node.getAttribute('title') || '');
+            const style = this.sanitizeImageStyle(node.getAttribute('style') || '');
+            const attrs = [
+                `src="${CoreUI.escapeHtml(src)}"`,
+                alt ? `alt="${alt}"` : '',
+                title ? `title="${title}"` : '',
+                style ? `style="${style}"` : ''
+            ].filter(Boolean).join(' ');
+            return `<img ${attrs}>\n\n`;
+        }
         if (tag === 'HR') return '---\n\n';
         if (tag === 'UL' || tag === 'OL') return [...node.children].filter((child) => child.tagName === 'LI').map((li, index) => `${tag === 'OL' ? `${index + 1}.` : '-'} ${this.nodeToMarkdown(li)}`).join('\n') + '\n\n';
         if (tag === 'TABLE') return this.tableToMarkdown(node) + '\n\n';
@@ -969,6 +1127,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if ((event.ctrlKey || event.metaKey) && event.key === 's') {
             event.preventDefault();
             NotebooksUI.saveCurrentItem();
+        }
+        if (event.key === 'Escape' && NotebooksUI.isFullscreen) {
+            NotebooksUI.setFullscreen(false);
         }
     });
 });

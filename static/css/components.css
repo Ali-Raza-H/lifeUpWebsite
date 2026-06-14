@@ -1122,6 +1122,15 @@ input[type="range"]:focus {
     border-radius: var(--radius-sm);
 }
 
+.note-rich-editor img {
+    cursor: nwse-resize;
+}
+
+.note-rich-editor img.is-resizing-target {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 3px;
+}
+
 .note-placeholder {
     color: var(--text-muted);
 }
@@ -1322,6 +1331,25 @@ input[type="range"]:focus {
     border-radius: var(--radius-lg);
 }
 
+body.notebook-fullscreen-open {
+    overflow: hidden;
+}
+
+.notebook-editor-panel.is-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    width: 100vw;
+    height: 100vh;
+    max-width: none;
+    border-radius: 0;
+    border: 0;
+}
+
+.notebook-editor-panel.is-fullscreen .notebook-paper {
+    padding: var(--space-5);
+}
+
 .notebook-editor-head {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -1352,9 +1380,10 @@ input[type="range"]:focus {
 }
 
 .notebook-paper {
-    --notebook-paper-padding-x: clamp(20px, 5vw, 40px);
-    --notebook-paper-padding-top: 20px;
-    --page-width: 794px; /* A4 width at 96dpi */
+    --notebook-paper-padding-x: clamp(16px, 4vw, 32px);
+    --notebook-paper-padding-top: 18px;
+    --page-width: 794px; /* Fallback cap for narrow aspect-ratio support */
+    --page-gap: var(--space-4);
     
     flex: 1;
     min-height: 0;
@@ -1363,31 +1392,75 @@ input[type="range"]:focus {
     margin: 0;
     padding: var(--space-4);
     display: flex;
+    gap: var(--page-gap);
     justify-content: center;
     align-items: flex-start;
     background-color: var(--bg-base);
-    overflow: hidden;
+    overflow: auto hidden;
 }
 
-.notebook-paper .note-preview,
+.notebook-preview-pages {
+    display: flex;
+    flex: 0 0 auto;
+    gap: var(--page-gap);
+    height: 100%;
+    min-height: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scrollbar-gutter: stable;
+}
+
+.notebook-preview-pages[hidden] {
+    display: none;
+}
+
+.notebook-paper .notebook-preview-page,
 .notebook-paper .note-rich-editor {
     box-sizing: border-box;
     flex: 0 0 auto;
-    width: min(100%, var(--page-width));
+    aspect-ratio: 210 / 297;
+    width: auto;
+    max-width: min(100%, var(--page-width));
     height: 100%;
     min-height: 100%;
     max-height: 100%;
     padding: var(--notebook-paper-padding-top) var(--notebook-paper-padding-x) 20px;
     border: 1px solid var(--border-subtle);
     background: #000000;
-    font-size: 16px;
-    line-height: 1.75;
+    font-size: 12px;
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+    word-break: break-word;
     overflow-x: hidden;
     box-shadow: 0 18px 60px rgba(0, 0, 0, 0.32);
 }
 
-.notebook-paper .note-preview {
-    overflow-y: auto;
+.notebook-paper .note-rich-content h1 {
+    font-size: 22px;
+}
+
+.notebook-paper .note-rich-content h2 {
+    font-size: 18px;
+}
+
+.notebook-paper .note-rich-content h3 {
+    font-size: 16px;
+}
+
+.notebook-paper .note-rich-content h4 {
+    font-size: 14px;
+}
+
+.notebook-paper .note-rich-content h5,
+.notebook-paper .note-rich-content h6 {
+    font-size: 13px;
+}
+
+.notebook-paper .notebook-preview-page {
+    overflow: hidden;
+    scroll-snap-align: start;
 }
 
 .notebook-paper .note-rich-editor {
