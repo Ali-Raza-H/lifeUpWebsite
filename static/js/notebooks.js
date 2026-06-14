@@ -143,6 +143,7 @@ const NotebooksUI = {
         this.currentItem = null;
         this.currentItemType = null;
         document.getElementById('notebooks-editor-view').classList.remove('is-folder-note');
+        this.setFolderNoteBackButton(false);
         document.getElementById('notebook-pages-panel').style.display = 'flex';
         this.setView('editor');
         this.renderPages();
@@ -178,6 +179,7 @@ const NotebooksUI = {
         this.currentItem = note;
         this.currentItemType = 'note';
         document.getElementById('notebooks-editor-view').classList.add('is-folder-note');
+        this.setFolderNoteBackButton(true);
         document.getElementById('notebook-pages-panel').style.display = 'none';
         this.openEditor(note.title, note.content, 'Standalone folder note');
         this.renderFolder();
@@ -201,6 +203,11 @@ const NotebooksUI = {
         document.getElementById('notebook-editor-context').textContent = context || '';
         this.setContentFromMarkdown(markdown || '');
         this.setEditing(false);
+    },
+
+    setFolderNoteBackButton(visible) {
+        const button = document.getElementById('notebook-folder-back-btn');
+        if (button) button.style.display = visible ? 'inline-flex' : 'none';
     },
 
     async createFolder() {
@@ -764,7 +771,9 @@ const NotebooksUI = {
     plainPreview(markdown) {
         const wrapper = document.createElement('div');
         wrapper.innerHTML = this.markdownToSafeHtml(markdown || '');
-        return (wrapper.textContent || 'No content yet.').replace(/\s+/g, ' ').trim().slice(0, 90);
+        const preview = (wrapper.textContent || 'No content yet.').replace(/\s+/g, ' ').trim();
+        const maxLength = 90;
+        return preview.length > maxLength ? `${preview.slice(0, maxLength - 3)}...` : preview;
     },
 
     htmlToMarkdown(html) {
