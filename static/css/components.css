@@ -1212,9 +1212,9 @@ input[type="range"]:focus {
     grid-template-columns: 34px minmax(0, 1fr);
     gap: var(--space-3);
     align-items: flex-start;
-    border: 1px solid /*var(--border-subtle)*/ rgb(0, 240, 255);
+    border: transparent /*var(--border-subtle)*/;
     border-radius: var(--radius-md);
-    background: /*var(--bg-surface);*/ rgba(0, 0, 0, 1);
+    background: transparent;
     color: var(--text-primary);
     text-align: left;
     cursor: pointer;
@@ -1231,11 +1231,11 @@ input[type="range"]:focus {
 }
 
 .notebooks-folder-card:hover,
-.notebooks-folder-card.active,
+/*.notebooks-folder-card.active,*/ /*Don't delete this in case i want to incorporate a tracker of last opened*/
 .notebooks-item-row:hover,
 .notebooks-item-row.active {
-    border-color: var(--border-focus);
-    background: var(--bg-surface-hover);
+    border: 1px solid var(--accent-blue);
+    background: transparent;
 }
 
 .notebooks-folder-icon,
