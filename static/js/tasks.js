@@ -84,13 +84,17 @@ const TaskUI = {
         if (goalFilter) goalFilter.value = this.filters.goal;
     },
 
-    getFilteredTasks() {
+    getFilteredTasks({ includeNotCompleted = true, onlyNotCompleted = false } = {}) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const nextWeek = new Date(today);
         nextWeek.setDate(nextWeek.getDate() + 7);
 
         const filtered = this.tasks.filter((task) => {
+            const isNotCompleted = this.isTaskNotCompleted(task);
+            if (onlyNotCompleted && !isNotCompleted) return false;
+            if (!includeNotCompleted && isNotCompleted) return false;
+
             const haystack = `${task.title} ${task.description || ''}`.toLowerCase();
             if (this.filters.query && !haystack.includes(this.filters.query)) return false;
             if (this.filters.status !== 'all' && task.status !== this.filters.status) return false;
@@ -103,7 +107,8 @@ const TaskUI = {
 
             if (this.filters.due !== 'all') {
                 if (!task.due_date) return false;
-                const due = new Date(task.due_date);
+                const due = this.parseTaskDate(task.due_date);
+                if (!due) return false;
                 due.setHours(0, 0, 0, 0);
                 if (this.filters.due === 'overdue' && !(due < today && task.status !== 'completed')) return false;
                 if (this.filters.due === 'today' && due.getTime() !== today.getTime()) return false;
@@ -115,8 +120,8 @@ const TaskUI = {
         filtered.sort((left, right) => {
             if (this.filters.sort === 'priority') return left.priority - right.priority;
             if (this.filters.sort === 'due') {
-                const leftDue = left.due_date ? new Date(left.due_date).getTime() : Number.MAX_SAFE_INTEGER;
-                const rightDue = right.due_date ? new Date(right.due_date).getTime() : Number.MAX_SAFE_INTEGER;
+                const leftDue = left.due_date ? this.parseTaskDate(left.due_date)?.getTime() ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER;
+                const rightDue = right.due_date ? this.parseTaskDate(right.due_date)?.getTime() ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER;
                 return leftDue - rightDue;
             }
             if (this.filters.sort === 'recent') {
@@ -128,8 +133,8 @@ const TaskUI = {
             if (statusDelta !== 0) return statusDelta;
             const priorityDelta = left.priority - right.priority;
             if (priorityDelta !== 0) return priorityDelta;
-            const leftDue = left.due_date ? new Date(left.due_date).getTime() : Number.MAX_SAFE_INTEGER;
-            const rightDue = right.due_date ? new Date(right.due_date).getTime() : Number.MAX_SAFE_INTEGER;
+            const leftDue = left.due_date ? this.parseTaskDate(left.due_date)?.getTime() ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER;
+            const rightDue = right.due_date ? this.parseTaskDate(right.due_date)?.getTime() ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER;
             return leftDue - rightDue;
         });
 
@@ -137,12 +142,18 @@ const TaskUI = {
     },
 
     renderTasks() {
-        const tasks = this.getFilteredTasks();
+        const tasks = this.getFilteredTasks({ includeNotCompleted: true });
+        const boardTasks = this.getFilteredTasks({ includeNotCompleted: false });
+        const notCompletedTasks = this.getFilteredTasks({ onlyNotCompleted: true });
         this.renderSummary(tasks);
         const rowLimit = CoreUI.getStatusColumnRowLimit();
 
         const countEl = document.getElementById('task-results-count');
-        if (countEl) countEl.textContent = `${tasks.length} task${tasks.length === 1 ? '' : 's'}`;
+        if (countEl) {
+            const activeLabel = `${boardTasks.length} active task${boardTasks.length === 1 ? '' : 's'}`;
+            const hiddenLabel = `${notCompletedTasks.length} not completed`;
+            countEl.textContent = `${activeLabel} · ${hiddenLabel}`;
+        }
 
         const columns = {
             pending: document.getElementById('tasks-pending'),
@@ -156,7 +167,7 @@ const TaskUI = {
             if (column) column.innerHTML = '';
         });
 
-        tasks.forEach((task) => {
+        boardTasks.forEach((task) => {
             counts[task.status] += 1;
             if (counts[task.status] <= rowLimit) {
                 columns[task.status]?.appendChild(this.createTaskElement(task));
@@ -171,6 +182,25 @@ const TaskUI = {
                 columns[status]?.appendChild(CoreUI.createRowLimitNotice(counts[status] - rowLimit, 'tasks'));
             }
         });
+
+        this.renderNotCompletedTasks(notCompletedTasks);
+    },
+
+    renderNotCompletedTasks(tasks) {
+        const list = document.getElementById('tasks-not-completed');
+        const count = document.getElementById('tasks-not-completed-count');
+        if (count) count.textContent = tasks.length;
+        if (!list) return;
+
+        list.innerHTML = '';
+        if (tasks.length === 0) {
+            CoreUI.setEmptyState(list, 'No hidden tasks');
+            return;
+        }
+
+        tasks.forEach((task) => {
+            list.appendChild(this.createTaskElement(task, { compactReason: true }));
+        });
     },
 
     renderSummary(tasks) {
@@ -178,7 +208,7 @@ const TaskUI = {
         if (!grid) return;
         const overdue = tasks.filter((task) => this.getDueState(task) === 'overdue').length;
         const dueToday = tasks.filter((task) => this.getDueState(task) === 'today').length;
-        const linked = tasks.filter((task) => task.project_id || task.goal_id).length;
+        const notCompleted = tasks.filter((task) => this.isTaskNotCompleted(task)).length;
         const completed = tasks.filter((task) => task.status === 'completed').length;
         grid.innerHTML = `
             <div class="compact-item metric-card">
@@ -190,8 +220,8 @@ const TaskUI = {
                 <span class="stat-value">${dueToday}</span>
             </div>
             <div class="compact-item metric-card">
-                <span class="item-desc">Linked</span>
-                <span class="stat-value">${linked}</span>
+                <span class="item-desc">Not Done</span>
+                <span class="stat-value">${notCompleted}</span>
             </div>
             <div class="compact-item metric-card">
                 <span class="item-desc">Completed</span>
@@ -200,7 +230,7 @@ const TaskUI = {
         `;
     },
 
-    createTaskElement(task) {
+    createTaskElement(task, { compactReason = false } = {}) {
         const div = document.createElement('div');
         div.className = 'compact-item';
         div.style.flexDirection = 'column';
@@ -210,6 +240,10 @@ const TaskUI = {
         const goal = this.goals.find((item) => item.id === task.goal_id);
         const dueState = this.getDueState(task);
         const dueLabel = this.getDueLabel(task, dueState);
+        const isNotCompleted = this.isTaskNotCompleted(task);
+        const isStale = this.isTaskStale(task);
+        const canReturnToBoard = isNotCompleted && !isStale;
+        const notCompletedLabel = this.getNotCompletedLabel(task);
 
         div.innerHTML = `
             <div style="display:flex; justify-content:space-between; width:100%; gap:12px; align-items:flex-start;">
@@ -220,11 +254,14 @@ const TaskUI = {
                         ${project ? `<span class="badge"><i class="ph ph-kanban"></i>${CoreUI.escapeHtml(project.name)}</span>` : ''}
                         ${goal ? `<span class="badge"><i class="ph ph-target"></i>${CoreUI.escapeHtml(goal.title)}</span>` : ''}
                         ${task.linkedin_post_enabled ? '<span class="badge"><i class="ph ph-linkedin-logo"></i>LinkedIn</span>' : ''}
+                        ${Number(task.calendar_sync_enabled) === 0 ? '<span class="badge"><i class="ph ph-calendar-x"></i>No calendar</span>' : ''}
+                        ${isNotCompleted ? '<span class="badge badge-not-completed"><i class="ph ph-warning-octagon"></i>Not completed</span>' : ''}
                     </div>
                 </div>
                 ${CoreUI.getPriorityLabel(task.priority)}
             </div>
             ${task.description ? `<div class="item-desc" style="white-space:pre-wrap;">${CoreUI.escapeHtml(task.description)}</div>` : ''}
+            ${compactReason && notCompletedLabel ? `<div class="item-desc task-not-completed-reason">${CoreUI.escapeHtml(notCompletedLabel)}</div>` : ''}
             <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; width:100%;">
                 <span class="item-desc" style="${dueState === 'overdue' ? 'color: var(--text-error);' : dueState === 'today' ? 'color: var(--text-warning);' : ''}">${CoreUI.escapeHtml(dueLabel)}</span>
                 <span class="item-desc">${task.estimated_minutes ? `${task.estimated_minutes}m` : 'No estimate'}</span>
@@ -235,6 +272,8 @@ const TaskUI = {
                 ${task.status === 'pending' ? `<button class="btn btn-icon" onclick="TaskUI.updateStatus(${task.id}, 'in_progress')" title="Start"><i class="ph ph-play"></i></button>` : ''}
                 ${task.status === 'in_progress' ? `<button class="btn btn-icon" onclick="TaskUI.updateStatus(${task.id}, 'on_hold')" title="Pause"><i class="ph ph-pause"></i></button>` : ''}
                 ${task.status === 'on_hold' ? `<button class="btn btn-icon" onclick="TaskUI.updateStatus(${task.id}, 'in_progress')" title="Resume"><i class="ph ph-play"></i></button>` : ''}
+                ${task.status !== 'completed' && !isNotCompleted ? `<button class="btn btn-icon" onclick="TaskUI.markNotCompleted(${task.id}, true)" title="Mark not completed"><i class="ph ph-x-circle"></i></button>` : ''}
+                ${canReturnToBoard ? `<button class="btn btn-icon" onclick="TaskUI.markNotCompleted(${task.id}, false)" title="Return to board"><i class="ph ph-arrow-counter-clockwise"></i></button>` : ''}
                 ${task.status !== 'completed' ? `<button class="btn btn-icon" onclick="TaskUI.updateStatus(${task.id}, 'completed')" title="Complete"><i class="ph ph-check"></i></button>` : ''}
                 <button class="btn btn-icon btn-danger" onclick="TaskUI.deleteTask(${task.id})" title="Delete"><i class="ph ph-trash"></i></button>
             </div>
@@ -242,9 +281,38 @@ const TaskUI = {
         return div;
     },
 
+    parseTaskDate(value) {
+        if (!value) return null;
+        const parsed = new Date(String(value).replace(' ', 'T'));
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    },
+
+    isTaskNotCompleted(task) {
+        if (!task || task.status === 'completed') return false;
+        return Boolean(Number(task.not_completed || 0)) || this.isTaskStale(task);
+    },
+
+    isTaskStale(task) {
+        if (!task?.due_date || task.status === 'completed') return false;
+        const due = this.parseTaskDate(task.due_date);
+        if (!due) return false;
+        return Date.now() - due.getTime() >= 24 * 60 * 60 * 1000;
+    },
+
+    getNotCompletedLabel(task) {
+        if (!this.isTaskNotCompleted(task)) return '';
+        if (this.isTaskStale(task)) return 'Auto-moved after being overdue for 24 hours';
+        if (Number(task.not_completed || 0)) {
+            const when = task.not_completed_at ? ` · ${CoreUI.formatDate(task.not_completed_at)}` : '';
+            return `Marked not completed${when}`;
+        }
+        return 'Auto-moved after being overdue for 24 hours';
+    },
+
     getDueState(task) {
         if (!task.due_date || task.status === 'completed') return 'none';
-        const due = new Date(task.due_date);
+        const due = this.parseTaskDate(task.due_date);
+        if (!due) return 'none';
         due.setHours(0, 0, 0, 0);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -273,6 +341,7 @@ const TaskUI = {
         document.getElementById('task-id').value = '';
         document.getElementById('task-status').value = 'pending';
         document.getElementById('task-linkedin-enabled').checked = false;
+        document.getElementById('task-calendar-sync-enabled').checked = true;
         deleteBtn.style.display = 'none';
         this.populateRelationOptions();
 
@@ -289,6 +358,7 @@ const TaskUI = {
                 document.getElementById('task-project').value = task.project_id || '';
                 document.getElementById('task-goal').value = task.goal_id || '';
                 document.getElementById('task-linkedin-enabled').checked = Boolean(task.linkedin_post_enabled);
+                document.getElementById('task-calendar-sync-enabled').checked = Number(task.calendar_sync_enabled) !== 0;
                 if (task.due_date) {
                     document.getElementById('task-due-date').value = task.due_date.replace(' ', 'T').substring(0, 16);
                 }
@@ -322,7 +392,8 @@ const TaskUI = {
             due_date: document.getElementById('task-due-date').value || null,
             project_id: document.getElementById('task-project').value ? parseInt(document.getElementById('task-project').value, 10) : null,
             goal_id: document.getElementById('task-goal').value ? parseInt(document.getElementById('task-goal').value, 10) : null,
-            linkedin_post_enabled: document.getElementById('task-linkedin-enabled').checked
+            linkedin_post_enabled: document.getElementById('task-linkedin-enabled').checked,
+            calendar_sync_enabled: document.getElementById('task-calendar-sync-enabled').checked
         };
 
         try {
@@ -341,6 +412,15 @@ const TaskUI = {
     async updateStatus(id, newStatus) {
         try {
             await API.put(`/api/tasks/${id}`, { status: newStatus });
+            await this.loadTasks();
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to update task.');
+        }
+    },
+
+    async markNotCompleted(id, isNotCompleted) {
+        try {
+            await API.put(`/api/tasks/${id}`, { not_completed: isNotCompleted });
             await this.loadTasks();
         } catch (error) {
             CoreUI.showError(error.message || 'Failed to update task.');

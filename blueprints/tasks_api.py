@@ -3,7 +3,13 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from database import execute_db, query_db
-from services import delete_task_with_sync, maybe_create_linkedin_draft_for_task, sync_calendar_event_for_task
+from services import (
+    delete_task_with_sync,
+    is_task_due_stale,
+    mark_stale_tasks_not_completed,
+    maybe_create_linkedin_draft_for_task,
+    sync_calendar_event_for_task,
+)
 from utils import (
     ValidationError,
     get_optional_bool,
@@ -26,6 +32,8 @@ TASK_STATUSES = {"pending", "in_progress", "on_hold", "completed"}
 
 @bp.route("/", methods=["GET"])
 def get_tasks():
+    mark_stale_tasks_not_completed()
+
     filters = []
     params: list = []
 
@@ -109,15 +117,20 @@ def create_task():
     validate_optional_reference(project_id, "projects", field="project_id", label="Project")
     validate_optional_reference(goal_id, "goals", field="goal_id", label="Goal")
     linkedin_post_enabled = 1 if get_optional_bool(payload, "linkedin_post_enabled", default=False) else 0
+    calendar_sync_enabled = 1 if get_optional_bool(payload, "calendar_sync_enabled", default=True) else 0
+    not_completed = 1 if get_optional_bool(payload, "not_completed", default=False) else 0
+    if status == "completed":
+        not_completed = 0
     completed_at = iso_now() if status == "completed" else None
+    not_completed_at = iso_now() if not_completed else None
 
     task_id = execute_db(
         """
         INSERT INTO tasks (
             title, description, priority, due_date, estimated_minutes, status, project_id, goal_id,
-            linkedin_post_enabled, completed_at, calendar_event_id
+            linkedin_post_enabled, calendar_sync_enabled, not_completed, not_completed_at, completed_at, calendar_event_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
         """,
         (
             title,
@@ -129,6 +142,9 @@ def create_task():
             project_id,
             goal_id,
             linkedin_post_enabled,
+            calendar_sync_enabled,
+            not_completed,
+            not_completed_at,
             completed_at,
         ),
     )
@@ -178,17 +194,43 @@ def update_task(task_id: int):
     linkedin_post_enabled = (
         1 if get_optional_bool(payload, "linkedin_post_enabled", default=bool(current_task.get("linkedin_post_enabled"))) else 0
     )
+    calendar_sync_enabled = (
+        1
+        if get_optional_bool(
+            payload,
+            "calendar_sync_enabled",
+            default=bool(current_task.get("calendar_sync_enabled", 1)),
+        )
+        else 0
+    )
+
+    current_not_completed = bool(current_task.get("not_completed"))
+    not_completed = (
+        bool(get_optional_bool(payload, "not_completed", default=current_not_completed))
+        if "not_completed" in payload
+        else current_not_completed
+    )
+    if "not_completed" not in payload and "due_date" in payload and not is_task_due_stale(due_date):
+        not_completed = False
 
     completed_at = current_task.get("completed_at")
     if status == "completed" and current_task["status"] != "completed":
         completed_at = iso_now()
     elif status != "completed":
         completed_at = None
+    if status == "completed":
+        not_completed = False
+
+    not_completed_at = current_task.get("not_completed_at")
+    if not_completed and not current_not_completed:
+        not_completed_at = iso_now()
+    elif not not_completed:
+        not_completed_at = None
 
     execute_db(
         """
         UPDATE tasks
-        SET title = ?, description = ?, priority = ?, status = ?, due_date = ?, estimated_minutes = ?, project_id = ?, goal_id = ?, linkedin_post_enabled = ?, completed_at = ?
+        SET title = ?, description = ?, priority = ?, status = ?, due_date = ?, estimated_minutes = ?, project_id = ?, goal_id = ?, linkedin_post_enabled = ?, calendar_sync_enabled = ?, not_completed = ?, not_completed_at = ?, completed_at = ?
         WHERE id = ?
         """,
         (
@@ -201,6 +243,9 @@ def update_task(task_id: int):
             project_id,
             goal_id,
             linkedin_post_enabled,
+            calendar_sync_enabled,
+            1 if not_completed else 0,
+            not_completed_at,
             completed_at,
             task_id,
         ),

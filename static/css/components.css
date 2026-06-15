@@ -2368,6 +2368,52 @@ body.notebook-fullscreen-open {
     color: var(--accent-blue);
 }
 
+.task-hidden-panel {
+    border-top: 1px solid var(--border-subtle);
+    padding-top: var(--space-4);
+}
+
+.task-hidden-panel summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    cursor: pointer;
+    list-style: none;
+}
+
+.task-hidden-panel summary::-webkit-details-marker {
+    display: none;
+}
+
+.task-hidden-panel summary::after {
+    content: "+";
+    color: var(--accent-blue);
+    font-family: var(--font-mono);
+    font-weight: 700;
+}
+
+.task-hidden-panel[open] summary::after {
+    content: "-";
+}
+
+.task-hidden-panel .compact-list {
+    margin-top: var(--space-3);
+}
+
+.badge-not-completed {
+    border-color: rgba(255, 0, 85, 0.45);
+    color: var(--accent-red);
+}
+
+.task-not-completed-reason {
+    color: var(--accent-amber);
+}
+
+.task-modal-content .calendar-sync-toggle {
+    margin-bottom: var(--space-4);
+}
+
 /* Site-wide Mindset styling */
 .bento-grid,
 .section-grid-2,

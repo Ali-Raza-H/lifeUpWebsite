@@ -139,6 +139,29 @@ def get_calendar_event_for_task(task: dict) -> dict:
     return row_to_dict(query_db("SELECT * FROM calendar_events WHERE id = ?", [event_id], one=True))
 
 
+def is_task_due_stale(due_date: str | None) -> bool:
+    due_dt = parse_datetime(due_date)
+    if due_dt is None:
+        return False
+    return datetime.utcnow() - due_dt.replace(tzinfo=None) >= timedelta(hours=24)
+
+
+def mark_stale_tasks_not_completed() -> None:
+    now = iso_now()
+    execute_db(
+        """
+        UPDATE tasks
+        SET not_completed = 1,
+            not_completed_at = COALESCE(not_completed_at, ?)
+        WHERE status != 'completed'
+            AND due_date IS NOT NULL
+            AND DATETIME(due_date) <= DATETIME(?, '-24 hours')
+            AND COALESCE(not_completed, 0) = 0
+        """,
+        (now, now),
+    )
+
+
 def delete_task_with_sync(task_id: int, *, delete_linked_event: bool = True) -> bool:
     task = row_to_dict(query_db("SELECT * FROM tasks WHERE id = ?", [task_id], one=True))
     if not task:
@@ -173,6 +196,11 @@ def sync_calendar_event_for_task(task: dict) -> dict:
         return {}
 
     event_id = task.get("calendar_event_id")
+    if int(task.get("calendar_sync_enabled", 1) if task.get("calendar_sync_enabled") is not None else 1) == 0:
+        if event_id:
+            delete_calendar_event_with_sync(int(event_id), delete_linked_task=False)
+        return {}
+
     start_at, end_at = _task_calendar_window(task)
     if start_at is None or end_at is None:
         if event_id:
@@ -235,7 +263,7 @@ def sync_task_for_calendar_event(event: dict, sync_task: bool) -> dict:
         execute_db(
             """
             UPDATE tasks
-            SET title = ?, description = ?, due_date = ?, estimated_minutes = ?, project_id = ?, goal_id = ?, calendar_event_id = ?
+            SET title = ?, description = ?, due_date = ?, estimated_minutes = ?, project_id = ?, goal_id = ?, calendar_event_id = ?, calendar_sync_enabled = 1
             WHERE id = ?
             """,
             (
@@ -253,8 +281,8 @@ def sync_task_for_calendar_event(event: dict, sync_task: bool) -> dict:
 
     task_id = execute_db(
         """
-        INSERT INTO tasks (title, description, priority, due_date, estimated_minutes, status, project_id, goal_id, calendar_event_id)
-        VALUES (?, ?, 3, ?, ?, 'pending', ?, ?, ?)
+        INSERT INTO tasks (title, description, priority, due_date, estimated_minutes, status, project_id, goal_id, calendar_event_id, calendar_sync_enabled)
+        VALUES (?, ?, 3, ?, ?, 'pending', ?, ?, ?, 1)
         """,
         (
             event["title"],

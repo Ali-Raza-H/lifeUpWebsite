@@ -42,6 +42,9 @@ MIGRATIONS = (
     ("traits", "display_order", "ALTER TABLE traits ADD COLUMN display_order INTEGER NOT NULL DEFAULT 0"),
     ("tasks", "completed_at", "ALTER TABLE tasks ADD COLUMN completed_at DATETIME"),
     ("tasks", "calendar_event_id", "ALTER TABLE tasks ADD COLUMN calendar_event_id INTEGER"),
+    ("tasks", "calendar_sync_enabled", "ALTER TABLE tasks ADD COLUMN calendar_sync_enabled INTEGER NOT NULL DEFAULT 1"),
+    ("tasks", "not_completed", "ALTER TABLE tasks ADD COLUMN not_completed INTEGER NOT NULL DEFAULT 0"),
+    ("tasks", "not_completed_at", "ALTER TABLE tasks ADD COLUMN not_completed_at DATETIME"),
     ("tasks", "linkedin_post_enabled", "ALTER TABLE tasks ADD COLUMN linkedin_post_enabled INTEGER NOT NULL DEFAULT 0"),
     ("projects", "completed_at", "ALTER TABLE projects ADD COLUMN completed_at DATETIME"),
     ("projects", "linkedin_post_enabled", "ALTER TABLE projects ADD COLUMN linkedin_post_enabled INTEGER NOT NULL DEFAULT 0"),
@@ -147,6 +150,18 @@ def _backfill_completion_timestamps(db: sqlite3.Connection) -> None:
         """
     )
     db.execute("UPDATE notes SET tags = '' WHERE tags IS NULL")
+    if _column_exists(db, "tasks", "calendar_sync_enabled"):
+        db.execute("UPDATE tasks SET calendar_sync_enabled = 1 WHERE calendar_sync_enabled IS NULL")
+    if _column_exists(db, "tasks", "not_completed"):
+        db.execute("UPDATE tasks SET not_completed = 0 WHERE not_completed IS NULL")
+        if _column_exists(db, "tasks", "not_completed_at"):
+            db.execute(
+                """
+                UPDATE tasks
+                SET not_completed = 0, not_completed_at = NULL
+                WHERE status = 'completed'
+                """
+            )
     db.execute("UPDATE journal_entries SET title = '' WHERE title IS NULL")
     db.execute("UPDATE journal_entries SET tags = '' WHERE tags IS NULL")
     if _column_exists(db, "journal_entries", "ai_feedback"):
@@ -705,6 +720,8 @@ def _ensure_calendar_relation_indexes(db: sqlite3.Connection) -> None:
 def _ensure_task_sync_indexes(db: sqlite3.Connection) -> None:
     if _column_exists(db, "tasks", "calendar_event_id"):
         db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_calendar_event_id ON tasks(calendar_event_id)")
+    if _column_exists(db, "tasks", "not_completed") and _column_exists(db, "tasks", "not_completed_at"):
+        db.execute("CREATE INDEX IF NOT EXISTS idx_tasks_not_completed ON tasks(not_completed, not_completed_at)")
 
 
 def query_db(query: str, args=(), one: bool = False):

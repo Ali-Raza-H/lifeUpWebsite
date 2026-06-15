@@ -107,6 +107,90 @@ def test_task_lifecycle_sets_completed_timestamp(client):
     assert len(completed_response.get_json()) == 1
 
 
+def test_task_calendar_sync_can_be_disabled(client):
+    opted_out_response = client.post(
+        "/api/tasks/",
+        json={
+            "title": "Private planning task",
+            "due_date": "2026-06-16T10:00",
+            "calendar_sync_enabled": False,
+        },
+    )
+    assert opted_out_response.status_code == 201
+    opted_out_task = opted_out_response.get_json()["task"]
+    assert opted_out_task["calendar_sync_enabled"] == 0
+    assert opted_out_task["calendar_event_id"] is None
+
+    synced_response = client.post(
+        "/api/tasks/",
+        json={"title": "Calendar backed task", "due_date": "2026-06-16T11:00"},
+    )
+    assert synced_response.status_code == 201
+    synced_task = synced_response.get_json()["task"]
+    assert synced_task["calendar_sync_enabled"] == 1
+    assert synced_task["calendar_event_id"] is not None
+
+    update_response = client.put(f"/api/tasks/{synced_task['id']}", json={"calendar_sync_enabled": False})
+    assert update_response.status_code == 200
+    updated_task = update_response.get_json()["task"]
+    assert updated_task["calendar_sync_enabled"] == 0
+    assert updated_task["calendar_event_id"] is None
+
+    week_payload = client.get("/api/calendar/week?start=2026-06-15").get_json()
+    week_titles = [event["title"] for day in week_payload["days"] for event in day["events"]]
+    assert "Private planning task" not in week_titles
+    assert "Calendar backed task" not in week_titles
+
+
+def test_tasks_can_be_marked_not_completed_manually_and_automatically(client):
+    manual_response = client.post("/api/tasks/", json={"title": "Manual miss"})
+    assert manual_response.status_code == 201
+    manual_task = manual_response.get_json()["task"]
+
+    marked_response = client.put(f"/api/tasks/{manual_task['id']}", json={"not_completed": True})
+    assert marked_response.status_code == 200
+    marked_task = marked_response.get_json()["task"]
+    assert marked_task["not_completed"] == 1
+    assert marked_task["not_completed_at"] is not None
+
+    restored_response = client.put(f"/api/tasks/{manual_task['id']}", json={"not_completed": False})
+    assert restored_response.status_code == 200
+    restored_task = restored_response.get_json()["task"]
+    assert restored_task["not_completed"] == 0
+    assert restored_task["not_completed_at"] is None
+
+    stale_due = (date.today() - timedelta(days=2)).isoformat()
+    stale_response = client.post(
+        "/api/tasks/",
+        json={
+            "title": "Automatically hidden miss",
+            "due_date": stale_due,
+            "calendar_sync_enabled": False,
+        },
+    )
+    assert stale_response.status_code == 201
+    stale_task_id = stale_response.get_json()["task"]["id"]
+
+    listed_tasks = client.get("/api/tasks/?q=Automatically%20hidden%20miss").get_json()
+    stale_task = next(task for task in listed_tasks if task["id"] == stale_task_id)
+    assert stale_task["not_completed"] == 1
+    assert stale_task["not_completed_at"] is not None
+
+    future_due = (date.today() + timedelta(days=2)).isoformat()
+    rescheduled_response = client.put(f"/api/tasks/{stale_task_id}", json={"due_date": future_due})
+    assert rescheduled_response.status_code == 200
+    rescheduled_task = rescheduled_response.get_json()["task"]
+    assert rescheduled_task["not_completed"] == 0
+    assert rescheduled_task["not_completed_at"] is None
+
+    completed_response = client.put(f"/api/tasks/{stale_task_id}", json={"status": "completed"})
+    assert completed_response.status_code == 200
+    completed_task = completed_response.get_json()["task"]
+    assert completed_task["status"] == "completed"
+    assert completed_task["not_completed"] == 0
+    assert completed_task["not_completed_at"] is None
+
+
 def test_habit_logging_returns_live_metrics(client):
     create_response = client.post("/api/habits/", json={"name": "Read", "frequency": "daily"})
     assert create_response.status_code == 201
