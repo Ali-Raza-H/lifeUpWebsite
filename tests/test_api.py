@@ -449,15 +449,26 @@ def test_cv_text_parser_extracts_structured_sections():
     assert any(section["section_type"] == "skills" for section in parsed["sections"])
 
 
-def test_task_analytics_excludes_completed_and_includes_not_completed(client):
-    client.post("/api/tasks/", json={"title": "Pending output"})
-    not_completed_response = client.post("/api/tasks/", json={"title": "Not completed output"})
-    not_completed_task = not_completed_response.get_json()["task"]
-    client.put(f"/api/tasks/{not_completed_task['id']}", json={"not_completed": True})
-    client.post("/api/tasks/", json={"title": "Completed output", "status": "completed"})
+def test_task_completion_updates_progress_and_analytics(client):
+    project = client.post("/api/projects/", json={"name": "Analytics Project"}).get_json()["project"]
+    task = client.post(
+        "/api/tasks/",
+        json={"title": "Completed output", "project_id": project["id"]},
+    ).get_json()["task"]
 
-    overview = client.get("/api/analytics/page").get_json()["overview"]
-    assert overview["active_output_tasks"] == 2
+    complete_response = client.put(f"/api/tasks/{task['id']}", json={"status": "completed"})
+    assert complete_response.status_code == 200
+
+    analytics_payload = client.get("/api/analytics/page").get_json()
+    overview = analytics_payload["overview"]
+    assert overview["completed_tasks"] == 1
+    assert overview["active_output_tasks"] == 0
+    assert overview["task_completion_rate"] == 100
+    assert sum(analytics_payload["task_analytics"]["completed"]) == 1
+
+    refreshed_project = client.get("/api/projects/").get_json()[0]
+    assert refreshed_project["completed_task_count"] == 1
+    assert refreshed_project["progress"] == 100
 
     invalid_status_response = client.get("/api/tasks/?status=canceled")
     assert invalid_status_response.status_code == 400
@@ -507,6 +518,24 @@ def test_completed_flagged_task_creates_linkedin_email_draft(client):
     generated_draft = generated_response.get_json()["draft"]
     assert "turns completed work" in generated_draft["post_body"]
     assert generated_draft["email_status"] == "not_configured"
+
+
+def test_ai_config_endpoints_report_missing_configuration(client):
+    linkedin_config = client.get("/api/linkedin/config").get_json()
+    assert linkedin_config["gemini"]["configured"] is False
+    assert "GEMINI_API_KEY" in linkedin_config["gemini"]["message"]
+    assert linkedin_config["smtp"]["configured"] is False
+
+    journal_status = client.get("/api/journal/ai-status").get_json()
+    assert journal_status["gemini"]["configured"] is False
+
+    entry = client.post(
+        "/api/journal/",
+        json={"title": "Needs feedback", "content": "Short entry", "mood_score": 5},
+    ).get_json()["entry"]
+    feedback_response = client.post(f"/api/journal/{entry['id']}/feedback", json={})
+    assert feedback_response.status_code == 503
+    assert "GEMINI_API_KEY" in feedback_response.get_json()["error"]
 
 
 def test_completed_flagged_project_creates_linkedin_email_draft(client):
@@ -1245,6 +1274,7 @@ def test_journal_entry_feedback_can_be_generated_and_cleared_on_edit(client, mon
         )
 
     monkeypatch.setattr("services._generate_text_with_gemini", fake_generate)
+    client.application.config["GEMINI_API_KEY"] = "test-key"
     client.application.config["JOURNAL_FEEDBACK_MODEL"] = "gemini-2.5-flash-lite"
 
     entry = client.post(

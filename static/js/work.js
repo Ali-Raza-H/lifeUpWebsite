@@ -53,7 +53,27 @@ const WorkUI = {
 
         const provider = this.linkedinConfig.provider || 'google';
         const model = this.linkedinConfig.model || 'gemini-2.5-flash-lite';
+        const gemini = this.linkedinConfig.gemini || {};
+        const smtp = this.linkedinConfig.smtp || {};
         description.textContent = `Generated when flagged tasks or projects are completed. Drafts use ${provider} (${model}) on the server and email ${this.linkedinConfig.email_to} when SMTP is configured.`;
+        const status = document.getElementById('linkedin-config-status');
+        if (!status) return;
+        const messages = [];
+        if (!gemini.configured) messages.push(gemini.message || 'Gemini is not configured.');
+        if (!smtp.configured) messages.push(smtp.message || 'SMTP is not configured.');
+        if (!messages.length) {
+            status.style.display = 'none';
+            status.innerHTML = '';
+            return;
+        }
+        status.style.display = 'flex';
+        status.style.flexDirection = 'column';
+        status.style.alignItems = 'flex-start';
+        status.style.gap = '6px';
+        status.innerHTML = `
+            <span class="item-title"><i class="ph ph-warning-circle"></i> AI/email setup incomplete</span>
+            ${messages.map((message) => `<span class="item-desc">${CoreUI.escapeHtml(message)}</span>`).join('')}
+        `;
     },
 
     async loadSummary() {
@@ -218,7 +238,7 @@ const WorkUI = {
     displayLinkedInDraftError(draft) {
         const error = String(draft.email_error || '').trim();
         if (!error) return '';
-        if (draft.email_status === 'not_configured') return 'SMTP not enabled.';
+        if (draft.email_status === 'not_configured') return error || 'SMTP not enabled.';
         if (error.includes('5.7.8 Username and Password not accepted')) return 'SMTP not enabled.';
         return error;
     },

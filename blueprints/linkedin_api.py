@@ -3,7 +3,13 @@ from __future__ import annotations
 from flask import Blueprint, current_app, jsonify, request
 
 from database import query_db
-from services import finalize_linkedin_draft_generation, generate_linkedin_draft, resend_linkedin_draft_email
+from services import (
+    finalize_linkedin_draft_generation,
+    gemini_configuration_status,
+    generate_linkedin_draft,
+    resend_linkedin_draft_email,
+    smtp_configuration_status,
+)
 from utils import get_required_string, require_object, row_to_dict, rows_to_dicts
 
 bp = Blueprint("linkedin_api", __name__, url_prefix="/api/linkedin")
@@ -17,6 +23,8 @@ def get_linkedin_config():
             "generation_mode": current_app.config.get("LINKEDIN_GENERATION_MODE", "server"),
             "provider": "google",
             "model": current_app.config.get("GEMINI_MODEL", "gemini-2.5-flash-lite"),
+            "gemini": gemini_configuration_status(),
+            "smtp": smtp_configuration_status(),
         }
     )
 

@@ -19,7 +19,7 @@ const AnalyticsUI = {
 
             this.selectedMonth = calendarPayload.month;
             const monthlyConsistency = this.calculateMonthlyConsistency(calendarPayload.habits);
-            document.getElementById('completed-tasks').textContent = overview.active_output_tasks ?? overview.completed_tasks;
+            document.getElementById('completed-tasks').textContent = overview.completed_tasks ?? 0;
             document.getElementById('active-habits').textContent = overview.active_habits;
             document.getElementById('consistency-rate').textContent = `${monthlyConsistency}%`;
 
@@ -150,6 +150,7 @@ const AnalyticsUI = {
         const activeGoals = Number(overview.active_goals || 0);
         const completionRate = Number(overview.task_completion_rate || 0);
         const totalTasks = Number(taskAnalytics.total_tasks || overview.total_tasks || 0);
+        const activeTasks = Number(overview.active_output_tasks || 0);
         const peakValue = completedSeries.length ? Math.max(...completedSeries) : 0;
         const peakIndex = peakValue > 0 ? completedSeries.indexOf(peakValue) : -1;
         const peakLabel = peakIndex >= 0 ? labels[peakIndex] : '';
@@ -158,12 +159,12 @@ const AnalyticsUI = {
 
         grid.innerHTML = `
             <div class="compact-item metric-card">
-                <span class="item-desc">In Progress Share</span>
+                <span class="item-desc">Completion Rate</span>
                 <div class="stat-value">${completionRate}%</div>
             </div>
             <div class="compact-item metric-card">
-                <span class="item-desc">Active Projects</span>
-                <div class="stat-value">${activeProjects}</div>
+                <span class="item-desc">Active Backlog</span>
+                <div class="stat-value">${activeTasks}</div>
             </div>
             <div class="compact-item metric-card">
                 <span class="item-desc">Active Goals</span>
@@ -177,12 +178,12 @@ const AnalyticsUI = {
 
         if (!totalRecent) {
             insight.textContent = totalTasks
-                ? 'No active task output landed in the current 14-day window. The chart below will highlight pending, in-progress, on-hold, and not-completed task movement.'
-                : 'No active task history yet. As tasks are created, this panel will show execution pressure and momentum.';
+                ? 'No tasks were completed in the current 14-day window. Complete a task to update this chart.'
+                : 'No task history yet. As tasks are completed, this panel will show completion momentum.';
             return;
         }
 
-        insight.textContent = `Peak active output was ${peakValue} task${peakValue === 1 ? '' : 's'} on ${peakLabel}. You averaged ${averageActiveDay} active task entries on days where work moved.`;
+        insight.textContent = `Peak completion output was ${peakValue} task${peakValue === 1 ? '' : 's'} on ${peakLabel}. You averaged ${averageActiveDay} completed task${averageActiveDay === '1.0' ? '' : 's'} on days where work landed.`;
     },
 
     renderFinanceAnalytics(finance) {
@@ -251,7 +252,7 @@ const AnalyticsUI = {
                     datasets: [
                         {
                             type: 'bar',
-                            label: 'Active task output',
+                            label: 'Completed tasks',
                             data: taskAnalytics.completed || [],
                             backgroundColor: 'rgba(0, 240, 255, 0.45)',
                             borderColor: '#00f0ff',
@@ -261,7 +262,7 @@ const AnalyticsUI = {
                         },
                         {
                             type: 'line',
-                            label: `Share of Total${taskAnalytics.total_tasks ? ` (${taskAnalytics.total_tasks})` : ''}`,
+                            label: `Completion Share${taskAnalytics.total_tasks ? ` (${taskAnalytics.total_tasks})` : ''}`,
                             data: taskAnalytics.share_of_total || [],
                             borderColor: '#ff7a00',
                             borderWidth: 2,
@@ -314,7 +315,7 @@ const AnalyticsUI = {
                         },
                         {
                             type: 'bar',
-                            label: 'Active Task Output',
+                            label: 'Completed Tasks',
                             data: moodProductivity.tasks,
                             backgroundColor: 'rgba(0, 240, 255, 0.6)',
                             yAxisID: 'yTasks'

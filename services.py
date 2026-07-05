@@ -43,6 +43,14 @@ _PROFILE_DEFAULTS_READY: set[str] = set()
 DEFAULT_TASK_EVENT_DURATION_MINUTES = 60
 TASK_ANALYTICS_DAYS = 14
 ACTIVE_TASK_STATUSES = ("pending", "in_progress", "on_hold")
+PLACEHOLDER_CONFIG_VALUES = {
+    "",
+    "replace-this",
+    "your-google-api-key",
+    "your-api-key",
+    "your-sender@gmail.com",
+    "your-app-password",
+}
 
 
 def _profile_defaults_cache_key() -> str:
@@ -438,6 +446,10 @@ def generate_journal_entry_feedback(entry_id: int) -> tuple[dict, str]:
     if not entry:
         return {}, "not_found"
 
+    gemini_status = gemini_configuration_status()
+    if not gemini_status["configured"]:
+        return entry, gemini_status["message"]
+
     prompt = _build_journal_feedback_prompt(entry)
     model = str(current_app.config.get("JOURNAL_FEEDBACK_MODEL", "gemini-2.5-flash-lite")).strip()
     feedback = _generate_text_with_gemini(
@@ -449,7 +461,7 @@ def generate_journal_entry_feedback(entry_id: int) -> tuple[dict, str]:
     )
     feedback = _clean_generated_text(feedback)[:2500]
     if not feedback:
-        return entry, "AI feedback could not be generated. Check the Gemini API key and model configuration."
+        return entry, "Gemini returned no feedback. Check the server logs, API key permissions, and model name."
 
     generated_at = iso_now()
     execute_db(
@@ -529,6 +541,57 @@ def _smtp_delivery_failed_message() -> str:
     return "SMTP delivery failed."
 
 
+def _is_configured_value(value: object) -> bool:
+    text = str(value or "").strip()
+    return bool(text) and text.lower() not in PLACEHOLDER_CONFIG_VALUES
+
+
+def gemini_configuration_status() -> dict:
+    enabled = bool(current_app.config.get("GEMINI_ENABLED", True))
+    api_key_configured = _is_configured_value(current_app.config.get("GEMINI_API_KEY", ""))
+    model = str(current_app.config.get("GEMINI_MODEL", "gemini-2.5-flash-lite")).strip() or "gemini-2.5-flash-lite"
+    if not enabled:
+        message = "Gemini generation is disabled with GEMINI_ENABLED=0."
+    elif not api_key_configured:
+        message = "Gemini API key is not configured. Add GEMINI_API_KEY to .env and restart LifeOS."
+    else:
+        message = "Gemini is configured."
+    return {
+        "enabled": enabled,
+        "configured": enabled and api_key_configured,
+        "api_key_configured": api_key_configured,
+        "model": model,
+        "journal_model": str(current_app.config.get("JOURNAL_FEEDBACK_MODEL", model)).strip() or model,
+        "message": message,
+    }
+
+
+def smtp_configuration_status() -> dict:
+    host = str(current_app.config.get("SMTP_HOST", "")).strip()
+    sender = str(current_app.config.get("SMTP_FROM", "")).strip()
+    username = str(current_app.config.get("SMTP_USERNAME", "")).strip()
+    password = str(current_app.config.get("SMTP_PASSWORD", "")).strip()
+    host_configured = _is_configured_value(host)
+    sender_configured = _is_configured_value(sender)
+    auth_configured = not username or (_is_configured_value(username) and _is_configured_value(password))
+    configured = host_configured and sender_configured and auth_configured
+    if configured:
+        message = "SMTP is configured."
+    elif not host_configured or not sender_configured:
+        message = "SMTP is not configured. Add SMTP_HOST and SMTP_FROM to .env to email LinkedIn drafts."
+    else:
+        message = "SMTP username or password is missing or still set to a placeholder."
+    return {
+        "configured": configured,
+        "host_configured": host_configured,
+        "sender_configured": sender_configured,
+        "auth_configured": auth_configured,
+        "host": host if host_configured else "",
+        "from": sender if sender_configured else "",
+        "message": message,
+    }
+
+
 def _finalize_linkedin_draft(draft_id: int, post_body: str) -> dict:
     execute_db(
         """
@@ -544,17 +607,18 @@ def _finalize_linkedin_draft(draft_id: int, post_body: str) -> dict:
 
 
 def _attempt_send_linkedin_draft(draft: dict) -> None:
+    smtp_status = smtp_configuration_status()
     host = current_app.config.get("SMTP_HOST", "")
     sender = current_app.config.get("SMTP_FROM", "")
     recipient = draft.get("email_to") or current_app.config.get("LINKEDIN_EMAIL_TO", "khadamalihussain@gmail.com")
-    if not host or not sender:
+    if not smtp_status["configured"]:
         execute_db(
             """
             UPDATE linkedin_drafts
             SET email_status = 'not_configured', email_error = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
             """,
-            (_smtp_not_enabled_message(), draft["id"]),
+            (smtp_status["message"], draft["id"]),
         )
         return
 
@@ -1695,11 +1759,12 @@ def activity_series(days: int = 7) -> dict[str, list]:
     )
     task_rows = query_db(
         """
-        SELECT DATE(created_at) AS event_date, COUNT(*) AS count
+        SELECT DATE(completed_at) AS event_date, COUNT(*) AS count
         FROM tasks
-        WHERE status != 'completed'
-          AND DATE(created_at) >= ?
-        GROUP BY DATE(created_at)
+        WHERE status = 'completed'
+          AND completed_at IS NOT NULL
+          AND DATE(completed_at) >= ?
+        GROUP BY DATE(completed_at)
         """,
         [start_date.isoformat()],
     )
@@ -1731,8 +1796,9 @@ def weekly_completion_series(weeks: int = 4) -> dict[str, list]:
             """
             SELECT COUNT(*) AS count
             FROM tasks
-            WHERE status != 'completed'
-              AND DATE(created_at) BETWEEN ? AND ?
+            WHERE status = 'completed'
+              AND completed_at IS NOT NULL
+              AND DATE(completed_at) BETWEEN ? AND ?
             """,
             [week_start.isoformat(), week_end.isoformat()],
             one=True,
@@ -1749,25 +1815,33 @@ def task_analytics_series(days: int = TASK_ANALYTICS_DAYS) -> dict[str, list]:
     start_date = today - timedelta(days=safe_days - 1)
     total_tasks = int(
         query_db(
-            "SELECT COUNT(*) AS count FROM tasks WHERE status != 'completed'",
+            "SELECT COUNT(*) AS count FROM tasks",
+            one=True,
+        )["count"]
+        or 0
+    )
+    completed_total = int(
+        query_db(
+            "SELECT COUNT(*) AS count FROM tasks WHERE status = 'completed'",
             one=True,
         )["count"]
         or 0
     )
 
-    active_rows = rows_to_dicts(
+    completed_rows = rows_to_dicts(
         query_db(
             """
-            SELECT DATE(created_at) AS event_date, COUNT(*) AS count
+            SELECT DATE(completed_at) AS event_date, COUNT(*) AS count
             FROM tasks
-            WHERE status != 'completed'
-              AND DATE(created_at) >= ?
-            GROUP BY DATE(created_at)
+            WHERE status = 'completed'
+              AND completed_at IS NOT NULL
+              AND DATE(completed_at) >= ?
+            GROUP BY DATE(completed_at)
             """,
             [start_date.isoformat()],
         )
     )
-    active_map = {row["event_date"]: int(row["count"] or 0) for row in active_rows}
+    completed_map = {row["event_date"]: int(row["count"] or 0) for row in completed_rows}
 
     labels: list[str] = []
     completed_values: list[int] = []
@@ -1775,7 +1849,7 @@ def task_analytics_series(days: int = TASK_ANALYTICS_DAYS) -> dict[str, list]:
     for offset in range(safe_days):
         current = start_date + timedelta(days=offset)
         key = current.isoformat()
-        completed_count = active_map.get(key, 0)
+        completed_count = completed_map.get(key, 0)
         labels.append(current.strftime("%d %b"))
         completed_values.append(completed_count)
         share_values.append(round((completed_count / total_tasks) * 100) if total_tasks else 0)
@@ -1785,6 +1859,7 @@ def task_analytics_series(days: int = TASK_ANALYTICS_DAYS) -> dict[str, list]:
         "completed": completed_values,
         "share_of_total": share_values,
         "total_tasks": total_tasks,
+        "completed_total": completed_total,
     }
 
 
@@ -1876,10 +1951,12 @@ def habits_monthly_report(calendar_habits: list[dict] | None = None) -> list[dic
 
 
 def dashboard_overview_payload(calendar_habits: list[dict] | None = None) -> dict:
-    total_tasks = query_db(
+    active_tasks = query_db(
         "SELECT COUNT(*) AS count FROM tasks WHERE status != 'completed'",
         one=True,
     )["count"]
+    total_tasks = query_db("SELECT COUNT(*) AS count FROM tasks", one=True)["count"]
+    completed_tasks = query_db("SELECT COUNT(*) AS count FROM tasks WHERE status = 'completed'", one=True)["count"]
     in_progress_tasks = query_db("SELECT COUNT(*) AS count FROM tasks WHERE status = 'in_progress'", one=True)["count"]
     active_habits = query_db("SELECT COUNT(*) AS count FROM habits", one=True)["count"]
     active_projects = query_db(
@@ -1899,9 +1976,10 @@ def dashboard_overview_payload(calendar_habits: list[dict] | None = None) -> dic
 
     return {
         "total_tasks": int(total_tasks or 0),
-        "completed_tasks": int(total_tasks or 0),
-        "active_output_tasks": int(total_tasks or 0),
-        "task_completion_rate": round((int(in_progress_tasks or 0) / int(total_tasks or 0)) * 100) if total_tasks else 0,
+        "completed_tasks": int(completed_tasks or 0),
+        "active_output_tasks": int(active_tasks or 0),
+        "task_completion_rate": round((int(completed_tasks or 0) / int(total_tasks or 0)) * 100) if total_tasks else 0,
+        "in_progress_tasks": int(in_progress_tasks or 0),
         "active_habits": int(active_habits or 0),
         "active_projects": int(active_projects or 0),
         "active_goals": int(active_goals or 0),
@@ -2419,18 +2497,19 @@ def mood_productivity_series(days: int = 14) -> dict[str, list]:
     task_rows = rows_to_dicts(
         query_db(
             """
-            SELECT DATE(created_at) AS event_date, COUNT(*) AS active_tasks
+            SELECT DATE(completed_at) AS event_date, COUNT(*) AS completed_tasks
             FROM tasks
-            WHERE status != 'completed'
-              AND DATE(created_at) >= ?
-            GROUP BY DATE(created_at)
+            WHERE status = 'completed'
+              AND completed_at IS NOT NULL
+              AND DATE(completed_at) >= ?
+            GROUP BY DATE(completed_at)
             """,
             [start_date.isoformat()],
         )
     )
 
     mood_map = {row["event_date"]: round(float(row["avg_mood"] or 0), 2) for row in mood_rows}
-    task_map = {row["event_date"]: int(row["active_tasks"] or 0) for row in task_rows}
+    task_map = {row["event_date"]: int(row["completed_tasks"] or 0) for row in task_rows}
     labels: list[str] = []
     mood_values: list[float | None] = []
     task_values: list[int] = []

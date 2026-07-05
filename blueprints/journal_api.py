@@ -3,10 +3,15 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from database import execute_db, query_db
-from services import generate_journal_entry_feedback
+from services import gemini_configuration_status, generate_journal_entry_feedback
 from utils import get_optional_int, get_optional_string, get_required_string, iso_now, require_object, row_to_dict, rows_to_dicts
 
 bp = Blueprint("journal_api", __name__, url_prefix="/api/journal")
+
+
+@bp.route("/ai-status", methods=["GET"])
+def get_ai_status():
+    return jsonify({"gemini": gemini_configuration_status()})
 
 
 @bp.route("/", methods=["GET"])

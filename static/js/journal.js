@@ -29,6 +29,30 @@ const JournalUI = {
         });
     },
 
+    async loadAiStatus() {
+        const status = document.getElementById('journal-ai-status');
+        if (!status) return;
+        try {
+            const payload = await API.get('/api/journal/ai-status');
+            const gemini = payload.gemini || {};
+            if (gemini.configured) {
+                status.style.display = 'none';
+                status.innerHTML = '';
+                return;
+            }
+            status.style.display = 'flex';
+            status.style.flexDirection = 'column';
+            status.style.alignItems = 'flex-start';
+            status.style.gap = '6px';
+            status.innerHTML = `
+                <span class="item-title"><i class="ph ph-warning-circle"></i> Journal AI feedback unavailable</span>
+                <span class="item-desc">${CoreUI.escapeHtml(gemini.message || 'Gemini is not configured.')}</span>
+            `;
+        } catch (error) {
+            status.style.display = 'none';
+        }
+    },
+
     async loadEntries() {
         try {
             this.entries = await API.get('/api/journal/');
@@ -225,5 +249,6 @@ const JournalUI = {
 
 document.addEventListener('DOMContentLoaded', () => {
     JournalUI.init();
+    JournalUI.loadAiStatus();
     JournalUI.loadEntries();
 });
