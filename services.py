@@ -42,6 +42,7 @@ DEFAULT_SKILLS = [
 _PROFILE_DEFAULTS_READY: set[str] = set()
 DEFAULT_TASK_EVENT_DURATION_MINUTES = 60
 TASK_ANALYTICS_DAYS = 14
+ACTIVE_TASK_STATUSES = ("pending", "in_progress", "on_hold")
 
 
 def _profile_defaults_cache_key() -> str:
@@ -100,6 +101,10 @@ def normalize_profile_orders() -> None:
     _normalize_display_order(
         "skills",
         "ORDER BY COALESCE(display_order, 0) ASC, proficiency DESC, name ASC, id ASC",
+    )
+    _normalize_display_order(
+        "admired_people",
+        "ORDER BY COALESCE(display_order, 0) ASC, id ASC",
     )
 
 
@@ -1228,6 +1233,15 @@ def get_profile_payload() -> dict[str, list[dict]]:
         "traits": _get_traits_payload(),
         "beliefs": _get_beliefs_payload(),
         "skills": _get_skills_payload(),
+        "admired_people": rows_to_dicts(
+            query_db(
+                """
+                SELECT *
+                FROM admired_people
+                ORDER BY display_order ASC, id ASC
+                """
+            )
+        ),
     }
 
 
@@ -1681,10 +1695,11 @@ def activity_series(days: int = 7) -> dict[str, list]:
     )
     task_rows = query_db(
         """
-        SELECT DATE(completed_at) AS event_date, COUNT(*) AS count
+        SELECT DATE(created_at) AS event_date, COUNT(*) AS count
         FROM tasks
-        WHERE completed_at IS NOT NULL AND DATE(completed_at) >= ?
-        GROUP BY DATE(completed_at)
+        WHERE status != 'completed'
+          AND DATE(created_at) >= ?
+        GROUP BY DATE(created_at)
         """,
         [start_date.isoformat()],
     )
@@ -1716,8 +1731,8 @@ def weekly_completion_series(weeks: int = 4) -> dict[str, list]:
             """
             SELECT COUNT(*) AS count
             FROM tasks
-            WHERE completed_at IS NOT NULL
-              AND DATE(completed_at) BETWEEN ? AND ?
+            WHERE status != 'completed'
+              AND DATE(created_at) BETWEEN ? AND ?
             """,
             [week_start.isoformat(), week_end.isoformat()],
             one=True,
@@ -1732,20 +1747,27 @@ def task_analytics_series(days: int = TASK_ANALYTICS_DAYS) -> dict[str, list]:
     safe_days = max(1, days)
     today = date.today()
     start_date = today - timedelta(days=safe_days - 1)
-    total_tasks = int(query_db("SELECT COUNT(*) AS count FROM tasks", one=True)["count"] or 0)
+    total_tasks = int(
+        query_db(
+            "SELECT COUNT(*) AS count FROM tasks WHERE status != 'completed'",
+            one=True,
+        )["count"]
+        or 0
+    )
 
-    completed_rows = rows_to_dicts(
+    active_rows = rows_to_dicts(
         query_db(
             """
-            SELECT DATE(completed_at) AS event_date, COUNT(*) AS count
+            SELECT DATE(created_at) AS event_date, COUNT(*) AS count
             FROM tasks
-            WHERE completed_at IS NOT NULL AND DATE(completed_at) >= ?
-            GROUP BY DATE(completed_at)
+            WHERE status != 'completed'
+              AND DATE(created_at) >= ?
+            GROUP BY DATE(created_at)
             """,
             [start_date.isoformat()],
         )
     )
-    completed_map = {row["event_date"]: int(row["count"] or 0) for row in completed_rows}
+    active_map = {row["event_date"]: int(row["count"] or 0) for row in active_rows}
 
     labels: list[str] = []
     completed_values: list[int] = []
@@ -1753,7 +1775,7 @@ def task_analytics_series(days: int = TASK_ANALYTICS_DAYS) -> dict[str, list]:
     for offset in range(safe_days):
         current = start_date + timedelta(days=offset)
         key = current.isoformat()
-        completed_count = completed_map.get(key, 0)
+        completed_count = active_map.get(key, 0)
         labels.append(current.strftime("%d %b"))
         completed_values.append(completed_count)
         share_values.append(round((completed_count / total_tasks) * 100) if total_tasks else 0)
@@ -1763,6 +1785,62 @@ def task_analytics_series(days: int = TASK_ANALYTICS_DAYS) -> dict[str, list]:
         "completed": completed_values,
         "share_of_total": share_values,
         "total_tasks": total_tasks,
+    }
+
+
+def _shift_month(base: date, offset: int) -> date:
+    month_index = (base.year * 12) + (base.month - 1) + offset
+    return date(month_index // 12, (month_index % 12) + 1, 1)
+
+
+def finance_analytics_payload(months: int = 6) -> dict:
+    rows = rows_to_dicts(
+        query_db(
+            """
+            SELECT entry_date, type, category, amount, is_recurring
+            FROM finance_entries
+            ORDER BY entry_date DESC, id DESC
+            LIMIT 500
+            """
+        )
+    )
+    totals = {"income": 0.0, "spending": 0.0, "savings": 0.0, "subscriptions": 0.0}
+    category_totals: defaultdict[str, float] = defaultdict(float)
+    for row in rows:
+        amount = float(row.get("amount") or 0)
+        entry_type = row.get("type")
+        if entry_type == "income":
+            totals["income"] += amount
+        elif entry_type == "saving":
+            totals["savings"] += amount
+        elif entry_type in {"expense", "subscription"}:
+            totals["spending"] += amount
+            category_totals[row.get("category") or entry_type or "Uncategorized"] += amount
+            if entry_type == "subscription":
+                totals["subscriptions"] += amount
+
+    current_month = date.today().replace(day=1)
+    month_items: list[dict] = []
+    for offset in range(max(1, months) - 1, -1, -1):
+        cursor = _shift_month(current_month, -offset)
+        key = cursor.strftime("%Y-%m")
+        month_spend = sum(
+            float(row.get("amount") or 0)
+            for row in rows
+            if row.get("type") in {"expense", "subscription"} and str(row.get("entry_date") or "").startswith(key)
+        )
+        month_items.append({"key": key, "label": cursor.strftime("%b"), "spending": round(month_spend, 2)})
+
+    categories = [
+        {"category": category, "amount": round(amount, 2)}
+        for category, amount in sorted(category_totals.items(), key=lambda item: item[1], reverse=True)
+    ]
+    return {
+        "totals": {key: round(value, 2) for key, value in totals.items()},
+        "net": round(totals["income"] + totals["savings"] - totals["spending"], 2),
+        "categories": categories,
+        "months": month_items,
+        "entry_count": len(rows),
     }
 
 
@@ -1798,8 +1876,11 @@ def habits_monthly_report(calendar_habits: list[dict] | None = None) -> list[dic
 
 
 def dashboard_overview_payload(calendar_habits: list[dict] | None = None) -> dict:
-    total_tasks = query_db("SELECT COUNT(*) AS count FROM tasks", one=True)["count"]
-    completed_tasks = query_db("SELECT COUNT(*) AS count FROM tasks WHERE status = 'completed'", one=True)["count"]
+    total_tasks = query_db(
+        "SELECT COUNT(*) AS count FROM tasks WHERE status != 'completed'",
+        one=True,
+    )["count"]
+    in_progress_tasks = query_db("SELECT COUNT(*) AS count FROM tasks WHERE status = 'in_progress'", one=True)["count"]
     active_habits = query_db("SELECT COUNT(*) AS count FROM habits", one=True)["count"]
     active_projects = query_db(
         "SELECT COUNT(*) AS count FROM projects WHERE status NOT IN ('completed', 'archived')",
@@ -1818,8 +1899,9 @@ def dashboard_overview_payload(calendar_habits: list[dict] | None = None) -> dic
 
     return {
         "total_tasks": int(total_tasks or 0),
-        "completed_tasks": int(completed_tasks or 0),
-        "task_completion_rate": round((int(completed_tasks or 0) / int(total_tasks or 0)) * 100) if total_tasks else 0,
+        "completed_tasks": int(total_tasks or 0),
+        "active_output_tasks": int(total_tasks or 0),
+        "task_completion_rate": round((int(in_progress_tasks or 0) / int(total_tasks or 0)) * 100) if total_tasks else 0,
         "active_habits": int(active_habits or 0),
         "active_projects": int(active_projects or 0),
         "active_goals": int(active_goals or 0),
@@ -2337,17 +2419,18 @@ def mood_productivity_series(days: int = 14) -> dict[str, list]:
     task_rows = rows_to_dicts(
         query_db(
             """
-            SELECT DATE(completed_at) AS event_date, COUNT(*) AS completed_tasks
+            SELECT DATE(created_at) AS event_date, COUNT(*) AS active_tasks
             FROM tasks
-            WHERE completed_at IS NOT NULL AND DATE(completed_at) >= ?
-            GROUP BY DATE(completed_at)
+            WHERE status != 'completed'
+              AND DATE(created_at) >= ?
+            GROUP BY DATE(created_at)
             """,
             [start_date.isoformat()],
         )
     )
 
     mood_map = {row["event_date"]: round(float(row["avg_mood"] or 0), 2) for row in mood_rows}
-    task_map = {row["event_date"]: int(row["completed_tasks"] or 0) for row in task_rows}
+    task_map = {row["event_date"]: int(row["active_tasks"] or 0) for row in task_rows}
     labels: list[str] = []
     mood_values: list[float | None] = []
     task_values: list[int] = []

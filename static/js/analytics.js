@@ -2,6 +2,8 @@ const AnalyticsUI = {
     velocityChart: null,
     taskAnalyticsChart: null,
     moodProductivityChart: null,
+    financeCategoryChart: null,
+    financeMonthlyChart: null,
     selectedMonth: null,
 
     async loadData(month = this.selectedMonth) {
@@ -13,16 +15,18 @@ const AnalyticsUI = {
             const taskAnalytics = payload.task_analytics || { labels: [], completed: [], share_of_total: [], total_tasks: 0 };
             const calendarPayload = payload.calendar || { habits: [], weekday_labels: [] };
             const moodProductivity = payload.mood_productivity || { labels: [], mood: [], tasks: [] };
+            const finance = payload.finance || { totals: {}, categories: [], months: [], net: 0 };
 
             this.selectedMonth = calendarPayload.month;
             const monthlyConsistency = this.calculateMonthlyConsistency(calendarPayload.habits);
-            document.getElementById('completed-tasks').textContent = overview.completed_tasks;
+            document.getElementById('completed-tasks').textContent = overview.active_output_tasks ?? overview.completed_tasks;
             document.getElementById('active-habits').textContent = overview.active_habits;
             document.getElementById('consistency-rate').textContent = `${monthlyConsistency}%`;
 
             this.renderToolbar(calendarPayload);
             this.renderExecutionBreakdown(taskAnalytics, overview);
-            this.initCharts(velocity, taskAnalytics, moodProductivity);
+            this.renderFinanceAnalytics(finance);
+            this.initCharts(velocity, taskAnalytics, moodProductivity, finance);
             this.renderMonthlyReport(calendarPayload);
             this.renderCalendarReport(calendarPayload);
         } catch (error) {
@@ -154,7 +158,7 @@ const AnalyticsUI = {
 
         grid.innerHTML = `
             <div class="compact-item metric-card">
-                <span class="item-desc">Completion Rate</span>
+                <span class="item-desc">In Progress Share</span>
                 <div class="stat-value">${completionRate}%</div>
             </div>
             <div class="compact-item metric-card">
@@ -173,15 +177,40 @@ const AnalyticsUI = {
 
         if (!totalRecent) {
             insight.textContent = totalTasks
-                ? 'No tasks were completed in the current 14-day window. The execution chart below will highlight when output starts moving again.'
-                : 'No task history yet. As tasks are created and completed, this panel will show execution pressure and momentum.';
+                ? 'No active task output landed in the current 14-day window. The chart below will highlight pending, in-progress, on-hold, and not-completed task movement.'
+                : 'No active task history yet. As tasks are created, this panel will show execution pressure and momentum.';
             return;
         }
 
-        insight.textContent = `Peak output was ${peakValue} task${peakValue === 1 ? '' : 's'} on ${peakLabel}. You averaged ${averageActiveDay} completions on days where work moved.`;
+        insight.textContent = `Peak active output was ${peakValue} task${peakValue === 1 ? '' : 's'} on ${peakLabel}. You averaged ${averageActiveDay} active task entries on days where work moved.`;
     },
 
-    initCharts(velocity, taskAnalytics, moodProductivity) {
+    renderFinanceAnalytics(finance) {
+        const grid = document.getElementById('finance-analytics-grid');
+        if (!grid) return;
+        const totals = finance.totals || {};
+        const topCategory = (finance.categories || [])[0];
+        grid.innerHTML = `
+            <div class="compact-item metric-card">
+                <span class="item-desc">Net</span>
+                <div class="stat-value">£${Number(finance.net || 0).toFixed(2)}</div>
+            </div>
+            <div class="compact-item metric-card">
+                <span class="item-desc">Spending</span>
+                <div class="stat-value">£${Number(totals.spending || 0).toFixed(2)}</div>
+            </div>
+            <div class="compact-item metric-card">
+                <span class="item-desc">Income</span>
+                <div class="stat-value">£${Number(totals.income || 0).toFixed(2)}</div>
+            </div>
+            <div class="compact-item metric-card">
+                <span class="item-desc">Top Category</span>
+                <div class="stat-value">${topCategory ? CoreUI.escapeHtml(topCategory.category) : '--'}</div>
+            </div>
+        `;
+    },
+
+    initCharts(velocity, taskAnalytics, moodProductivity, finance) {
         Chart.defaults.color = '#a1a1aa';
         Chart.defaults.borderColor = '#1f1f22';
         Chart.defaults.font.family = '"JetBrains Mono", monospace';
@@ -222,7 +251,7 @@ const AnalyticsUI = {
                     datasets: [
                         {
                             type: 'bar',
-                            label: 'Completed',
+                            label: 'Active task output',
                             data: taskAnalytics.completed || [],
                             backgroundColor: 'rgba(0, 240, 255, 0.45)',
                             borderColor: '#00f0ff',
@@ -285,7 +314,7 @@ const AnalyticsUI = {
                         },
                         {
                             type: 'bar',
-                            label: 'Completed Tasks',
+                            label: 'Active Task Output',
                             data: moodProductivity.tasks,
                             backgroundColor: 'rgba(0, 240, 255, 0.6)',
                             yAxisID: 'yTasks'
@@ -308,6 +337,66 @@ const AnalyticsUI = {
                             beginAtZero: true,
                             grid: { display: false }
                         },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        const categoryCanvas = document.getElementById('financeCategoryChart');
+        if (categoryCanvas) {
+            CoreUI.destroyChart(this.financeCategoryChart);
+            const categories = (finance.categories || []).slice(0, 6);
+            this.financeCategoryChart = new Chart(categoryCanvas, {
+                type: 'doughnut',
+                data: {
+                    labels: categories.map((item) => item.category),
+                    datasets: [{
+                        data: categories.map((item) => item.amount),
+                        backgroundColor: [
+                            'rgba(255, 77, 109, 0.82)',
+                            'rgba(255, 184, 77, 0.78)',
+                            'rgba(0, 240, 255, 0.72)',
+                            'rgba(176, 107, 255, 0.72)',
+                            'rgba(86, 211, 100, 0.68)',
+                            'rgba(160, 168, 190, 0.56)'
+                        ],
+                        borderColor: '#1f1f22',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'right' } },
+                    cutout: '62%'
+                }
+            });
+        }
+
+        const monthlyCanvas = document.getElementById('financeMonthlyChart');
+        if (monthlyCanvas) {
+            CoreUI.destroyChart(this.financeMonthlyChart);
+            this.financeMonthlyChart = new Chart(monthlyCanvas, {
+                type: 'bar',
+                data: {
+                    labels: (finance.months || []).map((item) => item.label),
+                    datasets: [{
+                        label: 'Monthly spending',
+                        data: (finance.months || []).map((item) => item.spending),
+                        backgroundColor: 'rgba(0, 240, 255, 0.55)',
+                        borderColor: '#00f0ff',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                        barThickness: 18
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#1f1f22' } },
                         x: { grid: { display: false } }
                     }
                 }

@@ -169,18 +169,15 @@ const TaskUI = {
 
         boardTasks.forEach((task) => {
             counts[task.status] += 1;
-            if (counts[task.status] <= rowLimit) {
-                columns[task.status]?.appendChild(this.createTaskElement(task));
-            }
+            columns[task.status]?.appendChild(this.createTaskElement(task));
         });
 
         Object.keys(columns).forEach((status) => {
             document.getElementById(`tasks-${status.replace('_', '-')}-count`).textContent = counts[status];
             if (counts[status] === 0) {
                 CoreUI.setEmptyState(columns[status], 'No tasks');
-            } else if (counts[status] > rowLimit) {
-                columns[status]?.appendChild(CoreUI.createRowLimitNotice(counts[status] - rowLimit, 'tasks'));
             }
+            CoreUI.applyInvisibleRowLimitScroll(columns[status], rowLimit, 156);
         });
 
         this.renderNotCompletedTasks(notCompletedTasks);
@@ -201,6 +198,7 @@ const TaskUI = {
         tasks.forEach((task) => {
             list.appendChild(this.createTaskElement(task, { compactReason: true }));
         });
+        CoreUI.applyInvisibleRowLimitScroll(list, CoreUI.getStatusColumnRowLimit(), 164);
     },
 
     renderSummary(tasks) {

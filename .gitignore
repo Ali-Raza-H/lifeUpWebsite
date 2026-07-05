@@ -2,3 +2,7 @@ lifeup.db
 .env
 /.run-state
 /uploads/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.dev.json

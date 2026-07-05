@@ -9,10 +9,12 @@ from functools import lru_cache
 from flask import Flask, jsonify, render_template, request, session, redirect, url_for
 
 from database import init_app
+from modules import modules_for_sidebar
 from utils import ValidationError
 
 import blueprints.analytics_api as analytics_api
 import blueprints.calendar_api as calendar_api
+import blueprints.cv_api as cv_api
 import blueprints.goals_api as goals_api
 import blueprints.habits_api as habits_api
 import blueprints.journal_api as journal_api
@@ -34,7 +36,7 @@ BASE_DIR = Path(__file__).resolve().parent
 GUEST_ROLE = "guest"
 ADMIN_ROLE = "admin"
 GUEST_HOME_ENDPOINT = "guest_overview"
-GUEST_ALLOWED_PAGE_ENDPOINTS = {"guest_overview", "library", "projects", "work", "profile", "logout", "system_status"}
+GUEST_ALLOWED_PAGE_ENDPOINTS = {"guest_overview", "build", "library", "projects", "work", "profile", "logout", "system_status"}
 GUEST_ALLOWED_API_ENDPOINTS = {
     "system_status",
     "library_api.get_summary",
@@ -148,6 +150,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(goals_api.bp)
     app.register_blueprint(analytics_api.bp)
     app.register_blueprint(calendar_api.bp)
+    app.register_blueprint(cv_api.bp)
     app.register_blueprint(profile_api.bp)
     app.register_blueprint(journal_api.bp)
     app.register_blueprint(library_api.bp)
@@ -202,6 +205,10 @@ def _register_routes(app: Flask) -> None:
     def tasks():
         return render_template("tasks.html")
 
+    @app.route("/day2day")
+    def day2day():
+        return render_template("day2day.html")
+
     @app.route("/habits")
     def habits():
         return render_template("habits.html")
@@ -209,6 +216,10 @@ def _register_routes(app: Flask) -> None:
     @app.route("/projects")
     def projects():
         return render_template("projects.html")
+
+    @app.route("/build")
+    def build():
+        return render_template("build.html")
 
     @app.route("/projects/<int:project_id>/notebook")
     def project_notebook(project_id):
@@ -249,6 +260,10 @@ def _register_routes(app: Flask) -> None:
     @app.route("/work")
     def work():
         return render_template("work.html")
+
+    @app.route("/cv")
+    def cv():
+        return render_template("cv.html")
 
     @app.route("/calendar")
     def calendar():
@@ -299,6 +314,7 @@ def _register_template_helpers(app: Flask) -> None:
             "is_guest_user": user_role == GUEST_ROLE,
             "current_user_role": user_role,
             "guest_home_endpoint": GUEST_HOME_ENDPOINT,
+            "sidebar_module_groups": modules_for_sidebar(is_guest=user_role == GUEST_ROLE),
         }
 
 

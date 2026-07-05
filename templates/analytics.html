@@ -6,7 +6,7 @@
 {% block content %}
 <div class="bento-grid">
     <div class="card metric-card" style="grid-column: span 4;">
-        <span class="card-title"><i class="ph ph-check-square"></i> Completed Tasks</span>
+        <span class="card-title"><i class="ph ph-check-square"></i> Active Task Output</span>
         <div class="stat-value" id="completed-tasks" style="margin-top: auto;">-</div>
     </div>
     <div class="card metric-card" style="grid-column: span 4;">
@@ -30,7 +30,7 @@
     <div class="card" style="grid-column: span 6; min-height: 320px;">
         <div class="card-header">
             <span class="card-title"><i class="ph ph-gauge"></i> Execution Breakdown</span>
-            <span class="item-desc">Overall task completion and recent output trend.</span>
+            <span class="item-desc">Pending, in-progress, on-hold, and not-completed task output. Completed tasks are excluded.</span>
         </div>
         <div class="metric-grid cols-4" id="execution-breakdown-grid" style="margin-bottom: var(--space-3);">
             <div class="compact-item metric-card"><span class="item-desc">Loading...</span></div>
@@ -55,10 +55,28 @@
     <div class="card" style="grid-column: span 12; height: 320px;">
         <div class="card-header">
             <span class="card-title"><i class="ph ph-heartbeat"></i> Mood vs Output</span>
-            <span class="item-desc">Journal mood entries compared with completed tasks.</span>
+            <span class="item-desc">Journal mood entries compared with active task output.</span>
         </div>
         <div class="chart-container" style="height: 220px;">
             <canvas id="moodProductivityChart"></canvas>
+        </div>
+    </div>
+
+    <div class="card" style="grid-column: span 12; min-height: 360px;">
+        <div class="card-header">
+            <span class="card-title"><i class="ph ph-wallet"></i> Finance Analytics</span>
+            <span class="item-desc">Spending categories and recent monthly pressure.</span>
+        </div>
+        <div class="metric-grid cols-4" id="finance-analytics-grid" style="margin-bottom: var(--space-4);">
+            <div class="compact-item metric-card"><span class="item-desc">Loading finance...</span></div>
+        </div>
+        <div class="analytics-finance-grid">
+            <div class="chart-container" style="height: 210px;">
+                <canvas id="financeCategoryChart"></canvas>
+            </div>
+            <div class="chart-container" style="height: 210px;">
+                <canvas id="financeMonthlyChart"></canvas>
+            </div>
         </div>
     </div>
 </div>

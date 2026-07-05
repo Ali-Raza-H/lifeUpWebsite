@@ -47,6 +47,15 @@ def _required_float(payload: dict, field: str, *, minimum: float | None = None) 
     return value
 
 
+def _optional_bool_flag(payload: dict, field: str, *, default: bool = False) -> bool:
+    value = payload.get(field, default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int) and value in {0, 1}:
+        return bool(value)
+    raise ValidationError(f"{field.replace('_', ' ').title()} must be true or false.", field)
+
+
 def _normalize_url(value: str) -> str:
     clean_value = value.strip()
     if not clean_value:
@@ -174,7 +183,7 @@ def get_food_presets():
         """
         SELECT *
         FROM food_presets
-        ORDER BY display_order ASC, name COLLATE NOCASE ASC, id ASC
+        ORDER BY is_favorite DESC, display_order ASC, name COLLATE NOCASE ASC, id ASC
         """
     )
     return jsonify(rows_to_dicts(rows))
@@ -189,9 +198,9 @@ def create_food_preset():
     preset_id = execute_db(
         """
         INSERT INTO food_presets (
-            name, category, serving_label, calories, protein_g, carbs_g, fat_g, display_order, updated_at
+            name, category, serving_label, calories, protein_g, carbs_g, fat_g, is_favorite, display_order, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         """,
         (
             data["name"],
@@ -201,6 +210,7 @@ def create_food_preset():
             data["protein_g"],
             data["carbs_g"],
             data["fat_g"],
+            data["is_favorite"],
             display_order,
         ),
     )
@@ -258,6 +268,7 @@ def update_food_preset(preset_id: int):
             protein_g = ?,
             carbs_g = ?,
             fat_g = ?,
+            is_favorite = ?,
             display_order = ?,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
@@ -270,6 +281,7 @@ def update_food_preset(preset_id: int):
             data["protein_g"],
             data["carbs_g"],
             data["fat_g"],
+            data["is_favorite"],
             display_order,
             preset_id,
         ),
@@ -292,6 +304,39 @@ def delete_food_preset(preset_id: int):
     execute_db("DELETE FROM food_presets WHERE id = ?", [preset_id])
     _normalize_food_preset_order()
     return jsonify({"message": "Food preset deleted."})
+
+
+@bp.route("/diet/targets", methods=["GET"])
+def get_diet_targets():
+    row = query_db("SELECT * FROM diet_targets WHERE id = 1", one=True)
+    if not row:
+        return jsonify({"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0})
+    return jsonify(row_to_dict(row))
+
+
+@bp.route("/diet/targets", methods=["PUT"])
+def update_diet_targets():
+    payload = require_object(request.get_json(silent=True))
+    calories = _optional_float(payload, "calories", minimum=0) or 0
+    protein_g = _optional_float(payload, "protein_g", minimum=0) or 0
+    carbs_g = _optional_float(payload, "carbs_g", minimum=0) or 0
+    fat_g = _optional_float(payload, "fat_g", minimum=0) or 0
+
+    execute_db(
+        """
+        INSERT INTO diet_targets (id, calories, protein_g, carbs_g, fat_g, updated_at)
+        VALUES (1, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(id) DO UPDATE SET
+            calories = excluded.calories,
+            protein_g = excluded.protein_g,
+            carbs_g = excluded.carbs_g,
+            fat_g = excluded.fat_g,
+            updated_at = CURRENT_TIMESTAMP
+        """,
+        (calories, protein_g, carbs_g, fat_g),
+    )
+    row = query_db("SELECT * FROM diet_targets WHERE id = 1", one=True)
+    return jsonify({"targets": row_to_dict(row), "message": "Diet targets updated."})
 
 
 @bp.route("/diet", methods=["GET"])
@@ -373,6 +418,212 @@ def delete_diet_entry(entry_id: int):
         return jsonify({"error": "Diet entry not found."}), 404
     execute_db("DELETE FROM diet_entries WHERE id = ?", [entry_id])
     return jsonify({"message": "Diet entry deleted."})
+
+
+@bp.route("/gym/routines", methods=["GET"])
+def get_gym_routines():
+    rows = rows_to_dicts(
+        query_db(
+            """
+            SELECT *
+            FROM gym_routines
+            ORDER BY is_active DESC, updated_at DESC, id DESC
+            """
+        )
+    )
+    for routine in rows:
+        routine["exercises"] = rows_to_dicts(
+            query_db(
+                """
+                SELECT *
+                FROM gym_exercises
+                WHERE routine_id = ?
+                ORDER BY display_order ASC, id ASC
+                """,
+                [routine["id"]],
+            )
+        )
+    return jsonify(rows)
+
+
+@bp.route("/gym/routines", methods=["POST"])
+def create_gym_routine():
+    payload = require_object(request.get_json(silent=True))
+    name = get_required_string(payload, "name", max_length=140)
+    goal = get_optional_string(payload, "goal", max_length=1000, default="") or ""
+    is_active = 1 if get_optional_bool(payload, "is_active", default=True) else 0
+    routine_id = execute_db(
+        """
+        INSERT INTO gym_routines (name, goal, is_active, updated_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        """,
+        (name, goal, is_active),
+    )
+    routine = query_db("SELECT * FROM gym_routines WHERE id = ?", [routine_id], one=True)
+    return jsonify({"routine": row_to_dict(routine), "message": "Gym routine saved."}), 201
+
+
+@bp.route("/gym/routines/<int:routine_id>", methods=["PUT"])
+def update_gym_routine(routine_id: int):
+    row = query_db("SELECT * FROM gym_routines WHERE id = ?", [routine_id], one=True)
+    if not row:
+        return jsonify({"error": "Gym routine not found."}), 404
+    current = row_to_dict(row)
+    payload = require_object(request.get_json(silent=True))
+    name = get_optional_string(payload, "name", max_length=140, default=current["name"]) or current["name"]
+    goal = get_optional_string(payload, "goal", max_length=1000, default=current.get("goal") or "") or ""
+    is_active = current.get("is_active", 1)
+    if "is_active" in payload:
+        is_active = 1 if get_optional_bool(payload, "is_active", default=bool(is_active)) else 0
+    execute_db(
+        """
+        UPDATE gym_routines
+        SET name = ?, goal = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        (name, goal, is_active, routine_id),
+    )
+    updated = query_db("SELECT * FROM gym_routines WHERE id = ?", [routine_id], one=True)
+    return jsonify({"routine": row_to_dict(updated), "message": "Gym routine updated."})
+
+
+@bp.route("/gym/routines/<int:routine_id>", methods=["DELETE"])
+def delete_gym_routine(routine_id: int):
+    row = query_db("SELECT id FROM gym_routines WHERE id = ?", [routine_id], one=True)
+    if not row:
+        return jsonify({"error": "Gym routine not found."}), 404
+    execute_db("DELETE FROM gym_routines WHERE id = ?", [routine_id])
+    return jsonify({"message": "Gym routine deleted."})
+
+
+@bp.route("/gym/exercises", methods=["POST"])
+def create_gym_exercise():
+    payload = require_object(request.get_json(silent=True))
+    data = _validate_gym_exercise_payload(payload)
+    exercise_id = execute_db(
+        """
+        INSERT INTO gym_exercises (
+            routine_id, name, day_of_week, machine, muscle_group, sets, reps, target_weight, notes, display_order, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """,
+        (
+            data["routine_id"],
+            data["name"],
+            data["day_of_week"],
+            data["machine"],
+            data["muscle_group"],
+            data["sets"],
+            data["reps"],
+            data["target_weight"],
+            data["notes"],
+            data["display_order"],
+        ),
+    )
+    exercise = query_db("SELECT * FROM gym_exercises WHERE id = ?", [exercise_id], one=True)
+    return jsonify({"exercise": row_to_dict(exercise), "message": "Gym exercise saved."}), 201
+
+
+@bp.route("/gym/exercises/<int:exercise_id>", methods=["PUT"])
+def update_gym_exercise(exercise_id: int):
+    row = query_db("SELECT * FROM gym_exercises WHERE id = ?", [exercise_id], one=True)
+    if not row:
+        return jsonify({"error": "Gym exercise not found."}), 404
+    current = row_to_dict(row)
+    payload = require_object(request.get_json(silent=True))
+    data = _validate_gym_exercise_payload({**current, **payload})
+    execute_db(
+        """
+        UPDATE gym_exercises
+        SET
+            routine_id = ?,
+            name = ?,
+            day_of_week = ?,
+            machine = ?,
+            muscle_group = ?,
+            sets = ?,
+            reps = ?,
+            target_weight = ?,
+            notes = ?,
+            display_order = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        (
+            data["routine_id"],
+            data["name"],
+            data["day_of_week"],
+            data["machine"],
+            data["muscle_group"],
+            data["sets"],
+            data["reps"],
+            data["target_weight"],
+            data["notes"],
+            data["display_order"],
+            exercise_id,
+        ),
+    )
+    updated = query_db("SELECT * FROM gym_exercises WHERE id = ?", [exercise_id], one=True)
+    return jsonify({"exercise": row_to_dict(updated), "message": "Gym exercise updated."})
+
+
+@bp.route("/gym/exercises/<int:exercise_id>", methods=["DELETE"])
+def delete_gym_exercise(exercise_id: int):
+    row = query_db("SELECT id FROM gym_exercises WHERE id = ?", [exercise_id], one=True)
+    if not row:
+        return jsonify({"error": "Gym exercise not found."}), 404
+    execute_db("DELETE FROM gym_exercises WHERE id = ?", [exercise_id])
+    return jsonify({"message": "Gym exercise deleted."})
+
+
+@bp.route("/gym/logs", methods=["GET"])
+def get_gym_logs():
+    rows = query_db(
+        """
+        SELECT l.*, e.name AS exercise_name, r.name AS routine_name
+        FROM gym_workout_logs l
+        JOIN gym_exercises e ON e.id = l.exercise_id
+        JOIN gym_routines r ON r.id = e.routine_id
+        ORDER BY l.log_date DESC, l.id DESC
+        LIMIT 120
+        """
+    )
+    return jsonify(rows_to_dicts(rows))
+
+
+@bp.route("/gym/logs", methods=["POST"])
+def create_gym_log():
+    payload = require_object(request.get_json(silent=True))
+    exercise_id = get_optional_int(payload, "exercise_id", minimum=1)
+    if exercise_id is None:
+        raise ValidationError("Exercise is required.", "exercise_id")
+    if not query_db("SELECT id FROM gym_exercises WHERE id = ?", [exercise_id], one=True):
+        return jsonify({"error": "Gym exercise not found."}), 404
+    log_date = get_optional_date(payload, "log_date")
+    if not log_date:
+        raise ValidationError("Log date is required.", "log_date")
+    sets_completed = get_optional_int(payload, "sets_completed", minimum=0)
+    reps_completed = get_optional_string(payload, "reps_completed", max_length=80, default="") or ""
+    weight_used = _optional_float(payload, "weight_used", minimum=0)
+    notes = get_optional_string(payload, "notes", max_length=1000, default="") or ""
+    log_id = execute_db(
+        """
+        INSERT INTO gym_workout_logs (exercise_id, log_date, sets_completed, reps_completed, weight_used, notes)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (exercise_id, log_date, sets_completed, reps_completed, weight_used, notes),
+    )
+    row = query_db("SELECT * FROM gym_workout_logs WHERE id = ?", [log_id], one=True)
+    return jsonify({"log": row_to_dict(row), "message": "Workout log saved."}), 201
+
+
+@bp.route("/gym/logs/<int:log_id>", methods=["DELETE"])
+def delete_gym_log(log_id: int):
+    row = query_db("SELECT id FROM gym_workout_logs WHERE id = ?", [log_id], one=True)
+    if not row:
+        return jsonify({"error": "Workout log not found."}), 404
+    execute_db("DELETE FROM gym_workout_logs WHERE id = ?", [log_id])
+    return jsonify({"message": "Workout log deleted."})
 
 
 @bp.route("/finance", methods=["GET"])
@@ -639,11 +890,42 @@ def _validate_food_preset_payload(payload: dict) -> dict[str, object]:
         "protein_g": _required_float(payload, "protein_g", minimum=0),
         "carbs_g": _required_float(payload, "carbs_g", minimum=0),
         "fat_g": _required_float(payload, "fat_g", minimum=0),
+        "is_favorite": 1 if _optional_bool_flag(payload, "is_favorite", default=False) else 0,
+    }
+
+
+def _validate_gym_exercise_payload(payload: dict) -> dict[str, object]:
+    routine_id = get_optional_int(payload, "routine_id", minimum=1)
+    if routine_id is None:
+        raise ValidationError("Routine is required.", "routine_id")
+    if not query_db("SELECT id FROM gym_routines WHERE id = ?", [routine_id], one=True):
+        raise ValidationError("Gym routine not found.", "routine_id", status_code=404)
+
+    return {
+        "routine_id": routine_id,
+        "name": get_required_string(payload, "name", max_length=140),
+        "day_of_week": get_optional_int(payload, "day_of_week", minimum=0, maximum=6),
+        "machine": get_optional_string(payload, "machine", max_length=140, default="") or "",
+        "muscle_group": get_optional_string(payload, "muscle_group", max_length=120, default="") or "",
+        "sets": get_optional_int(payload, "sets", minimum=0),
+        "reps": get_optional_string(payload, "reps", max_length=80, default="") or "",
+        "target_weight": _optional_float(payload, "target_weight", minimum=0),
+        "notes": get_optional_string(payload, "notes", max_length=1000, default="") or "",
+        "display_order": get_optional_int(payload, "display_order", minimum=0) or _next_gym_exercise_order(routine_id),
     }
 
 
 def _next_food_preset_order() -> int:
     row = query_db("SELECT COALESCE(MAX(display_order), 0) + 1 AS next_order FROM food_presets", one=True)
+    return int(row["next_order"] or 1)
+
+
+def _next_gym_exercise_order(routine_id: int) -> int:
+    row = query_db(
+        "SELECT COALESCE(MAX(display_order), 0) + 1 AS next_order FROM gym_exercises WHERE routine_id = ?",
+        [routine_id],
+        one=True,
+    )
     return int(row["next_order"] or 1)
 
 

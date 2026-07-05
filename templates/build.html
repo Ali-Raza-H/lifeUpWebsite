@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Build{% endblock %}
+{% block page_title %}Build{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/life.css', v=asset_version('css/life.css')) }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-stack hub-shell">
+    <div class="hub-tabs" role="tablist" aria-label="Build sections">
+        <button type="button" class="life-nav-item active" data-hub-frame="projects" data-hub-src="{{ url_for('projects') }}?embed=1" onclick="HubUI.switchFrame('projects')">
+            <i class="ph ph-kanban"></i>
+            <span>Projects</span>
+        </button>
+        <button type="button" class="life-nav-item" data-hub-frame="goals" data-hub-src="{{ url_for('goals') }}?embed=1" onclick="HubUI.switchFrame('goals')">
+            <i class="ph ph-target"></i>
+            <span>Goals</span>
+        </button>
+        <button type="button" class="life-nav-item" data-hub-frame="work" data-hub-src="{{ url_for('work') }}?embed=1" onclick="HubUI.switchFrame('work')">
+            <i class="ph ph-briefcase"></i>
+            <span>Work</span>
+        </button>
+        <button type="button" class="life-nav-item" data-hub-frame="cv" data-hub-src="{{ url_for('cv') }}?embed=1" onclick="HubUI.switchFrame('cv')">
+            <i class="ph ph-file-text"></i>
+            <span>CV</span>
+        </button>
+    </div>
+    <iframe id="hub-frame" class="hub-frame" title="Build workspace" src="{{ url_for('projects') }}?embed=1"></iframe>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hub.js', v=asset_version('js/hub.js')) }}"></script>
+{% endblock %}

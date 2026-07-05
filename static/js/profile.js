@@ -4,6 +4,7 @@ const ProfileUI = {
     traits: [],
     beliefs: [],
     skills: [],
+    admiredPeople: [],
 
     async loadData() {
         try {
@@ -12,6 +13,7 @@ const ProfileUI = {
             this.traits = profile.traits || [];
             this.beliefs = profile.beliefs || [];
             this.skills = profile.skills || [];
+            this.admiredPeople = profile.admired_people || [];
             this.renderAll();
         } catch (error) {
             CoreUI.showError(error.message || 'Failed to load profile data.');
@@ -32,6 +34,7 @@ const ProfileUI = {
     renderAll() {
         this.renderSummary();
         this.renderBeliefs(this.beliefs);
+        this.renderAdmiredPeople();
         this.renderTraitsPreview(this.traits);
         this.renderTraitChart(this.traits);
         this.renderSkillChartScope();
@@ -74,6 +77,30 @@ const ProfileUI = {
             <div class="compact-item profile-belief-item">
                 <span class="item-title">${CoreUI.escapeHtml(belief.title)}</span>
                 <span class="item-desc">${CoreUI.escapeHtml(belief.text)}</span>
+            </div>
+        `).join('');
+    },
+
+    renderAdmiredPeople() {
+        const list = document.getElementById('admired-people-list');
+        if (!list) return;
+
+        if (!this.admiredPeople.length) {
+            CoreUI.setEmptyState(list, 'No admired people saved yet.');
+            return;
+        }
+
+        list.innerHTML = this.admiredPeople.map((person) => `
+            <div class="compact-item profile-admired-item">
+                <div class="profile-skill-head">
+                    <div>
+                        <div class="item-title">${CoreUI.escapeHtml(person.name)}</div>
+                        <div class="item-desc">${CoreUI.escapeHtml(person.role_or_context || 'No context')}</div>
+                    </div>
+                    ${person.traits_to_model ? `<span class="badge">${CoreUI.escapeHtml(person.traits_to_model)}</span>` : ''}
+                </div>
+                <div class="item-desc">${CoreUI.escapeHtml(person.why_admired)}</div>
+                ${person.reference_url ? `<a class="item-desc" href="${CoreUI.escapeHtml(person.reference_url)}" target="_blank" rel="noopener noreferrer"><i class="ph ph-arrow-square-out"></i> Reference</a>` : ''}
             </div>
         `).join('');
     },
@@ -288,7 +315,9 @@ const ProfileUI = {
         return String(value || '')
             .replaceAll('_', ' ')
             .replace(/\b\w/g, (char) => char.toUpperCase());
-    }
+    },
+
+    
 };
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -1082,7 +1082,7 @@ const DashboardUI = {
                 datasets: [
                     {
                         type: 'bar',
-                        label: 'Completed',
+                        label: 'Active task output',
                         data: taskAnalytics?.completed || [],
                         backgroundColor: 'rgba(0, 240, 255, 0.45)',
                         borderColor: '#00f0ff',
@@ -1091,7 +1091,7 @@ const DashboardUI = {
                     },
                     {
                         type: 'line',
-                        label: `Share of Total${taskAnalytics?.total_tasks ? ` (${taskAnalytics.total_tasks})` : ''}`,
+                        label: `Share of Active${taskAnalytics?.total_tasks ? ` (${taskAnalytics.total_tasks})` : ''}`,
                         data: taskAnalytics?.share_of_total || [],
                         borderColor: '#ff00ff',
                         borderWidth: 2,

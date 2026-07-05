@@ -87,7 +87,8 @@ def get_tasks():
                 CASE status
                     WHEN 'pending' THEN 0
                     WHEN 'in_progress' THEN 1
-                    ELSE 2
+                    WHEN 'on_hold' THEN 2
+                    ELSE 4
                 END,
                 priority ASC,
                 COALESCE(due_date, '9999-12-31') ASC,

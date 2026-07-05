@@ -41,12 +41,14 @@ a:hover {
 /* App Shell */
 .sidebar {
     width: 220px;
+    height: 100vh;
     background-color: var(--bg-base);
     border-right: 1px solid var(--border-subtle);
     display: flex;
     flex-direction: column;
     align-items: stretch;
     padding: var(--space-6) var(--space-3);
+    overflow: hidden;
     z-index: 10;
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -104,7 +106,18 @@ a:hover {
     flex-direction: column;
     gap: var(--space-2);
     width: 100%;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: 0;
+    padding-bottom: var(--space-4);
+    scrollbar-width: none;
+}
+
+.nav-links::-webkit-scrollbar {
+    width: 0;
+    height: 0;
 }
 
 .nav-link {
@@ -121,6 +134,26 @@ a:hover {
     overflow: hidden;
     white-space: nowrap;
     transition: all var(--transition);
+}
+
+.nav-group-label {
+    padding: var(--space-3) var(--space-2) 0;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.sidebar.collapsed .nav-group-label span {
+    opacity: 0;
+}
+
+.sidebar.collapsed:hover .nav-group-label span {
+    opacity: 1;
 }
 
 .nav-link i {
@@ -173,6 +206,33 @@ a:hover {
     flex-direction: column;
     overflow: hidden;
     position: relative;
+}
+
+body.embedded-page {
+    height: auto;
+    min-height: 100vh;
+    overflow: auto;
+    scrollbar-width: none;
+}
+
+body.embedded-page::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+body.embedded-page .main-wrapper,
+body.embedded-page .content-scroll,
+body.embedded-page .content-container {
+    min-height: 100vh;
+    width: 100%;
+}
+
+body.embedded-page .content-scroll {
+    overflow: visible;
+}
+
+body.embedded-page .content-container {
+    padding: 0;
 }
 
 .top-bar {

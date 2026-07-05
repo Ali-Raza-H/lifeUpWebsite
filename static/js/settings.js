@@ -2,6 +2,7 @@ const SettingsUI = {
     skills: [],
     traits: [],
     beliefs: [],
+    admiredPeople: [],
     foodPresets: [],
     system: null,
     importedBackup: null,
@@ -30,6 +31,7 @@ const SettingsUI = {
         document.getElementById('settings-traits-list')?.addEventListener('input', (event) => this.handleTraitInput(event));
         document.getElementById('settings-traits-list')?.addEventListener('click', (event) => this.handleTraitListClick(event));
         document.getElementById('settings-beliefs-list')?.addEventListener('click', (event) => this.handleBeliefListClick(event));
+        document.getElementById('settings-admired-list')?.addEventListener('click', (event) => this.handleAdmiredListClick(event));
         document.getElementById('settings-skill-search')?.addEventListener('input', () => this.renderSkills());
         document.getElementById('settings-skill-filter-category')?.addEventListener('change', () => this.renderSkills());
         document.getElementById('settings-skill-sort')?.addEventListener('change', () => this.renderSkills());
@@ -60,8 +62,10 @@ const SettingsUI = {
             this.traits = profile.traits || [];
             this.beliefs = profile.beliefs || [];
             this.skills = profile.skills || [];
+            this.admiredPeople = profile.admired_people || [];
             this.renderTraits();
             this.renderBeliefs();
+            this.renderAdmiredPeople();
             this.renderSkills();
         } catch (error) {
             CoreUI.showError(error.message || 'Failed to load profile settings.');
@@ -440,6 +444,123 @@ const SettingsUI = {
         }
     },
 
+    renderAdmiredPeople() {
+        const list = document.getElementById('settings-admired-list');
+        if (!list) return;
+
+        if (!this.admiredPeople.length) {
+            CoreUI.setEmptyState(list, 'No admired people saved yet.');
+            return;
+        }
+
+        list.innerHTML = this.admiredPeople.map((person, index) => `
+            <div class="compact-item settings-entity-row" data-admired-id="${person.id}">
+                <div class="settings-entity-main">
+                    <div class="item-title">${CoreUI.escapeHtml(person.name)}</div>
+                    <div class="item-desc">${CoreUI.escapeHtml(person.role_or_context || 'No context')}</div>
+                </div>
+                <div class="item-desc">${CoreUI.escapeHtml(person.traits_to_model || person.why_admired || 'No traits set')}</div>
+                <div class="settings-row-actions">
+                    <button type="button" class="btn btn-icon" data-action="move-up" ${index === 0 ? 'disabled' : ''}><i class="ph ph-arrow-up"></i></button>
+                    <button type="button" class="btn btn-icon" data-action="move-down" ${index === this.admiredPeople.length - 1 ? 'disabled' : ''}><i class="ph ph-arrow-down"></i></button>
+                    <button type="button" class="btn btn-icon" data-action="edit"><i class="ph ph-pencil-simple"></i></button>
+                </div>
+            </div>
+        `).join('');
+    },
+
+    handleAdmiredListClick(event) {
+        const row = event.target.closest('[data-admired-id]');
+        if (!row) return;
+        const personId = Number(row.dataset.admiredId);
+        const actionButton = event.target.closest('[data-action]');
+        if (!actionButton) return;
+
+        const action = actionButton.dataset.action;
+        if (action === 'edit') this.openAdmiredModal(personId);
+        if (action === 'move-up') this.moveEntity('admired', personId, -1);
+        if (action === 'move-down') this.moveEntity('admired', personId, 1);
+    },
+
+    openAdmiredModal(personId = null) {
+        const modal = document.getElementById('settings-admired-modal');
+        const title = document.getElementById('settings-admired-modal-title');
+        const deleteBtn = document.getElementById('settings-admired-delete-btn');
+        const form = document.getElementById('settings-admired-form');
+        if (!modal || !title || !deleteBtn || !form) return;
+
+        form.reset();
+        document.getElementById('settings-admired-id').value = '';
+
+        if (personId) {
+            const person = this.admiredPeople.find((item) => item.id === personId);
+            if (!person) return;
+            title.textContent = 'Edit Person';
+            document.getElementById('settings-admired-id').value = String(person.id);
+            document.getElementById('settings-admired-name').value = person.name || '';
+            document.getElementById('settings-admired-context').value = person.role_or_context || '';
+            document.getElementById('settings-admired-why').value = person.why_admired || '';
+            document.getElementById('settings-admired-traits').value = person.traits_to_model || '';
+            document.getElementById('settings-admired-url').value = person.reference_url || '';
+            deleteBtn.style.display = 'inline-flex';
+        } else {
+            title.textContent = 'Add Person';
+            deleteBtn.style.display = 'none';
+        }
+
+        modal.style.display = 'flex';
+    },
+
+    closeAdmiredModal() {
+        const modal = document.getElementById('settings-admired-modal');
+        if (modal) modal.style.display = 'none';
+    },
+
+    async submitAdmiredPerson(event) {
+        event.preventDefault();
+        const personId = document.getElementById('settings-admired-id').value;
+        const payload = {
+            name: document.getElementById('settings-admired-name').value,
+            role_or_context: document.getElementById('settings-admired-context').value,
+            why_admired: document.getElementById('settings-admired-why').value,
+            traits_to_model: document.getElementById('settings-admired-traits').value,
+            reference_url: document.getElementById('settings-admired-url').value
+        };
+
+        try {
+            if (personId) {
+                await API.put(`/api/profile/admired-people/${personId}`, payload);
+            } else {
+                await API.post('/api/profile/admired-people', payload);
+            }
+            this.closeAdmiredModal();
+            await Promise.all([this.loadProfileData(), this.loadSystemSummary()]);
+            CoreUI.showError('Admired person saved.', true);
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to save admired person.');
+        }
+    },
+
+    async deleteCurrentAdmiredPerson() {
+        const personId = document.getElementById('settings-admired-id').value;
+        if (!personId) return;
+        const confirmed = await CoreUI.confirm({
+            title: 'Delete admired person?',
+            message: 'This removes the person from your profile.',
+            confirmText: 'Delete'
+        });
+        if (!confirmed) return;
+
+        try {
+            await API.delete(`/api/profile/admired-people/${personId}`);
+            this.closeAdmiredModal();
+            await Promise.all([this.loadProfileData(), this.loadSystemSummary()]);
+            CoreUI.showError('Admired person deleted.', true);
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to delete admired person.');
+        }
+    },
+
     async loadSkills() {
         try {
             this.skills = await API.get('/api/profile/skills');
@@ -761,6 +882,7 @@ const SettingsUI = {
         const map = {
             trait: { key: 'traits', endpoint: '/api/profile/traits/reorder', reload: () => this.loadTraits() },
             belief: { key: 'beliefs', endpoint: '/api/profile/beliefs/reorder', reload: () => this.loadBeliefs() },
+            admired: { key: 'admiredPeople', endpoint: '/api/profile/admired-people/reorder', reload: () => this.loadProfileData() },
             skill: { key: 'skills', endpoint: '/api/profile/skills/reorder', reload: () => this.loadSkills() },
             food: { key: 'foodPresets', endpoint: '/api/life/diet/presets/reorder', reload: () => this.loadFoodPresets() }
         };

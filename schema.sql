@@ -26,6 +26,18 @@ CREATE TABLE IF NOT EXISTS skills (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS admired_people (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    role_or_context TEXT DEFAULT '',
+    why_admired TEXT NOT NULL,
+    traits_to_model TEXT DEFAULT '',
+    reference_url TEXT DEFAULT '',
+    display_order INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS habits (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -301,8 +313,18 @@ CREATE TABLE IF NOT EXISTS food_presets (
     protein_g REAL NOT NULL DEFAULT 0,
     carbs_g REAL NOT NULL DEFAULT 0,
     fat_g REAL NOT NULL DEFAULT 0,
+    is_favorite INTEGER NOT NULL DEFAULT 0,
     display_order INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS diet_targets (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    calories REAL NOT NULL DEFAULT 0,
+    protein_g REAL NOT NULL DEFAULT 0,
+    carbs_g REAL NOT NULL DEFAULT 0,
+    fat_g REAL NOT NULL DEFAULT 0,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -322,6 +344,44 @@ CREATE TABLE IF NOT EXISTS diet_entries (
     notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (preset_id) REFERENCES food_presets(id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS gym_routines (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    goal TEXT DEFAULT '',
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS gym_exercises (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    routine_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    day_of_week INTEGER,
+    machine TEXT DEFAULT '',
+    muscle_group TEXT DEFAULT '',
+    sets INTEGER,
+    reps TEXT DEFAULT '',
+    target_weight REAL,
+    notes TEXT DEFAULT '',
+    display_order INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (routine_id) REFERENCES gym_routines(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS gym_workout_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    exercise_id INTEGER NOT NULL,
+    log_date DATE NOT NULL,
+    sets_completed INTEGER,
+    reps_completed TEXT DEFAULT '',
+    weight_used REAL,
+    notes TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (exercise_id) REFERENCES gym_exercises(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS media_items (
@@ -360,6 +420,46 @@ CREATE TABLE IF NOT EXISTS work_experiences (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS cv_profiles (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    name TEXT DEFAULT '',
+    headline TEXT DEFAULT '',
+    summary TEXT DEFAULT '',
+    email TEXT DEFAULT '',
+    phone TEXT DEFAULT '',
+    location TEXT DEFAULT '',
+    links TEXT DEFAULT '',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS cv_sections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    section_type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS cv_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    section_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    organization TEXT DEFAULT '',
+    location TEXT DEFAULT '',
+    start_date DATE,
+    end_date DATE,
+    description TEXT DEFAULT '',
+    bullets TEXT DEFAULT '',
+    skills TEXT DEFAULT '',
+    display_order INTEGER NOT NULL DEFAULT 0,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (section_id) REFERENCES cv_sections(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS linkedin_drafts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     source_type TEXT NOT NULL,
@@ -387,6 +487,7 @@ CREATE INDEX IF NOT EXISTS idx_goal_links_goal_id ON goal_links(goal_id);
 CREATE INDEX IF NOT EXISTS idx_goal_milestones_goal_id ON goal_milestones(goal_id);
 CREATE INDEX IF NOT EXISTS idx_beliefs_display_order ON beliefs(display_order, id);
 CREATE INDEX IF NOT EXISTS idx_skills_category_order ON skills(category, display_order, id);
+CREATE INDEX IF NOT EXISTS idx_admired_people_order ON admired_people(display_order, id);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_start_at ON calendar_events(start_at);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_end_at ON calendar_events(end_at);
 CREATE INDEX IF NOT EXISTS idx_project_milestones_project_id ON project_milestones(project_id);
@@ -402,8 +503,12 @@ CREATE INDEX IF NOT EXISTS idx_life_reviews_period ON life_reviews(period_type, 
 CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_food_presets_order ON food_presets(display_order, name);
 CREATE INDEX IF NOT EXISTS idx_diet_entries_date ON diet_entries(entry_date DESC, meal_type, id DESC);
+CREATE INDEX IF NOT EXISTS idx_gym_exercises_routine ON gym_exercises(routine_id, display_order, id);
+CREATE INDEX IF NOT EXISTS idx_gym_workout_logs_date ON gym_workout_logs(log_date DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_media_items_type_status ON media_items(media_type, status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_work_experiences_status ON work_experiences(status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_work_experiences_dates ON work_experiences(start_date DESC, end_date DESC);
+CREATE INDEX IF NOT EXISTS idx_cv_sections_order ON cv_sections(display_order, id);
+CREATE INDEX IF NOT EXISTS idx_cv_items_section_order ON cv_items(section_id, display_order, id);
 CREATE INDEX IF NOT EXISTS idx_linkedin_drafts_status ON linkedin_drafts(email_status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_linkedin_drafts_source ON linkedin_drafts(source_type, source_id);

@@ -101,6 +101,18 @@ const CoreUI = {
         return `<div class="row-limit-notice"><span class="item-desc">+${hiddenCount} more ${this.escapeHtml(itemLabel)} hidden by row limit</span></div>`;
     },
 
+    applyInvisibleRowLimitScroll(element, rowLimit, rowHeight = 150) {
+        if (!element) return;
+        element.classList.add('status-scroll-area');
+        if (rowLimit === Number.MAX_SAFE_INTEGER) {
+            element.style.maxHeight = '';
+            element.style.overflowY = '';
+            return;
+        }
+        element.style.maxHeight = `${Math.max(1, rowLimit) * rowHeight}px`;
+        element.style.overflowY = 'auto';
+    },
+
     showError(message, isSuccess = false) {
         const region = document.getElementById('app-alert-region');
         if (!region) {

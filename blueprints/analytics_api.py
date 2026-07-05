@@ -8,6 +8,7 @@ from services import (
     dashboard_overview_payload,
     dashboard_payload,
     dashboard_today_payload,
+    finance_analytics_payload,
     habits_monthly_report,
     mood_productivity_series,
     task_analytics_series,
@@ -47,6 +48,7 @@ def get_analytics_page_payload():
             "velocity": weekly_completion_series(),
             "task_analytics": task_analytics_series(),
             "calendar": calendar_payload,
+            "finance": finance_analytics_payload(),
             "mood_productivity": mood_productivity_series(),
         }
     )

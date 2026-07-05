@@ -86,6 +86,19 @@ def test_guest_access_is_limited_to_read_only_demo_sections(anon_client):
     assert blocked_write.get_json()["error"] == "Guest access is read-only and limited to public demo data."
 
 
+def test_hub_routes_and_command_palette_sections(client):
+    assert client.get("/day2day").status_code == 200
+    assert client.get("/build").status_code == 200
+
+    command_payload = client.get("/api/os/command?q=gym").get_json()
+    section_urls = {item["action_url"] for item in command_payload["results"] if item["type"] == "section"}
+    assert "/life#health-gym" in section_urls
+
+    day_payload = client.get("/api/os/command?q=day2day").get_json()
+    day_urls = {item["action_url"] for item in day_payload["results"] if item["type"] == "section"}
+    assert "/day2day#tasks" in day_urls
+
+
 def test_task_lifecycle_sets_completed_timestamp(client):
     response = client.post(
         "/api/tasks/",
@@ -281,6 +294,173 @@ def test_project_progress_combines_stages_and_tasks(client):
     assert project["completed_task_count"] == 1
     assert project["in_progress_milestone_count"] == 1
     assert project["progress"] == 75
+
+
+def test_profile_admired_people_crud_and_command_search(client):
+    create_response = client.post(
+        "/api/profile/admired-people",
+        json={
+            "name": "Ada Lovelace",
+            "role_or_context": "Computing pioneer",
+            "why_admired": "Combined imagination with technical rigor.",
+            "traits_to_model": "Clarity, imagination",
+            "reference_url": "example.com/ada",
+        },
+    )
+    assert create_response.status_code == 201
+    person = create_response.get_json()["person"]
+    assert person["reference_url"] == "https://example.com/ada"
+
+    update_response = client.put(
+        f"/api/profile/admired-people/{person['id']}",
+        json={"why_admired": "Clear technical imagination."},
+    )
+    assert update_response.status_code == 200
+    assert update_response.get_json()["person"]["why_admired"] == "Clear technical imagination."
+
+    profile_payload = client.get("/api/profile/all").get_json()
+    assert profile_payload["admired_people"][0]["name"] == "Ada Lovelace"
+
+    command_payload = client.get("/api/os/command?q=Ada").get_json()
+    assert any(result["type"] == "admired_person" for result in command_payload["results"])
+
+
+def test_life_diet_targets_and_gym_lifecycle(client):
+    target_response = client.put(
+        "/api/life/diet/targets",
+        json={"calories": 2400, "protein_g": 150, "carbs_g": 250, "fat_g": 70},
+    )
+    assert target_response.status_code == 200
+    assert target_response.get_json()["targets"]["protein_g"] == 150
+    assert client.get("/api/life/diet/targets").get_json()["calories"] == 2400
+
+    routine_response = client.post("/api/life/gym/routines", json={"name": "Push", "goal": "Strength"})
+    assert routine_response.status_code == 201
+    routine_id = routine_response.get_json()["routine"]["id"]
+
+    exercise_response = client.post(
+        "/api/life/gym/exercises",
+        json={
+            "routine_id": routine_id,
+            "name": "Bench Press",
+            "day_of_week": 0,
+            "machine": "Barbell bench",
+            "muscle_group": "Chest",
+            "sets": 3,
+            "reps": "5",
+            "target_weight": 60,
+        },
+    )
+    assert exercise_response.status_code == 201
+    exercise_id = exercise_response.get_json()["exercise"]["id"]
+
+    log_response = client.post(
+        "/api/life/gym/logs",
+        json={
+            "exercise_id": exercise_id,
+            "log_date": date.today().isoformat(),
+            "sets_completed": 3,
+            "reps_completed": "5,5,4",
+            "weight_used": 60,
+        },
+    )
+    assert log_response.status_code == 201
+
+    routines = client.get("/api/life/gym/routines").get_json()
+    assert routines[0]["exercises"][0]["name"] == "Bench Press"
+    assert routines[0]["exercises"][0]["day_of_week"] == 0
+    assert routines[0]["exercises"][0]["machine"] == "Barbell bench"
+    logs = client.get("/api/life/gym/logs").get_json()
+    assert logs[0]["exercise_name"] == "Bench Press"
+
+
+def test_cv_manager_structured_preview_and_command_search(client):
+    profile_response = client.put(
+        "/api/cv/profile",
+        json={
+            "name": "Ali Raza",
+            "headline": "Python Developer",
+            "summary": "Builds pragmatic internal tools.",
+            "email": "ali@example.com",
+        },
+    )
+    assert profile_response.status_code == 200
+
+    section_response = client.post("/api/cv/sections", json={"title": "Projects", "section_type": "projects"})
+    assert section_response.status_code == 201
+    section_id = section_response.get_json()["section"]["id"]
+
+    item_response = client.post(
+        "/api/cv/items",
+        json={
+            "section_id": section_id,
+            "title": "LifeOS",
+            "organization": "Personal",
+            "description": "Built a personal operating system.",
+            "bullets": "Designed Flask APIs\nBuilt vanilla JS dashboards",
+            "skills": "Python, Flask, SQLite",
+        },
+    )
+    assert item_response.status_code == 201
+
+    preview = client.get("/api/cv/preview").get_json()
+    assert "Ali Raza" in preview["text"]
+    assert "LifeOS" in preview["text"]
+    assert "- Designed Flask APIs" in preview["text"]
+
+    command_payload = client.get("/api/os/command?q=LifeOS").get_json()
+    assert any(result["type"] == "cv" for result in command_payload["results"])
+
+    download_response = client.get("/api/cv/download?format=html")
+    assert download_response.status_code == 200
+    assert "attachment; filename=lifeos-cv.html" in download_response.headers["Content-Disposition"]
+    pdf_response = client.get("/api/cv/download?format=pdf")
+    assert pdf_response.status_code == 200
+    assert pdf_response.mimetype == "application/pdf"
+    assert "attachment; filename=lifeos-cv.pdf" in pdf_response.headers["Content-Disposition"]
+
+
+def test_cv_text_parser_extracts_structured_sections():
+    from blueprints.cv_api import _parse_cv_text
+
+    parsed = _parse_cv_text(
+        """
+        Ali Raza
+        Python Developer
+        ali@example.com
+
+        Summary
+        Builds pragmatic internal tools.
+
+        Experience
+        Backend Developer 2024 Present
+        - Built Flask APIs
+        - Improved dashboards
+
+        Skills
+        Python
+        Flask
+        SQLite
+        """
+    )
+    assert parsed["profile"]["name"] == "Ali Raza"
+    assert parsed["profile"]["email"] == "ali@example.com"
+    assert any(section["section_type"] == "experience" for section in parsed["sections"])
+    assert any(section["section_type"] == "skills" for section in parsed["sections"])
+
+
+def test_task_analytics_excludes_completed_and_includes_not_completed(client):
+    client.post("/api/tasks/", json={"title": "Pending output"})
+    not_completed_response = client.post("/api/tasks/", json={"title": "Not completed output"})
+    not_completed_task = not_completed_response.get_json()["task"]
+    client.put(f"/api/tasks/{not_completed_task['id']}", json={"not_completed": True})
+    client.post("/api/tasks/", json={"title": "Completed output", "status": "completed"})
+
+    overview = client.get("/api/analytics/page").get_json()["overview"]
+    assert overview["active_output_tasks"] == 2
+
+    invalid_status_response = client.get("/api/tasks/?status=canceled")
+    assert invalid_status_response.status_code == 400
 
 
 def test_completed_flagged_task_creates_linkedin_email_draft(client):

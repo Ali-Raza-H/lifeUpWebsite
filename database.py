@@ -63,8 +63,11 @@ MIGRATIONS = (
     ("calendar_events", "recurrence", "ALTER TABLE calendar_events ADD COLUMN recurrence TEXT DEFAULT 'none'"),
     ("calendar_events", "recurrence_until", "ALTER TABLE calendar_events ADD COLUMN recurrence_until DATE"),
     ("food_presets", "category", "ALTER TABLE food_presets ADD COLUMN category TEXT NOT NULL DEFAULT 'Uncategorized'"),
+    ("food_presets", "is_favorite", "ALTER TABLE food_presets ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0"),
     ("diet_entries", "category", "ALTER TABLE diet_entries ADD COLUMN category TEXT DEFAULT ''"),
     ("attachments", "is_favorite", "ALTER TABLE attachments ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0"),
+    ("gym_exercises", "day_of_week", "ALTER TABLE gym_exercises ADD COLUMN day_of_week INTEGER"),
+    ("gym_exercises", "machine", "ALTER TABLE gym_exercises ADD COLUMN machine TEXT DEFAULT ''"),
 )
 
 
@@ -98,9 +101,11 @@ def init_db() -> None:
     _ensure_notebook_tables(db)
     _ensure_goal_links_table(db)
     _ensure_goal_milestones_table(db)
+    _ensure_profile_extension_tables(db)
     _ensure_life_tables(db)
     _ensure_library_tables(db)
     _ensure_work_tables(db)
+    _ensure_cv_tables(db)
     _ensure_linkedin_tables(db)
     _ensure_calendar_relation_indexes(db)
     _ensure_task_sync_indexes(db)
@@ -155,6 +160,16 @@ def _backfill_completion_timestamps(db: sqlite3.Connection) -> None:
     if _column_exists(db, "tasks", "not_completed"):
         db.execute("UPDATE tasks SET not_completed = 0 WHERE not_completed IS NULL")
         if _column_exists(db, "tasks", "not_completed_at"):
+            db.execute(
+                """
+                UPDATE tasks
+                SET status = 'pending',
+                    not_completed = 1,
+                    not_completed_at = COALESCE(not_completed_at, CURRENT_TIMESTAMP),
+                    completed_at = NULL
+                WHERE status = 'canceled'
+                """
+            )
             db.execute(
                 """
                 UPDATE tasks
@@ -450,6 +465,25 @@ def _ensure_goal_milestones_table(db: sqlite3.Connection) -> None:
     db.execute("CREATE INDEX IF NOT EXISTS idx_goal_milestones_goal_id ON goal_milestones(goal_id)")
 
 
+def _ensure_profile_extension_tables(db: sqlite3.Connection) -> None:
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS admired_people (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            role_or_context TEXT DEFAULT '',
+            why_admired TEXT NOT NULL,
+            traits_to_model TEXT DEFAULT '',
+            reference_url TEXT DEFAULT '',
+            display_order INTEGER NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    db.execute("CREATE INDEX IF NOT EXISTS idx_admired_people_order ON admired_people(display_order, id)")
+
+
 def _ensure_life_tables(db: sqlite3.Connection) -> None:
     db.execute(
         """
@@ -537,8 +571,23 @@ def _ensure_life_tables(db: sqlite3.Connection) -> None:
             protein_g REAL NOT NULL DEFAULT 0,
             carbs_g REAL NOT NULL DEFAULT 0,
             fat_g REAL NOT NULL DEFAULT 0,
+            is_favorite INTEGER NOT NULL DEFAULT 0,
             display_order INTEGER NOT NULL DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    if not _column_exists(db, "food_presets", "is_favorite"):
+        db.execute("ALTER TABLE food_presets ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0")
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS diet_targets (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            calories REAL NOT NULL DEFAULT 0,
+            protein_g REAL NOT NULL DEFAULT 0,
+            carbs_g REAL NOT NULL DEFAULT 0,
+            fat_g REAL NOT NULL DEFAULT 0,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -564,6 +613,57 @@ def _ensure_life_tables(db: sqlite3.Connection) -> None:
         )
         """
     )
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS gym_routines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            goal TEXT DEFAULT '',
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS gym_exercises (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            routine_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            day_of_week INTEGER,
+            machine TEXT DEFAULT '',
+            muscle_group TEXT DEFAULT '',
+            sets INTEGER,
+            reps TEXT DEFAULT '',
+            target_weight REAL,
+            notes TEXT DEFAULT '',
+            display_order INTEGER NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (routine_id) REFERENCES gym_routines(id) ON DELETE CASCADE
+        )
+        """
+    )
+    if not _column_exists(db, "gym_exercises", "day_of_week"):
+        db.execute("ALTER TABLE gym_exercises ADD COLUMN day_of_week INTEGER")
+    if not _column_exists(db, "gym_exercises", "machine"):
+        db.execute("ALTER TABLE gym_exercises ADD COLUMN machine TEXT DEFAULT ''")
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS gym_workout_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            exercise_id INTEGER NOT NULL,
+            log_date DATE NOT NULL,
+            sets_completed INTEGER,
+            reps_completed TEXT DEFAULT '',
+            weight_used REAL,
+            notes TEXT DEFAULT '',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (exercise_id) REFERENCES gym_exercises(id) ON DELETE CASCADE
+        )
+        """
+    )
     db.execute("CREATE INDEX IF NOT EXISTS idx_health_logs_date ON health_logs(log_date DESC)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_finance_entries_date ON finance_entries(entry_date DESC)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_contacts_follow_up ON contacts(next_follow_up)")
@@ -572,6 +672,8 @@ def _ensure_life_tables(db: sqlite3.Connection) -> None:
     db.execute("CREATE INDEX IF NOT EXISTS idx_attachments_favorite ON attachments(is_favorite, created_at DESC)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_food_presets_order ON food_presets(display_order, name)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_diet_entries_date ON diet_entries(entry_date DESC, meal_type, id DESC)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_gym_exercises_routine ON gym_exercises(routine_id, display_order, id)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_gym_workout_logs_date ON gym_workout_logs(log_date DESC, id DESC)")
     _seed_food_presets(db)
 
 
@@ -684,6 +786,60 @@ def _ensure_work_tables(db: sqlite3.Connection) -> None:
     )
     db.execute("CREATE INDEX IF NOT EXISTS idx_work_experiences_status ON work_experiences(status, updated_at DESC)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_work_experiences_dates ON work_experiences(start_date DESC, end_date DESC)")
+
+
+def _ensure_cv_tables(db: sqlite3.Connection) -> None:
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cv_profiles (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            name TEXT DEFAULT '',
+            headline TEXT DEFAULT '',
+            summary TEXT DEFAULT '',
+            email TEXT DEFAULT '',
+            phone TEXT DEFAULT '',
+            location TEXT DEFAULT '',
+            links TEXT DEFAULT '',
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cv_sections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            section_type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            display_order INTEGER NOT NULL DEFAULT 0,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cv_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            section_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            organization TEXT DEFAULT '',
+            location TEXT DEFAULT '',
+            start_date DATE,
+            end_date DATE,
+            description TEXT DEFAULT '',
+            bullets TEXT DEFAULT '',
+            skills TEXT DEFAULT '',
+            display_order INTEGER NOT NULL DEFAULT 0,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (section_id) REFERENCES cv_sections(id) ON DELETE CASCADE
+        )
+        """
+    )
+    db.execute("CREATE INDEX IF NOT EXISTS idx_cv_sections_order ON cv_sections(display_order, id)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_cv_items_section_order ON cv_items(section_id, display_order, id)")
 
 
 def _ensure_linkedin_tables(db: sqlite3.Connection) -> None:

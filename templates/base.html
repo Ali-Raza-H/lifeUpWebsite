@@ -14,7 +14,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css', v=asset_version('css/components.css')) }}">
     {% block head %}{% endblock %}
 </head>
-<body class="{% if is_guest_user %}guest-session{% endif %}">
+<body class="{% if is_guest_user %}guest-session{% endif %}{% if request.args.get('embed') == '1' %} embedded-page{% endif %}">
+    {% if request.args.get('embed') != '1' %}
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <i class="ph-fill ph-cpu cursor-pointer" id="sidebar-toggle"></i>
@@ -24,37 +25,26 @@
             {% if is_guest_user %}
             <li><a href="{{ url_for('guest_overview') }}" class="nav-link {% if request.endpoint == 'guest_overview' %}active{% endif %}"><i class="ph ph-eye"></i> <span>Overview</span></a></li>
             {% endif %}
-            {% if not is_guest_user %}
-            <li><a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}"><i class="ph ph-squares-four"></i> <span>Dashboard</span></a></li>
-            <li><a href="{{ url_for('habits') }}" class="nav-link {% if request.endpoint == 'habits' %}active{% endif %}"><i class="ph ph-calendar-check"></i> <span>Habits</span></a></li>
-            <li><a href="{{ url_for('tasks') }}" class="nav-link {% if request.endpoint == 'tasks' %}active{% endif %}"><i class="ph ph-list-checks"></i> <span>Tasks</span></a></li>
-            {% endif %}
-            <li><a href="{{ url_for('projects') }}" class="nav-link {% if request.endpoint == 'projects' %}active{% endif %}"><i class="ph ph-kanban"></i> <span>Projects</span></a></li>
-            {% if not is_guest_user %}
-            <li><a href="{{ url_for('goals') }}" class="nav-link {% if request.endpoint == 'goals' %}active{% endif %}"><i class="ph ph-target"></i> <span>Goals</span></a></li>
-            <li><a href="{{ url_for('analytics') }}" class="nav-link {% if request.endpoint == 'analytics' %}active{% endif %}"><i class="ph ph-chart-bar"></i> <span>Analytics</span></a></li>
-            <li><a href="{{ url_for('life') }}" class="nav-link {% if request.endpoint == 'life' %}active{% endif %}"><i class="ph ph-heartbeat"></i> <span>Life</span></a></li>
-            {% endif %}
-            <li><a href="{{ url_for('work') }}" class="nav-link {% if request.endpoint == 'work' %}active{% endif %}"><i class="ph ph-briefcase"></i> <span>Work</span></a></li>
-            <li><a href="{{ url_for('library') }}" class="nav-link {% if request.endpoint == 'library' %}active{% endif %}"><i class="ph ph-books"></i> <span>Library</span></a></li>
-            {% if not is_guest_user %}
-            <li><a href="{{ url_for('journal') }}" class="nav-link {% if request.endpoint == 'journal' %}active{% endif %}"><i class="ph ph-book-open"></i> <span>Journal</span></a></li>
-            <li><a href="{{ url_for('notes') }}" class="nav-link {% if request.endpoint == 'notes' %}active{% endif %}"><i class="ph ph-notepad"></i> <span>Notes</span></a></li>
-            <li><a href="{{ url_for('notebooks') }}" class="nav-link {% if request.endpoint == 'notebooks' %}active{% endif %}"><i class="ph ph-notebook"></i> <span>Notebooks</span></a></li>
-            <li><a href="{{ url_for('calendar') }}" class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}"><i class="ph ph-calendar-blank"></i> <span>Calendar</span></a></li>
-            <li><a href="{{ url_for('mindset') }}" class="nav-link {% if request.endpoint == 'mindset' %}active{% endif %}"><i class="ph ph-brain"></i> <span>Mindset</span></a></li>
-            {% endif %}
-            <li><a href="{{ url_for('profile') }}" class="nav-link {% if request.endpoint == 'profile' %}active{% endif %}"><i class="ph ph-fingerprint"></i> <span>Profile</span></a></li>
-            {% if not is_guest_user %}
-            <li class="mt-auto"><a href="{{ url_for('settings') }}" class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}"><i class="ph ph-gear"></i> <span>Settings</span></a></li>
-            {% else %}
+            {% for group in sidebar_module_groups %}
+            <li class="nav-group-label"><span>{{ group.name }}</span></li>
+                {% for module in group["items"] %}
+                <li class="{% if module.spacer_before %}mt-auto{% endif %}">
+                    <a href="{{ module.url }}" class="nav-link {% if request.endpoint == module.endpoint %}active{% endif %}">
+                        <i class="{{ module.icon }}"></i> <span>{{ module.title }}</span>
+                    </a>
+                </li>
+                {% endfor %}
+            {% endfor %}
+            {% if is_guest_user %}
             <li class="mt-auto"><span class="nav-link active"><i class="ph ph-eye"></i> <span>Guest View</span></span></li>
             {% endif %}
             <li><a href="{{ url_for('logout') }}" class="nav-link"><i class="ph ph-sign-out"></i> <span>Logout</span></a></li>
         </ul>
     </aside>
+    {% endif %}
     
     <main class="main-wrapper">
+        {% if request.args.get('embed') != '1' %}
         <div class="top-bar">
             <div class="flex-center-gap-12">
                 <div><i class="ph-fill ph-circle status-dot-blue"></i> {% if is_guest_user %}Guest Viewer{% else %}User Dashboard{% endif %}</div>
@@ -93,15 +83,18 @@
             </div>
         </div>
         {% endif %}
+        {% endif %}
 
         <div class="content-scroll">
             <div class="content-container">
+                {% if request.args.get('embed') != '1' %}
                 <header class="page-header">
                     <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
                     <div class="header-actions">
                         {% block header_actions %}{% endblock %}
                     </div>
                 </header>
+                {% endif %}
                 
                 {% block content %}{% endblock %}
             </div>
@@ -127,13 +120,13 @@
             <div class="command-palette-head">
                 <div>
                     <div id="command-palette-title" class="command-palette-title">LifeOS Command</div>
-                    <div class="command-palette-subtitle">Search everything or jump to a system action.</div>
+                    <div class="command-palette-subtitle">Search pages, sections, records, or system actions.</div>
                 </div>
                 <button type="button" class="btn btn-icon" onclick="CoreUI.closeCommandPalette()" title="Close"><i class="ph ph-x"></i></button>
             </div>
             <div class="command-palette-search">
                 <i class="ph ph-magnifying-glass"></i>
-                <input id="command-palette-input" type="search" placeholder="Search tasks, projects, notes, contacts, library, work..." autocomplete="off">
+                <input id="command-palette-input" type="search" placeholder="Search pages, sections, tasks, projects, notes, contacts..." autocomplete="off">
             </div>
             <div id="command-palette-results" class="command-palette-results">
                 <div class="command-palette-empty">Loading commands...</div>

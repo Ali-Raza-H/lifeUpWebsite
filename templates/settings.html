@@ -157,6 +157,17 @@
 
         <section class="card">
             <div class="card-header">
+                <span class="card-title"><i class="ph ph-sparkle"></i> People I Admire</span>
+                <button class="btn btn-primary" onclick="SettingsUI.openAdmiredModal()"><i class="ph ph-plus"></i> Add Person</button>
+            </div>
+            <div class="item-desc settings-section-desc">These people are displayed on Profile as reference points for traits and standards.</div>
+            <div class="compact-list" id="settings-admired-list">
+                <div class="compact-item"><span class="item-desc">Loading admired people...</span></div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="card-header">
                 <span class="card-title"><i class="ph ph-code"></i> Skill Management</span>
                 <button class="btn btn-primary" onclick="SettingsUI.openSkillModal()"><i class="ph ph-plus"></i> Add Skill</button>
             </div>
@@ -364,6 +375,45 @@
                 <div class="settings-inline-actions">
                     <button type="button" class="btn" onclick="SettingsUI.closeSkillModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Skill</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="settings-admired-modal" class="modal-overlay">
+    <div class="modal-content settings-modal">
+        <div class="card-header">
+            <h3 class="card-title" id="settings-admired-modal-title">Add Person</h3>
+            <button class="btn btn-icon" onclick="SettingsUI.closeAdmiredModal()"><i class="ph ph-x"></i></button>
+        </div>
+        <form id="settings-admired-form" onsubmit="SettingsUI.submitAdmiredPerson(event)">
+            <input type="hidden" id="settings-admired-id">
+            <div class="form-group">
+                <label class="form-label">Name</label>
+                <input type="text" id="settings-admired-name" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Role Or Context</label>
+                <input type="text" id="settings-admired-context" class="form-control" placeholder="Founder, athlete, mentor">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Why Admired</label>
+                <textarea id="settings-admired-why" class="form-control" rows="4" required></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Traits To Model</label>
+                <input type="text" id="settings-admired-traits" class="form-control" placeholder="Discipline, taste, courage">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Reference URL</label>
+                <input type="url" id="settings-admired-url" class="form-control" placeholder="https://example.com">
+            </div>
+            <div class="settings-modal-actions">
+                <button type="button" class="btn" id="settings-admired-delete-btn" onclick="SettingsUI.deleteCurrentAdmiredPerson()" style="display:none;">Delete</button>
+                <div class="settings-inline-actions">
+                    <button type="button" class="btn" onclick="SettingsUI.closeAdmiredModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Person</button>
                 </div>
             </div>
         </form>

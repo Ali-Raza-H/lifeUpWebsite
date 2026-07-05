@@ -2,6 +2,9 @@ const LifeUI = {
     health: [],
     dietEntries: [],
     foodPresets: [],
+    dietTargets: {},
+    gymRoutines: [],
+    gymLogs: [],
     finance: [],
     contacts: [],
     reviews: [],
@@ -9,6 +12,8 @@ const LifeUI = {
     projects: [],
     summary: {},
     activePanel: 'health',
+    activeHealthPage: 'gym',
+    dietPresetQuery: '',
     attachmentFilters: {
         query: '',
         favorites: false,
@@ -20,7 +25,9 @@ const LifeUI = {
         this.setupModalClosures();
         this.setupDietInteractions();
         this.setupAttachmentInteractions();
+        this.setupHashNavigation();
         await this.loadAll();
+        this.applyHashNavigation();
     },
 
     setupModalClosures() {
@@ -34,6 +41,10 @@ const LifeUI = {
     setupDietInteractions() {
         document.getElementById('diet-preset')?.addEventListener('change', () => this.updateDietPreview());
         document.getElementById('diet-servings')?.addEventListener('input', () => this.updateDietPreview());
+        document.getElementById('diet-preset-search')?.addEventListener('input', (event) => {
+            this.dietPresetQuery = event.target.value.trim().toLowerCase();
+            this.renderDietPresetOptions();
+        });
     },
 
     setupAttachmentInteractions() {
@@ -61,9 +72,33 @@ const LifeUI = {
         });
     },
 
+    setupHashNavigation() {
+        window.addEventListener('hashchange', () => this.applyHashNavigation());
+    },
+
+    applyHashNavigation() {
+        const hash = window.location.hash.replace('#', '');
+        if (!hash) return;
+        const panelMap = {
+            health: 'health',
+            finance: 'finance',
+            contacts: 'contacts',
+            reviews: 'reviews',
+            attachments: 'attachments'
+        };
+        if (panelMap[hash]) {
+            this.switchPanel(panelMap[hash]);
+            return;
+        }
+        if (hash.startsWith('health-')) {
+            this.switchPanel('health');
+            this.switchHealthPage(hash.replace('health-', ''));
+        }
+    },
+
     setDefaultDates() {
         const today = new Date().toISOString().slice(0, 10);
-        ['health-date', 'diet-date', 'finance-date', 'review-start', 'contact-last', 'contact-next'].forEach((id) => {
+        ['health-date', 'diet-date', 'gym-log-date', 'finance-date', 'review-start', 'contact-last', 'contact-next'].forEach((id) => {
             const field = document.getElementById(id);
             if (field && !field.value) field.value = today;
         });
@@ -71,11 +106,14 @@ const LifeUI = {
 
     async loadAll() {
         try {
-            const [summary, health, dietEntries, foodPresets, finance, contacts, reviews, attachments, projects] = await Promise.all([
+            const [summary, health, dietEntries, foodPresets, dietTargets, gymRoutines, gymLogs, finance, contacts, reviews, attachments, projects] = await Promise.all([
                 API.get('/api/life/summary'),
                 API.get('/api/life/health'),
                 API.get('/api/life/diet'),
                 API.get('/api/life/diet/presets'),
+                API.get('/api/life/diet/targets'),
+                API.get('/api/life/gym/routines'),
+                API.get('/api/life/gym/logs'),
                 API.get('/api/life/finance'),
                 API.get('/api/life/contacts'),
                 API.get('/api/life/reviews'),
@@ -86,6 +124,9 @@ const LifeUI = {
             this.health = health;
             this.dietEntries = dietEntries;
             this.foodPresets = foodPresets;
+            this.dietTargets = dietTargets;
+            this.gymRoutines = gymRoutines;
+            this.gymLogs = gymLogs;
             this.finance = finance;
             this.contacts = contacts;
             this.reviews = reviews;
@@ -122,9 +163,15 @@ const LifeUI = {
     render() {
         this.renderSummary();
         this.renderHealth();
+        this.renderDietTargets();
         this.renderDietMetrics();
         this.renderDiet();
         this.renderDietPresetOptions();
+        this.renderGymCalendar();
+        this.renderGymRoutines();
+        this.renderGymLogs();
+        this.renderGymOptions();
+        this.renderFinanceDashboard();
         this.renderFinance();
         this.renderContacts();
         this.renderReviews();
@@ -200,28 +247,37 @@ const LifeUI = {
         if (!container) return;
 
         const totals = this.summary.today_diet || {};
+        const targets = this.dietTargets || {};
         container.innerHTML = `
             <div class="compact-item metric-card">
                 <span class="item-desc">Calories</span>
                 <div class="life-metric-value">${this.formatNumber(totals.calories || 0)}</div>
-                <span class="badge">${totals.entry_count || 0} items today</span>
+                <span class="badge">${this.formatTarget(totals.calories, targets.calories)}</span>
             </div>
             <div class="compact-item metric-card">
                 <span class="item-desc">Protein</span>
                 <div class="life-metric-value">${this.formatNumber(totals.protein_g || 0)}g</div>
-                <span class="badge">Primary macro</span>
+                <span class="badge">${this.formatTarget(totals.protein_g, targets.protein_g, 'g')}</span>
             </div>
             <div class="compact-item metric-card">
                 <span class="item-desc">Carbs</span>
                 <div class="life-metric-value">${this.formatNumber(totals.carbs_g || 0)}g</div>
-                <span class="badge">Energy intake</span>
+                <span class="badge">${this.formatTarget(totals.carbs_g, targets.carbs_g, 'g')}</span>
             </div>
             <div class="compact-item metric-card">
                 <span class="item-desc">Fat</span>
                 <div class="life-metric-value">${this.formatNumber(totals.fat_g || 0)}g</div>
-                <span class="badge">${this.foodPresets.length} presets loaded</span>
+                <span class="badge">${totals.entry_count || 0} items today</span>
             </div>
         `;
+    },
+
+    renderDietTargets() {
+        const targets = this.dietTargets || {};
+        this.setInputValue('diet-target-calories', targets.calories || '');
+        this.setInputValue('diet-target-protein', targets.protein_g || '');
+        this.setInputValue('diet-target-carbs', targets.carbs_g || '');
+        this.setInputValue('diet-target-fat', targets.fat_g || '');
     },
 
     renderDiet() {
@@ -264,7 +320,13 @@ const LifeUI = {
         const selectedValue = select.value;
         const groupedPresets = [];
 
-        this.foodPresets.forEach((preset) => {
+        const presets = this.foodPresets.filter((preset) => {
+            if (!this.dietPresetQuery) return true;
+            const haystack = `${preset.name} ${preset.category} ${preset.serving_label} ${preset.is_favorite ? 'favorite' : ''}`.toLowerCase();
+            return haystack.includes(this.dietPresetQuery);
+        });
+
+        presets.forEach((preset) => {
             const category = preset.category || 'Uncategorized';
             let group = groupedPresets.find((item) => item.category === category);
             if (!group) {
@@ -287,9 +349,131 @@ const LifeUI = {
             `).join('')}
         `;
 
-        if (this.foodPresets.some((preset) => String(preset.id) === String(selectedValue))) {
+        if (presets.some((preset) => String(preset.id) === String(selectedValue))) {
             select.value = selectedValue;
         }
+    },
+
+    renderGymRoutines() {
+        const container = document.getElementById('life-gym-routine-list');
+        if (!container) return;
+        if (!this.gymRoutines.length) {
+            CoreUI.setEmptyState(container, 'No gym routines yet.');
+            return;
+        }
+
+        container.innerHTML = this.gymRoutines.map((routine) => `
+            <div class="life-row compact-item">
+                <div class="item-main">
+                    <div class="item-title">${CoreUI.escapeHtml(routine.name)} ${routine.is_active ? '<span class="badge">Active</span>' : ''}</div>
+                    ${routine.goal ? `<div class="item-desc">${CoreUI.escapeHtml(routine.goal)}</div>` : ''}
+                    <div class="item-desc">${(routine.exercises || []).length} exercise(s)</div>
+                    ${(routine.exercises || []).map((exercise) => `
+                        <div class="item-desc">
+                            <strong>${CoreUI.escapeHtml(exercise.name)}</strong>
+                            ${exercise.day_of_week !== null && exercise.day_of_week !== undefined ? ` - ${this.weekdayName(exercise.day_of_week)}` : ''}
+                            ${exercise.machine ? ` - ${CoreUI.escapeHtml(exercise.machine)}` : ''}
+                            ${exercise.sets ? ` - ${exercise.sets} sets` : ''}
+                            ${exercise.reps ? ` x ${CoreUI.escapeHtml(exercise.reps)}` : ''}
+                            ${exercise.target_weight ? ` @ ${this.formatNumber(exercise.target_weight)}` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+                <button type="button" class="btn btn-icon btn-danger" onclick="LifeUI.deleteItem('gym/routines', ${routine.id})" title="Delete"><i class="ph ph-trash"></i></button>
+            </div>
+        `).join('');
+    },
+
+    renderGymCalendar() {
+        const container = document.getElementById('life-gym-calendar');
+        if (!container) return;
+
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        const exercises = this.gymRoutines.flatMap((routine) => (routine.exercises || []).map((exercise) => ({
+            ...exercise,
+            routine_name: routine.name
+        })));
+
+        container.innerHTML = days.map((day, index) => {
+            const dayExercises = exercises.filter((exercise) => Number(exercise.day_of_week) === index);
+            return `
+                <div class="compact-item life-gym-day">
+                    <div class="d-flex justify-content-between" style="align-items:center; gap: var(--space-2);">
+                        <div class="item-title">${day}</div>
+                        <button type="button" class="btn btn-icon btn-sm" onclick="LifeUI.openGymExerciseForDay(${index})" title="Add exercise"><i class="ph ph-plus"></i></button>
+                    </div>
+                    <div class="life-gym-day-list">
+                        ${dayExercises.length ? dayExercises.map((exercise) => `
+                            <div>
+                                <div class="item-desc"><strong>${CoreUI.escapeHtml(exercise.name)}</strong></div>
+                                <div class="item-desc">
+                                    ${CoreUI.escapeHtml(exercise.routine_name)}
+                                    ${exercise.machine ? ` - ${CoreUI.escapeHtml(exercise.machine)}` : ''}
+                                    ${exercise.sets ? ` - ${exercise.sets} sets` : ''}
+                                    ${exercise.reps ? ` x ${CoreUI.escapeHtml(exercise.reps)}` : ''}
+                                </div>
+                            </div>
+                        `).join('') : '<span class="item-desc">No exercises planned.</span>'}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    },
+
+    renderGymLogs() {
+        const container = document.getElementById('life-gym-log-list');
+        if (!container) return;
+        if (!this.gymLogs.length) {
+            CoreUI.setEmptyState(container, 'No workout logs yet.');
+            return;
+        }
+
+        container.innerHTML = this.gymLogs.slice(0, 20).map((log) => `
+            <div class="life-row compact-item">
+                <div class="item-main">
+                    <div class="item-title">${CoreUI.escapeHtml(log.exercise_name || 'Workout')} <span class="badge">${CoreUI.formatDate(log.log_date)}</span></div>
+                    <div class="item-desc">
+                        ${CoreUI.escapeHtml(log.routine_name || '')}
+                        ${log.sets_completed ? ` - ${log.sets_completed} sets` : ''}
+                        ${log.reps_completed ? ` - ${CoreUI.escapeHtml(log.reps_completed)} reps` : ''}
+                        ${log.weight_used ? ` - ${this.formatNumber(log.weight_used)} weight` : ''}
+                    </div>
+                    ${log.notes ? `<div class="item-desc text-muted">${CoreUI.escapeHtml(log.notes)}</div>` : ''}
+                </div>
+                <button type="button" class="btn btn-icon btn-danger" onclick="LifeUI.deleteItem('gym/logs', ${log.id})" title="Delete"><i class="ph ph-trash"></i></button>
+            </div>
+        `).join('');
+    },
+
+    renderGymOptions() {
+        const routineSelect = document.getElementById('gym-exercise-routine');
+        if (routineSelect) {
+            const current = routineSelect.value;
+            routineSelect.innerHTML = this.gymRoutines.map((routine) => `
+                <option value="${routine.id}">${CoreUI.escapeHtml(routine.name)}</option>
+            `).join('');
+            if (this.gymRoutines.some((routine) => String(routine.id) === String(current))) {
+                routineSelect.value = current;
+            }
+        }
+
+        const exerciseSelect = document.getElementById('gym-log-exercise');
+        if (exerciseSelect) {
+            const current = exerciseSelect.value;
+            const exercises = this.gymRoutines.flatMap((routine) => (routine.exercises || []).map((exercise) => ({ ...exercise, routine_name: routine.name })));
+            exerciseSelect.innerHTML = exercises.map((exercise) => `
+                <option value="${exercise.id}">${CoreUI.escapeHtml(exercise.routine_name)} - ${CoreUI.escapeHtml(exercise.name)}</option>
+            `).join('');
+            if (exercises.some((exercise) => String(exercise.id) === String(current))) {
+                exerciseSelect.value = current;
+            }
+        }
+    },
+
+    openGymExerciseForDay(dayIndex) {
+        this.openModal('gym-exercise');
+        const daySelect = document.getElementById('gym-exercise-day');
+        if (daySelect) daySelect.value = String(dayIndex);
     },
 
     renderFinance() {
@@ -315,6 +499,152 @@ const LifeUI = {
                 <button type="button" class="btn btn-icon btn-danger" onclick="LifeUI.deleteItem('finance', ${entry.id})" title="Delete"><i class="ph ph-trash"></i></button>
             </div>
         `).join('');
+    },
+
+    renderFinanceDashboard() {
+        const container = document.getElementById('life-finance-dashboard');
+        if (!container) return;
+
+        const now = new Date();
+        const currentMonth = now.toISOString().slice(0, 7);
+        const totals = this.finance.reduce((acc, entry) => {
+            const amount = Number(entry.amount || 0);
+            if (entry.type === 'income') acc.income += amount;
+            if (entry.type === 'saving') acc.savings += amount;
+            if (entry.type === 'expense' || entry.type === 'subscription') acc.spending += amount;
+            if ((entry.entry_date || '').slice(0, 7) === currentMonth && (entry.type === 'expense' || entry.type === 'subscription')) {
+                acc.monthSpending += amount;
+            }
+            if (entry.type === 'subscription') acc.subscriptions += amount;
+            return acc;
+        }, { income: 0, spending: 0, savings: 0, monthSpending: 0, subscriptions: 0 });
+        const balance = totals.income + totals.savings - totals.spending;
+        const categoryTotals = this.getFinanceCategoryTotals();
+        const topCategory = categoryTotals[0];
+
+        container.innerHTML = `
+            <div class="compact-item metric-card">
+                <span class="item-desc">Tracked Balance</span>
+                <div class="life-metric-value">${this.formatMoney(balance)}</div>
+                <span class="badge">${this.finance.length} entries</span>
+            </div>
+            <div class="compact-item metric-card">
+                <span class="item-desc">Spending</span>
+                <div class="life-metric-value">${this.formatMoney(totals.spending)}</div>
+                <span class="badge">${this.formatMoney(totals.monthSpending)} this month</span>
+            </div>
+            <div class="compact-item metric-card">
+                <span class="item-desc">Income</span>
+                <div class="life-metric-value">${this.formatMoney(totals.income)}</div>
+                <span class="badge">${this.formatMoney(totals.savings)} saved</span>
+            </div>
+            <div class="compact-item metric-card">
+                <span class="item-desc">Subscriptions</span>
+                <div class="life-metric-value">${this.formatMoney(totals.subscriptions)}</div>
+                <span class="badge">${topCategory ? `${CoreUI.escapeHtml(topCategory.category)} leads spend` : 'Recurring pressure'}</span>
+            </div>
+        `;
+        this.renderFinanceCategoryChart(categoryTotals, totals.spending);
+        this.renderFinanceHistoryChart();
+    },
+
+    getFinanceCategoryTotals() {
+        const categoryMap = new Map();
+        this.finance.forEach((entry) => {
+            if (entry.type !== 'expense' && entry.type !== 'subscription') return;
+            const category = (entry.category || entry.type || 'Uncategorized').trim() || 'Uncategorized';
+            categoryMap.set(category, (categoryMap.get(category) || 0) + Number(entry.amount || 0));
+        });
+        return Array.from(categoryMap.entries())
+            .map(([category, amount]) => ({ category, amount }))
+            .sort((left, right) => right.amount - left.amount);
+    },
+
+    renderFinanceCategoryChart(categoryTotals, totalSpending) {
+        const container = document.getElementById('life-finance-category-chart');
+        if (!container) return;
+        if (!categoryTotals.length || !totalSpending) {
+            CoreUI.setEmptyState(container, 'No spending categories yet.');
+            return;
+        }
+
+        const colors = [
+            'rgba(255, 77, 109, 0.86)',
+            'rgba(255, 184, 77, 0.82)',
+            'rgba(0, 240, 255, 0.78)',
+            'rgba(176, 107, 255, 0.76)',
+            'rgba(86, 211, 100, 0.74)',
+            'rgba(160, 168, 190, 0.62)'
+        ];
+        let cursor = 0;
+        const slices = categoryTotals.slice(0, 6).map((item, index) => {
+            const degrees = (item.amount / totalSpending) * 360;
+            const slice = `${colors[index % colors.length]} ${cursor}deg ${cursor + degrees}deg`;
+            cursor += degrees;
+            return slice;
+        });
+        const legend = categoryTotals.slice(0, 6).map((item, index) => {
+            const percent = Math.round((item.amount / totalSpending) * 100);
+            return `
+                <div class="life-chart-legend-item">
+                    <span class="life-chart-swatch" style="background:${colors[index % colors.length]}"></span>
+                    <span class="item-desc">${CoreUI.escapeHtml(item.category)} · ${percent}%</span>
+                    <span class="item-title">${this.formatMoney(item.amount)}</span>
+                </div>
+            `;
+        }).join('');
+
+        container.innerHTML = `
+            <div class="life-pie-layout">
+                <div class="life-pie-chart" style="background: conic-gradient(${slices.join(', ')});">
+                    <div class="life-pie-center">
+                        <strong>${this.formatMoney(totalSpending)}</strong>
+                        <span>Spend</span>
+                    </div>
+                </div>
+                <div class="life-chart-legend">${legend}</div>
+            </div>
+        `;
+    },
+
+    renderFinanceHistoryChart() {
+        const container = document.getElementById('life-finance-history-chart');
+        if (!container) return;
+        const now = new Date();
+        const months = [];
+        for (let offset = 5; offset >= 0; offset -= 1) {
+            const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+            const key = date.toISOString().slice(0, 7);
+            months.push({
+                key,
+                label: date.toLocaleDateString(undefined, { month: 'short' }),
+                amount: 0
+            });
+        }
+        this.finance.forEach((entry) => {
+            if (entry.type !== 'expense' && entry.type !== 'subscription') return;
+            const key = (entry.entry_date || '').slice(0, 7);
+            const month = months.find((item) => item.key === key);
+            if (month) month.amount += Number(entry.amount || 0);
+        });
+        const maxAmount = Math.max(...months.map((item) => item.amount), 0);
+        if (!maxAmount) {
+            CoreUI.setEmptyState(container, 'No spending history yet.');
+            return;
+        }
+        container.innerHTML = `
+            <div class="life-bar-chart">
+                ${months.map((month) => {
+                    const height = Math.max(4, Math.round((month.amount / maxAmount) * 100));
+                    return `
+                        <div class="life-bar-item" title="${CoreUI.escapeHtml(month.label)} ${this.formatMoney(month.amount)}">
+                            <div class="life-bar-fill" style="height:${height}%"></div>
+                            <span class="life-bar-label">${CoreUI.escapeHtml(month.label)}</span>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
     },
 
     renderContacts() {
@@ -429,6 +759,18 @@ const LifeUI = {
         });
     },
 
+    switchHealthPage(pageId) {
+        this.activeHealthPage = pageId;
+
+        document.querySelectorAll('.life-health-tab').forEach((element) => {
+            element.classList.toggle('active', element.dataset.healthPage === pageId);
+        });
+
+        document.querySelectorAll('.life-health-page').forEach((element) => {
+            element.classList.toggle('active', element.id === `health-page-${pageId}`);
+        });
+    },
+
     openModal(panelId) {
         const modal = document.getElementById(`modal-${panelId}`);
         if (!modal) return;
@@ -488,6 +830,61 @@ const LifeUI = {
         } catch (error) {
             CoreUI.showError(error.message || 'Failed to save diet entry.');
         }
+    },
+
+    async saveDietTargets() {
+        const payload = {
+            calories: this.valueOrNull('diet-target-calories') || 0,
+            protein_g: this.valueOrNull('diet-target-protein') || 0,
+            carbs_g: this.valueOrNull('diet-target-carbs') || 0,
+            fat_g: this.valueOrNull('diet-target-fat') || 0
+        };
+        try {
+            await API.put('/api/life/diet/targets', payload);
+            await this.loadAll();
+            CoreUI.showError('Diet targets saved.', true);
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to save diet targets.');
+        }
+    },
+
+    async saveGymRoutine(event) {
+        event.preventDefault();
+        const payload = {
+            name: document.getElementById('gym-routine-name').value,
+            goal: document.getElementById('gym-routine-goal').value,
+            is_active: document.getElementById('gym-routine-active').checked
+        };
+        await this.postForm('/api/life/gym/routines', payload, 'Gym routine saved.', 'life-gym-routine-form', 'gym-routine');
+    },
+
+    async saveGymExercise(event) {
+        event.preventDefault();
+        const payload = {
+            routine_id: this.intOrNull('gym-exercise-routine'),
+            name: document.getElementById('gym-exercise-name').value,
+            day_of_week: this.intOrNull('gym-exercise-day'),
+            machine: document.getElementById('gym-exercise-machine').value,
+            muscle_group: document.getElementById('gym-exercise-muscle').value,
+            sets: this.intOrNull('gym-exercise-sets'),
+            reps: document.getElementById('gym-exercise-reps').value,
+            target_weight: this.valueOrNull('gym-exercise-weight'),
+            notes: document.getElementById('gym-exercise-notes').value
+        };
+        await this.postForm('/api/life/gym/exercises', payload, 'Gym exercise saved.', 'life-gym-exercise-form', 'gym-exercise');
+    },
+
+    async saveGymLog(event) {
+        event.preventDefault();
+        const payload = {
+            log_date: document.getElementById('gym-log-date').value,
+            exercise_id: this.intOrNull('gym-log-exercise'),
+            sets_completed: this.intOrNull('gym-log-sets'),
+            reps_completed: document.getElementById('gym-log-reps').value,
+            weight_used: this.valueOrNull('gym-log-weight'),
+            notes: document.getElementById('gym-log-notes').value
+        };
+        await this.postForm('/api/life/gym/logs', payload, 'Workout log saved.', 'life-gym-log-form', 'gym-log');
     },
 
     async saveFinance(event) {
@@ -603,9 +1000,12 @@ const LifeUI = {
 
     resetDietForm() {
         document.getElementById('life-diet-form')?.reset();
+        this.dietPresetQuery = '';
+        this.setInputValue('diet-preset-search', '');
         const servings = document.getElementById('diet-servings');
         if (servings) servings.value = '1';
         this.setDefaultDates();
+        this.renderDietPresetOptions();
         this.updateDietPreview();
     },
 
@@ -634,6 +1034,9 @@ const LifeUI = {
         const labels = {
             health: 'health log',
             diet: 'diet entry',
+            'gym/routines': 'gym routine',
+            'gym/exercises': 'gym exercise',
+            'gym/logs': 'workout log',
             finance: 'finance entry',
             contacts: 'contact',
             reviews: 'review',
@@ -658,6 +1061,11 @@ const LifeUI = {
         return value === '' || value == null ? null : Number(value);
     },
 
+    setInputValue(id, value) {
+        const field = document.getElementById(id);
+        if (field) field.value = value ?? '';
+    },
+
     intOrNull(id) {
         const value = this.valueOrNull(id);
         return value == null ? null : Math.trunc(value);
@@ -673,9 +1081,19 @@ const LifeUI = {
         return labels[value] || value || 'Meal';
     },
 
+    weekdayName(value) {
+        return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][Number(value)] || 'Unscheduled';
+    },
+
     formatNumber(value) {
         const numeric = Number(value || 0);
         return Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(1);
+    },
+
+    formatTarget(current, target, suffix = '') {
+        const numericTarget = Number(target || 0);
+        if (!numericTarget) return 'No target';
+        return `${this.formatNumber(current || 0)} / ${this.formatNumber(numericTarget)}${suffix}`;
     },
 
     formatMoney(value) {

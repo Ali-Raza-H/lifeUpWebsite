@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}CV{% endblock %}
+{% block page_title %}CV Manager{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/cv.css', v=asset_version('css/cv.css')) }}">
+{% endblock %}
+
+{% block header_actions %}
+<div class="header-actions">
+    <a class="btn" href="/api/cv/download?format=pdf"><i class="ph ph-download-simple"></i> Download CV</a>
+    <button class="btn btn-primary" onclick="CVUI.copyPreview()"><i class="ph ph-copy"></i> Copy CV</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="page-stack cv-page">
+    <section class="card">
+        <div class="card-header">
+            <span class="card-title"><i class="ph ph-upload-simple"></i> Import Current CV</span>
+        </div>
+        <form id="cv-import-form" class="cv-import-form" onsubmit="CVUI.importPdf(event)">
+            <input type="file" id="cv-import-file" class="form-control" accept="application/pdf,.pdf" required>
+            <button type="submit" class="btn btn-primary"><i class="ph ph-file-pdf"></i> Extract PDF</button>
+        </form>
+        <div class="item-desc" id="cv-import-status">Upload your current PDF CV to extract editable profile, section, and experience data.</div>
+    </section>
+
+    <section class="section-grid-2">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-identification-card"></i> Master Profile</span>
+            </div>
+            <form id="cv-profile-form" class="cv-form-grid" onsubmit="CVUI.saveProfile(event)">
+                <div class="form-group">
+                    <label class="form-label" for="cv-name">Name</label>
+                    <input type="text" id="cv-name" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="cv-headline">Headline</label>
+                    <input type="text" id="cv-headline" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="cv-email">Email</label>
+                    <input type="email" id="cv-email" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="cv-phone">Phone</label>
+                    <input type="text" id="cv-phone" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="cv-location">Location</label>
+                    <input type="text" id="cv-location" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="cv-links">Links</label>
+                    <input type="text" id="cv-links" class="form-control" placeholder="Portfolio, GitHub, LinkedIn">
+                </div>
+                <div class="form-group cv-wide">
+                    <label class="form-label" for="cv-summary">Summary</label>
+                    <textarea id="cv-summary" class="form-control" rows="4"></textarea>
+                </div>
+                <div class="modal-footer cv-wide">
+                    <button type="submit" class="btn btn-primary">Save Profile</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-file-text"></i> Preview</span>
+            </div>
+            <pre id="cv-preview" class="cv-preview">Loading CV preview...</pre>
+        </div>
+    </section>
+
+    <section class="section-grid-2">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-stack"></i> Sections</span>
+            </div>
+            <form id="cv-section-form" class="cv-form-grid" onsubmit="CVUI.saveSection(event)">
+                <input type="hidden" id="cv-section-id">
+                <div class="form-group">
+                    <label class="form-label" for="cv-section-title">Title</label>
+                    <input type="text" id="cv-section-title" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="cv-section-type">Type</label>
+                    <select id="cv-section-type" class="form-control">
+                        <option value="experience">Experience</option>
+                        <option value="projects">Projects</option>
+                        <option value="education">Education</option>
+                        <option value="skills">Skills</option>
+                        <option value="certifications">Certifications</option>
+                        <option value="summary">Summary</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <label class="life-check cv-wide">
+                    <input type="checkbox" id="cv-section-enabled" checked>
+                    <span>Enabled in generated CV</span>
+                </label>
+                <div class="modal-footer cv-wide">
+                    <button type="button" class="btn" onclick="CVUI.resetSectionForm()">Clear</button>
+                    <button type="submit" class="btn btn-primary">Save Section</button>
+                </div>
+            </form>
+            <div id="cv-section-list" class="compact-list">
+                <div class="compact-item"><span class="item-desc">Loading sections...</span></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="ph ph-list-plus"></i> Section Item</span>
+            </div>
+            <form id="cv-item-form" class="cv-form-grid" onsubmit="CVUI.saveItem(event)">
+                <input type="hidden" id="cv-item-id">
+                <div class="form-group">
+                    <label class="form-label" for="cv-item-section">Section</label>
+                    <select id="cv-item-section" class="form-control" required></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="cv-item-title">Title</label>
+                    <input type="text" id="cv-item-title" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="cv-item-organization">Organization</label>
+                    <input type="text" id="cv-item-organization" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="cv-item-location">Location</label>
+                    <input type="text" id="cv-item-location" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="cv-item-start">Start</label>
+                    <input type="date" id="cv-item-start" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="cv-item-end">End</label>
+                    <input type="date" id="cv-item-end" class="form-control">
+                </div>
+                <div class="form-group cv-wide">
+                    <label class="form-label" for="cv-item-description">Description</label>
+                    <textarea id="cv-item-description" class="form-control" rows="3"></textarea>
+                </div>
+                <div class="form-group cv-wide">
+                    <label class="form-label" for="cv-item-bullets">Bullets</label>
+                    <textarea id="cv-item-bullets" class="form-control" rows="5" placeholder="One bullet per line"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="cv-item-skills">Skills</label>
+                    <input type="text" id="cv-item-skills" class="form-control">
+                </div>
+                <label class="life-check">
+                    <input type="checkbox" id="cv-item-enabled" checked>
+                    <span>Enabled</span>
+                </label>
+                <div class="modal-footer cv-wide">
+                    <button type="button" class="btn" onclick="CVUI.resetItemForm()">Clear</button>
+                    <button type="submit" class="btn btn-primary">Save Item</button>
+                </div>
+            </form>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/cv.js', v=asset_version('js/cv.js')) }}"></script>
+{% endblock %}

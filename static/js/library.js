@@ -136,20 +136,21 @@ const LibraryUI = {
 
         container.innerHTML = this.statusConfig.map((status) => {
             const matchingItems = items.filter((item) => item.status === status.key);
-            const visibleItems = matchingItems.slice(0, rowLimit);
-            const hiddenCount = matchingItems.length - visibleItems.length;
             return `
-                <div class="library-status-column">
-                    <div class="library-status-head">
-                        <span class="library-status-title">${status.label}</span>
+                <section class="board-column library-status-column">
+                    <div class="board-column-header library-status-head">
+                        <span class="card-title">${status.label}</span>
                         <span class="badge">${matchingItems.length}</span>
                     </div>
-                    <div class="library-status-body">
-                        ${matchingItems.length ? `${visibleItems.map((item) => this.renderItemCard(item)).join('')}${hiddenCount > 0 ? CoreUI.renderRowLimitNotice(hiddenCount, 'titles') : ''}` : `<div class="library-empty-state">${status.empty}</div>`}
+                    <div class="compact-list library-status-body" data-library-status-body="${type}-${status.key}">
+                        ${matchingItems.length ? matchingItems.map((item) => this.renderItemCard(item)).join('') : `<div class="compact-item"><span class="item-desc">${status.empty}</span></div>`}
                     </div>
-                </div>
+                </section>
             `;
         }).join('');
+        container.querySelectorAll('[data-library-status-body]').forEach((column) => {
+            CoreUI.applyInvisibleRowLimitScroll(column, rowLimit, 172);
+        });
     },
 
     renderItemCard(item) {
@@ -166,7 +167,7 @@ const LibraryUI = {
         `;
 
         return `
-            <article class="library-entry">
+            <article class="compact-item library-entry">
                 <div class="library-entry-top">
                     <div>
                         <h3 class="library-entry-title">${CoreUI.escapeHtml(item.title)}</h3>

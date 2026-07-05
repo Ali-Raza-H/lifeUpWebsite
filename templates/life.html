@@ -26,11 +26,7 @@
             <nav class="life-nav-list">
                 <div class="life-nav-item active" data-panel="health" onclick="LifeUI.switchPanel('health')">
                     <i class="ph ph-heartbeat"></i>
-                    <span>Health & Body</span>
-                </div>
-                <div class="life-nav-item" data-panel="diet" onclick="LifeUI.switchPanel('diet')">
-                    <i class="ph ph-bowl-food"></i>
-                    <span>Diet & Macros</span>
+                    <span>Health Hub</span>
                 </div>
                 <div class="life-nav-item" data-panel="finance" onclick="LifeUI.switchPanel('finance')">
                     <i class="ph ph-wallet"></i>
@@ -56,30 +52,74 @@
             <!-- Health Panel -->
             <section id="panel-health" class="life-content-panel active">
                 <div class="life-section-header">
-                    <h2 class="life-section-title"><i class="ph ph-heartbeat"></i> Health Tracker</h2>
-                    <button class="btn btn-sm btn-primary" onclick="LifeUI.openModal('health')"><i class="ph ph-plus"></i> Log Health</button>
+                    <h2 class="life-section-title"><i class="ph ph-heartbeat"></i> Health Hub</h2>
                 </div>
-                <div class="life-list-container">
-                    <div class="life-list-header">
-                        <span class="item-desc">Recent Logs</span>
-                    </div>
-                    <div id="life-health-list" class="life-list-body"></div>
+                <div class="life-health-tabs">
+                    <button type="button" class="btn btn-sm life-health-tab active" data-health-page="gym" onclick="LifeUI.switchHealthPage('gym')"><i class="ph ph-barbell"></i> Gym</button>
+                    <button type="button" class="btn btn-sm life-health-tab" data-health-page="diet" onclick="LifeUI.switchHealthPage('diet')"><i class="ph ph-bowl-food"></i> Diet</button>
+                    <button type="button" class="btn btn-sm life-health-tab" data-health-page="logs" onclick="LifeUI.switchHealthPage('logs')"><i class="ph ph-heartbeat"></i> Health Logs</button>
                 </div>
-            </section>
 
-            <section id="panel-diet" class="life-content-panel">
-                <div class="life-section-header">
-                    <h2 class="life-section-title"><i class="ph ph-bowl-food"></i> Diet Tracker</h2>
-                    <button class="btn btn-sm btn-primary" onclick="LifeUI.openModal('diet')"><i class="ph ph-plus"></i> Log Meal</button>
-                </div>
-                <div class="metric-grid cols-4 life-diet-metrics" id="life-diet-metric-grid">
-                    <div class="compact-item metric-card"><span class="item-desc">Loading macros...</span></div>
-                </div>
-                <div class="life-list-container">
-                    <div class="life-list-header">
-                        <span class="item-desc">Recent Meals</span>
+                <div id="health-page-gym" class="life-health-page active">
+                    <div class="life-section-header">
+                        <h2 class="life-section-title"><i class="ph ph-barbell"></i> Gym Plan</h2>
+                        <div class="section-toolbar-actions">
+                            <button class="btn btn-sm" onclick="LifeUI.openModal('gym-routine')"><i class="ph ph-barbell"></i> New Routine</button>
+                            <button class="btn btn-sm" onclick="LifeUI.openModal('gym-exercise')"><i class="ph ph-list-plus"></i> Add Exercise</button>
+                            <button class="btn btn-sm btn-primary" onclick="LifeUI.openModal('gym-log')"><i class="ph ph-check-circle"></i> Log Workout</button>
+                        </div>
                     </div>
-                    <div id="life-diet-list" class="life-list-body"></div>
+                    <div id="life-gym-calendar" class="life-gym-calendar"></div>
+                    <div class="life-list-container">
+                        <div class="life-list-header">
+                            <span class="item-desc">Active Routines</span>
+                        </div>
+                        <div id="life-gym-routine-list" class="life-list-body"></div>
+                    </div>
+                    <div class="life-list-container">
+                        <div class="life-list-header">
+                            <span class="item-desc">Workout History</span>
+                        </div>
+                        <div id="life-gym-log-list" class="life-list-body"></div>
+                    </div>
+                </div>
+
+                <div id="health-page-diet" class="life-health-page">
+                    <div class="life-section-header">
+                        <h2 class="life-section-title"><i class="ph ph-bowl-food"></i> Diet Tracker</h2>
+                        <div class="section-toolbar-actions">
+                            <button class="btn btn-sm" onclick="LifeUI.openModal('diet')"><i class="ph ph-bowl-food"></i> Log Meal</button>
+                            <button class="btn btn-sm btn-primary" onclick="LifeUI.saveDietTargets()"><i class="ph ph-target"></i> Save Targets</button>
+                        </div>
+                    </div>
+                    <div class="life-target-grid">
+                        <input type="number" id="diet-target-calories" class="form-control" min="0" step="1" placeholder="Target kcal">
+                        <input type="number" id="diet-target-protein" class="form-control" min="0" step="1" placeholder="Protein g">
+                        <input type="number" id="diet-target-carbs" class="form-control" min="0" step="1" placeholder="Carbs g">
+                        <input type="number" id="diet-target-fat" class="form-control" min="0" step="1" placeholder="Fat g">
+                    </div>
+                    <div class="metric-grid cols-4 life-diet-metrics" id="life-diet-metric-grid">
+                        <div class="compact-item metric-card"><span class="item-desc">Loading macros...</span></div>
+                    </div>
+                    <div class="life-list-container">
+                        <div class="life-list-header">
+                            <span class="item-desc">Recent Meals</span>
+                        </div>
+                        <div id="life-diet-list" class="life-list-body"></div>
+                    </div>
+                </div>
+
+                <div id="health-page-logs" class="life-health-page">
+                    <div class="life-section-header">
+                        <h2 class="life-section-title"><i class="ph ph-heartbeat"></i> Health Logs</h2>
+                        <button class="btn btn-sm btn-primary" onclick="LifeUI.openModal('health')"><i class="ph ph-plus"></i> Log Health</button>
+                    </div>
+                    <div class="life-list-container">
+                        <div class="life-list-header">
+                            <span class="item-desc">Recent Logs</span>
+                        </div>
+                        <div id="life-health-list" class="life-list-body"></div>
+                    </div>
                 </div>
             </section>
 
@@ -88,6 +128,23 @@
                 <div class="life-section-header">
                     <h2 class="life-section-title"><i class="ph ph-wallet"></i> Finance Manager</h2>
                     <button class="btn btn-sm btn-primary" onclick="LifeUI.openModal('finance')"><i class="ph ph-plus"></i> Add Entry</button>
+                </div>
+                <div class="metric-grid cols-4" id="life-finance-dashboard">
+                    <div class="compact-item metric-card"><span class="item-desc">Loading finance dashboard...</span></div>
+                </div>
+                <div class="life-finance-insights">
+                    <div class="life-list-container">
+                        <div class="life-list-header">
+                            <span class="item-desc">Spending Categories</span>
+                        </div>
+                        <div id="life-finance-category-chart" class="life-chart-body"></div>
+                    </div>
+                    <div class="life-list-container">
+                        <div class="life-list-header">
+                            <span class="item-desc">Monthly Spending</span>
+                        </div>
+                        <div id="life-finance-history-chart" class="life-chart-body"></div>
+                    </div>
                 </div>
                 <div class="life-list-container">
                     <div class="life-list-header">
@@ -218,6 +275,10 @@
                     </select>
                 </div>
                 <div class="form-group life-wide">
+                    <label class="form-label" for="diet-preset-search">Find Food</label>
+                    <input type="search" id="diet-preset-search" class="form-control" placeholder="Search presets, favorites, or categories">
+                </div>
+                <div class="form-group life-wide">
                     <label class="form-label" for="diet-preset">Preset Food</label>
                     <select id="diet-preset" class="form-control" required>
                         <option value="">Select a preset food</option>
@@ -241,6 +302,141 @@
             <div class="modal-footer">
                 <button type="button" class="btn" onclick="LifeUI.closeModal('diet')">Cancel</button>
                 <button type="submit" class="btn btn-primary">Save Meal</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Gym Routine Modal -->
+<div id="modal-gym-routine" class="modal-overlay">
+    <div class="modal-content life-modal-content">
+        <div class="card-header">
+            <h3 class="card-title">Gym Routine</h3>
+            <button class="btn btn-icon" onclick="LifeUI.closeModal('gym-routine')"><i class="ph ph-x"></i></button>
+        </div>
+        <form id="life-gym-routine-form" onsubmit="LifeUI.saveGymRoutine(event)">
+            <div class="life-form-grid">
+                <div class="form-group life-wide">
+                    <label class="form-label" for="gym-routine-name">Name</label>
+                    <input type="text" id="gym-routine-name" class="form-control" required placeholder="Push, Pull, Legs">
+                </div>
+                <div class="form-group life-wide">
+                    <label class="form-label" for="gym-routine-goal">Goal</label>
+                    <input type="text" id="gym-routine-goal" class="form-control" placeholder="Build strength, hypertrophy, conditioning">
+                </div>
+                <label class="life-check life-wide">
+                    <input type="checkbox" id="gym-routine-active" checked>
+                    <span>Active routine</span>
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="LifeUI.closeModal('gym-routine')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Routine</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Gym Exercise Modal -->
+<div id="modal-gym-exercise" class="modal-overlay">
+    <div class="modal-content life-modal-content">
+        <div class="card-header">
+            <h3 class="card-title">Gym Exercise</h3>
+            <button class="btn btn-icon" onclick="LifeUI.closeModal('gym-exercise')"><i class="ph ph-x"></i></button>
+        </div>
+        <form id="life-gym-exercise-form" onsubmit="LifeUI.saveGymExercise(event)">
+            <div class="life-form-grid">
+                <div class="form-group life-wide">
+                    <label class="form-label" for="gym-exercise-routine">Routine</label>
+                    <select id="gym-exercise-routine" class="form-control" required></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="gym-exercise-name">Exercise</label>
+                    <input type="text" id="gym-exercise-name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="gym-exercise-day">Day</label>
+                    <select id="gym-exercise-day" class="form-control">
+                        <option value="">Unscheduled</option>
+                        <option value="0">Monday</option>
+                        <option value="1">Tuesday</option>
+                        <option value="2">Wednesday</option>
+                        <option value="3">Thursday</option>
+                        <option value="4">Friday</option>
+                        <option value="5">Saturday</option>
+                        <option value="6">Sunday</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="gym-exercise-machine">Machine</label>
+                    <input type="text" id="gym-exercise-machine" class="form-control" placeholder="Cable row, leg press, barbell">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="gym-exercise-muscle">Muscle Group</label>
+                    <input type="text" id="gym-exercise-muscle" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="gym-exercise-sets">Sets</label>
+                    <input type="number" id="gym-exercise-sets" class="form-control" min="0" step="1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="gym-exercise-reps">Reps</label>
+                    <input type="text" id="gym-exercise-reps" class="form-control" placeholder="8-12">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="gym-exercise-weight">Target Weight</label>
+                    <input type="number" id="gym-exercise-weight" class="form-control" min="0" step="0.5">
+                </div>
+                <div class="form-group life-wide">
+                    <label class="form-label" for="gym-exercise-notes">Notes</label>
+                    <input type="text" id="gym-exercise-notes" class="form-control">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="LifeUI.closeModal('gym-exercise')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Exercise</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Gym Log Modal -->
+<div id="modal-gym-log" class="modal-overlay">
+    <div class="modal-content life-modal-content">
+        <div class="card-header">
+            <h3 class="card-title">Workout Log</h3>
+            <button class="btn btn-icon" onclick="LifeUI.closeModal('gym-log')"><i class="ph ph-x"></i></button>
+        </div>
+        <form id="life-gym-log-form" onsubmit="LifeUI.saveGymLog(event)">
+            <div class="life-form-grid">
+                <div class="form-group">
+                    <label class="form-label" for="gym-log-date">Date</label>
+                    <input type="date" id="gym-log-date" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="gym-log-exercise">Exercise</label>
+                    <select id="gym-log-exercise" class="form-control" required></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="gym-log-sets">Sets Completed</label>
+                    <input type="number" id="gym-log-sets" class="form-control" min="0" step="1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="gym-log-reps">Reps Completed</label>
+                    <input type="text" id="gym-log-reps" class="form-control" placeholder="10, 10, 8">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="gym-log-weight">Weight Used</label>
+                    <input type="number" id="gym-log-weight" class="form-control" min="0" step="0.5">
+                </div>
+                <div class="form-group life-wide">
+                    <label class="form-label" for="gym-log-notes">Notes</label>
+                    <input type="text" id="gym-log-notes" class="form-control">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="LifeUI.closeModal('gym-log')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Workout</button>
             </div>
         </form>
     </div>

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 from flask import Blueprint, jsonify, request
 
 from database import execute_db, query_db
@@ -17,6 +19,8 @@ from utils import (
     get_optional_string,
     get_required_string,
     require_object,
+    row_to_dict,
+    rows_to_dicts,
 )
 
 bp = Blueprint("profile_api", __name__, url_prefix="/api/profile")
@@ -258,6 +262,123 @@ def delete_skill(skill_id: int):
     execute_db("DELETE FROM skills WHERE id = ?", [skill_id])
     _normalize_display_order("skills")
     return jsonify({"message": "Skill deleted."})
+
+
+@bp.route("/admired-people", methods=["GET"])
+def get_admired_people():
+    rows = query_db(
+        """
+        SELECT *
+        FROM admired_people
+        ORDER BY display_order ASC, id ASC
+        """
+    )
+    return jsonify(rows_to_dicts(rows))
+
+
+@bp.route("/admired-people", methods=["POST"])
+def create_admired_person():
+    payload = require_object(request.get_json(silent=True))
+    data = _validate_admired_person_payload(payload)
+    display_order = get_optional_int(payload, "display_order", minimum=1) or _next_display_order("admired_people")
+
+    person_id = execute_db(
+        """
+        INSERT INTO admired_people (
+            name, role_or_context, why_admired, traits_to_model, reference_url, display_order, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """,
+        (
+            data["name"],
+            data["role_or_context"],
+            data["why_admired"],
+            data["traits_to_model"],
+            data["reference_url"],
+            display_order,
+        ),
+    )
+    _normalize_display_order("admired_people")
+    person = query_db("SELECT * FROM admired_people WHERE id = ?", [person_id], one=True)
+    return jsonify({"person": row_to_dict(person), "message": "Admired person saved."}), 201
+
+
+@bp.route("/admired-people/reorder", methods=["POST"])
+def reorder_admired_people():
+    payload = require_object(request.get_json(silent=True))
+    _apply_reorder("admired_people", payload.get("ids"))
+    return jsonify({"people": get_admired_people().get_json(), "message": "Admired people order updated."})
+
+
+@bp.route("/admired-people/<int:person_id>", methods=["PUT"])
+def update_admired_person(person_id: int):
+    row = query_db("SELECT * FROM admired_people WHERE id = ?", [person_id], one=True)
+    if not row:
+        return jsonify({"error": "Admired person not found."}), 404
+
+    current = row_to_dict(row)
+    payload = require_object(request.get_json(silent=True))
+    merged = {**current, **payload}
+    data = _validate_admired_person_payload(merged)
+    display_order = get_optional_int(merged, "display_order", default=current["display_order"], minimum=1)
+
+    execute_db(
+        """
+        UPDATE admired_people
+        SET
+            name = ?,
+            role_or_context = ?,
+            why_admired = ?,
+            traits_to_model = ?,
+            reference_url = ?,
+            display_order = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        (
+            data["name"],
+            data["role_or_context"],
+            data["why_admired"],
+            data["traits_to_model"],
+            data["reference_url"],
+            display_order,
+            person_id,
+        ),
+    )
+    _normalize_display_order("admired_people")
+    updated = query_db("SELECT * FROM admired_people WHERE id = ?", [person_id], one=True)
+    return jsonify({"person": row_to_dict(updated), "message": "Admired person updated."})
+
+
+@bp.route("/admired-people/<int:person_id>", methods=["DELETE"])
+def delete_admired_person(person_id: int):
+    row = query_db("SELECT id FROM admired_people WHERE id = ?", [person_id], one=True)
+    if not row:
+        return jsonify({"error": "Admired person not found."}), 404
+    execute_db("DELETE FROM admired_people WHERE id = ?", [person_id])
+    _normalize_display_order("admired_people")
+    return jsonify({"message": "Admired person deleted."})
+
+
+def _validate_admired_person_payload(payload: dict) -> dict[str, str]:
+    return {
+        "name": get_required_string(payload, "name", max_length=140),
+        "role_or_context": get_optional_string(payload, "role_or_context", max_length=160, default="") or "",
+        "why_admired": get_required_string(payload, "why_admired", max_length=3000),
+        "traits_to_model": get_optional_string(payload, "traits_to_model", max_length=1000, default="") or "",
+        "reference_url": _optional_url(payload, "reference_url"),
+    }
+
+
+def _optional_url(payload: dict, field: str) -> str:
+    raw_value = get_optional_string(payload, field, max_length=1000, default="") or ""
+    if not raw_value:
+        return ""
+    value = raw_value if "://" in raw_value else f"https://{raw_value}"
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValidationError(f"{field.replace('_', ' ').title()} must be a valid website link.", field)
+    return value
 
 
 def _next_display_order(table_name: str) -> int:

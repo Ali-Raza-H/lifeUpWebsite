@@ -6,6 +6,7 @@ from urllib.parse import quote_plus
 from flask import Blueprint, jsonify, request
 
 from database import query_db
+from modules import modules_for_commands
 from services import dashboard_today_payload
 from utils import parse_datetime, row_to_dict, rows_to_dicts
 
@@ -55,25 +56,45 @@ def _format_event_window(event: dict) -> str:
 
 
 def _page_commands() -> list[dict]:
-    pages = [
-        ("Dashboard", "Your daily operating view.", "/", "ph ph-squares-four"),
-        ("Tasks", "Manage active work and deadlines.", "/tasks", "ph ph-list-checks"),
-        ("Projects", "Track project health, milestones, and resources.", "/projects", "ph ph-kanban"),
-        ("Goals", "Review long-range targets and milestones.", "/goals", "ph ph-target"),
-        ("Calendar", "See schedule blocks and commitments.", "/calendar", "ph ph-calendar-blank"),
-        ("Life", "Health, diet, finance, contacts, reviews, and resources.", "/life", "ph ph-heartbeat"),
-        ("Analytics", "Performance trends and execution breakdowns.", "/analytics", "ph ph-chart-bar"),
-        ("Settings", "Export, import, backups, and maintenance.", "/settings", "ph ph-gear"),
-    ]
     return [
         _command_result(
             item_type="page",
+            title=module.title,
+            subtitle=module.subtitle,
+            action_url=module.url,
+            icon=module.icon,
+        )
+        for module in modules_for_commands()
+    ]
+
+
+def _section_commands() -> list[dict]:
+    sections = (
+        ("Day2Day: Habits", "Open the habits section inside the daily workspace.", "/day2day#habits", "ph ph-calendar-check"),
+        ("Day2Day: Tasks", "Open the tasks section inside the daily workspace.", "/day2day#tasks", "ph ph-list-checks"),
+        ("Day2Day: Calendar", "Open the calendar section inside the daily workspace.", "/day2day#calendar", "ph ph-calendar-blank"),
+        ("Build: Projects", "Open the projects area inside the build hub.", "/build#projects", "ph ph-kanban"),
+        ("Build: Goals", "Open the goals area inside the build hub.", "/build#goals", "ph ph-target"),
+        ("Build: Work", "Open the work area inside the build hub.", "/build#work", "ph ph-briefcase"),
+        ("Build: CV", "Open the CV area inside the build hub.", "/build#cv", "ph ph-file-text"),
+        ("Life: Health Hub", "Jump to the Life health hub.", "/life#health", "ph ph-heartbeat"),
+        ("Life: Gym", "Jump to the gym planner and workout logs.", "/life#health-gym", "ph ph-barbell"),
+        ("Life: Diet", "Jump to diet targets and meal logs.", "/life#health-diet", "ph ph-bowl-food"),
+        ("Life: Health Logs", "Jump to health logs.", "/life#health-logs", "ph ph-clipboard-text"),
+        ("Life: Finance", "Jump to finance dashboard and history.", "/life#finance", "ph ph-wallet"),
+        ("Life: Relationships", "Jump to contacts and follow-ups.", "/life#contacts", "ph ph-users-three"),
+        ("Life: Reviews", "Jump to life reviews.", "/life#reviews", "ph ph-clipboard-text"),
+        ("Life: Resources", "Jump to saved resources and links.", "/life#attachments", "ph ph-paperclip"),
+    )
+    return [
+        _command_result(
+            item_type="section",
             title=title,
             subtitle=subtitle,
-            action_url=action_url,
+            action_url=url,
             icon=icon,
         )
-        for title, subtitle, action_url, icon in pages
+        for title, subtitle, url, icon in sections
     ]
 
 
@@ -96,6 +117,7 @@ def _default_command_results(limit: int) -> list[dict]:
         ),
     ]
     results.extend(_page_commands())
+    results.extend(_section_commands())
 
     task_rows = rows_to_dicts(
         query_db(
@@ -155,6 +177,12 @@ def _default_command_results(limit: int) -> list[dict]:
 def _search_table_results(query_text: str, limit: int) -> list[dict]:
     needle = f"%{query_text.lower()}%"
     results: list[dict] = []
+    section_matches = [
+        result
+        for result in _section_commands()
+        if query_text.lower() in f"{result['title']} {result['subtitle']} {result['type']}".lower()
+    ]
+    results.extend(section_matches[:6])
 
     tasks = rows_to_dicts(
         query_db(
@@ -409,6 +437,58 @@ def _search_table_results(query_text: str, limit: int) -> list[dict]:
                 action_url="/work",
                 source_id=work["id"],
                 icon="ph ph-briefcase",
+            )
+        )
+
+    admired_people = rows_to_dicts(
+        query_db(
+            """
+            SELECT id, name, role_or_context, traits_to_model
+            FROM admired_people
+            WHERE LOWER(name || ' ' || COALESCE(role_or_context, '') || ' ' || COALESCE(why_admired, '') || ' ' || COALESCE(traits_to_model, '')) LIKE ?
+            ORDER BY display_order ASC, id ASC
+            LIMIT 5
+            """,
+            [needle],
+        )
+    )
+    for person in admired_people:
+        results.append(
+            _command_result(
+                item_type="admired_person",
+                title=person["name"],
+                subtitle=_compact_parts(person.get("role_or_context"), person.get("traits_to_model")),
+                action_url="/profile",
+                source_id=person["id"],
+                icon="ph ph-sparkle",
+            )
+        )
+
+    cv_items = rows_to_dicts(
+        query_db(
+            """
+            SELECT i.id, i.title, i.organization, i.skills, s.title AS section_title
+            FROM cv_items i
+            JOIN cv_sections s ON s.id = i.section_id
+            WHERE LOWER(
+                i.title || ' ' || COALESCE(i.organization, '') || ' ' || COALESCE(i.description, '') || ' ' ||
+                COALESCE(i.bullets, '') || ' ' || COALESCE(i.skills, '') || ' ' || s.title
+            ) LIKE ?
+            ORDER BY s.display_order ASC, i.display_order ASC, i.id ASC
+            LIMIT 5
+            """,
+            [needle],
+        )
+    )
+    for item in cv_items:
+        results.append(
+            _command_result(
+                item_type="cv",
+                title=item["title"],
+                subtitle=_compact_parts(item.get("section_title"), item.get("organization"), item.get("skills")),
+                action_url="/cv",
+                source_id=item["id"],
+                icon="ph ph-file-text",
             )
         )
 
