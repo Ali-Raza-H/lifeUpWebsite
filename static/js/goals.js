@@ -417,6 +417,8 @@ const GoalUI = {
     }
 };
 
+window.GoalUI = GoalUI;
+
 document.addEventListener('DOMContentLoaded', () => {
     GoalUI.init();
     GoalUI.loadGoals();

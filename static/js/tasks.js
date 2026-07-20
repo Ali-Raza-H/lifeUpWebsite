@@ -448,6 +448,8 @@ const TaskUI = {
     }
 };
 
+window.TaskUI = TaskUI;
+
 document.addEventListener('DOMContentLoaded', () => {
     TaskUI.init();
     TaskUI.loadTasks();

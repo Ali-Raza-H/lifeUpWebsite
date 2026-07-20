@@ -399,4 +399,6 @@ const WorkUI = {
     }
 };
 
+window.WorkUI = WorkUI;
+
 document.addEventListener('DOMContentLoaded', () => WorkUI.init());

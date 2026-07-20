@@ -185,6 +185,8 @@ const HabitUI = {
     }
 };
 
+window.HabitUI = HabitUI;
+
 document.addEventListener('DOMContentLoaded', () => {
     HabitUI.loadHabits();
 });

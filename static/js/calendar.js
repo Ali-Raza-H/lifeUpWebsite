@@ -746,6 +746,8 @@ const CalendarUI = {
     }
 };
 
+window.CalendarUI = CalendarUI;
+
 document.addEventListener('DOMContentLoaded', () => {
     CalendarUI.init();
 });

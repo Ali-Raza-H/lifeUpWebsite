@@ -724,6 +724,8 @@ const ProjectUI = {
     }
 };
 
+window.ProjectUI = ProjectUI;
+
 document.addEventListener('DOMContentLoaded', () => {
     ProjectUI.init();
     ProjectUI.loadData();
