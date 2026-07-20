@@ -1,4 +1,5 @@
 import sqlite3
+from io import BytesIO
 from datetime import date, timedelta
 
 from app import create_app
@@ -89,6 +90,10 @@ def test_guest_access_is_limited_to_read_only_demo_sections(anon_client):
 def test_hub_routes_and_command_palette_sections(client):
     assert client.get("/day2day").status_code == 200
     assert client.get("/build").status_code == 200
+    assert client.get("/tasks", follow_redirects=False).headers["Location"].endswith("/day2day#tasks")
+    assert client.get("/projects", follow_redirects=False).headers["Location"].endswith("/build#projects")
+    assert client.get("/tasks?embed=1").status_code == 200
+    assert client.get("/projects?embed=1").status_code == 200
 
     command_payload = client.get("/api/os/command?q=gym").get_json()
     section_urls = {item["action_url"] for item in command_payload["results"] if item["type"] == "section"}
@@ -97,6 +102,11 @@ def test_hub_routes_and_command_palette_sections(client):
     day_payload = client.get("/api/os/command?q=day2day").get_json()
     day_urls = {item["action_url"] for item in day_payload["results"] if item["type"] == "section"}
     assert "/day2day#tasks" in day_urls
+
+    default_payload = client.get("/api/os/command").get_json()
+    page_urls = {item["action_url"] for item in default_payload["results"] if item["type"] == "page"}
+    assert "/tasks" not in page_urls
+    assert "/projects" not in page_urls
 
 
 def test_task_lifecycle_sets_completed_timestamp(client):
@@ -776,6 +786,161 @@ def test_life_tracker_core_modules(client):
     update_contact = client.put(f"/api/life/contacts/{contact_id}", json={"priority": "normal"})
     assert update_contact.status_code == 200
     assert update_contact.get_json()["contact"]["priority"] == "normal"
+
+
+def test_finance_entries_can_be_updated_imported_and_categorized(client):
+    created = client.post(
+        "/api/life/finance",
+        json={
+            "entry_date": "2026-06-01",
+            "type": "expense",
+            "category": "Food",
+            "amount": 9.99,
+            "description": "Greggs lunch",
+            "statement_type": "deb",
+        },
+    )
+    assert created.status_code == 201
+    entry_id = created.get_json()["entry"]["id"]
+    assert created.get_json()["entry"]["statement_type"] == "DEB"
+
+    updated = client.put(
+        f"/api/life/finance/{entry_id}",
+        json={"category": "Groceries", "amount": 10.5, "description": "Tesco shop", "statement_type": "fpo"},
+    )
+    assert updated.status_code == 200
+    assert updated.get_json()["entry"]["category"] == "Groceries"
+    assert updated.get_json()["entry"]["amount"] == 10.5
+    assert updated.get_json()["entry"]["statement_type"] == "FPO"
+
+    categorized = client.post(
+        "/api/life/finance/categorize",
+        json={"description": "Netflix monthly", "type": "expense", "amount": 15.99},
+    )
+    assert categorized.status_code == 200
+    assert categorized.get_json()["suggestion"]["type"] == "subscription"
+    assert categorized.get_json()["suggestion"]["category"] == "Subscriptions"
+
+    csv_payload = "\n".join(
+        [
+            "Date,Description,Type,Debit,Credit",
+            "02/06/2026,Tesco Express,DEB,12.34,",
+            "03/06/2026,Salary,FPI,,1200.00",
+        ]
+    )
+    imported = client.post(
+        "/api/life/finance/import",
+        data={"file": (BytesIO(csv_payload.encode("utf-8")), "statement.csv")},
+        content_type="multipart/form-data",
+    )
+    assert imported.status_code == 201
+    payload = imported.get_json()
+    assert payload["imported"] == 2
+    entries = client.get("/api/life/finance").get_json()
+    assert any(entry["description"] == "Tesco Express" and entry["type"] == "expense" and entry["statement_type"] == "DEB" for entry in entries)
+    assert any(entry["description"] == "Salary" and entry["type"] == "income" and entry["statement_type"] == "FPI" for entry in entries)
+
+
+def test_pdf_statement_formats_import_halifax_and_monzo_rows(client):
+    halifax_text = "\n".join(
+        [
+            "Halifax",
+            "Your Transactions",
+            "Column",
+            "Date.",
+            "Column",
+            "Description.",
+            "Column",
+            "Money In (£).",
+            "Column",
+            "Money Out (£).",
+            "Date",
+            "01 Jul 26.",
+            "Description",
+            "UBER *TRIP.",
+            "Type",
+            "DEB.",
+            "Money In (£)",
+            "blank.",
+            "Money Out (£)",
+            "5.96.",
+            "Balance (£)",
+            "14.55.",
+            "Date",
+            "09 Jul 26.",
+            "Description",
+            "P.O. 274 RISHTON L.",
+            "Type",
+            "DEP.",
+            "Money In (£)",
+            "820.00.",
+            "Money Out (£)",
+            "blank.",
+            "Balance (£)",
+            "837.64.",
+        ]
+    )
+    halifax_import = client.post(
+        "/api/life/finance/import",
+        data={"file": (BytesIO(halifax_text.encode("utf-8")), "halifax.txt")},
+        content_type="multipart/form-data",
+    )
+    assert halifax_import.status_code == 201
+    assert halifax_import.get_json()["imported"] == 2
+
+    monzo_text = "\n".join(
+        [
+            "Personal Account statement",
+            "01/04/2026 - 30/06/2026",
+            "Monzo Bank",
+            "Date Description (GBP) Amount (GBP) Balance",
+            "06/06/2026 Ali Hassan Hussain Noreen (Faster",
+            "Payments) Reference: Ali Hassan Hussain -5.00 0.09",
+            "06/06/2026 Transfer from Pot 0.10 5.09",
+            "Pot statement",
+            "Date Description (GBP) Amount (GBP) Balance",
+            "06/06/2026 Withdrawal -0.10 0.32",
+        ]
+    )
+    monzo_import = client.post(
+        "/api/life/finance/import",
+        data={"file": (BytesIO(monzo_text.encode("utf-8")), "monzo.txt")},
+        content_type="multipart/form-data",
+    )
+    assert monzo_import.status_code == 201
+    assert monzo_import.get_json()["imported"] == 2
+
+    entries = client.get("/api/life/finance").get_json()
+    assert any(entry["description"] == "UBER *TRIP." and entry["type"] == "expense" and entry["statement_type"] == "DEB" and entry["amount"] == 5.96 for entry in entries)
+    assert any(entry["description"] == "P.O. 274 RISHTON L." and entry["type"] == "income" and entry["statement_type"] == "DEP" and entry["amount"] == 820.0 for entry in entries)
+    assert any(entry["description"].startswith("Ali Hassan Hussain") and entry["type"] == "expense" and entry["amount"] == 5.0 for entry in entries)
+    assert any(entry["description"] == "Transfer from Pot" and entry["type"] == "income" and entry["amount"] == 0.1 for entry in entries)
+    assert not any(entry["description"] == "Withdrawal" for entry in entries)
+
+
+def test_halifax_csv_statement_format_imports_rows(client):
+    csv_payload = "\n".join(
+        [
+            "Transaction Date,Transaction Type,Sort Code,Account Number,Transaction Description,Debit Amount,Credit Amount,Balance",
+            "17/07/2026,DEB,'11-00-73,18002761,UBER   *TRIP,7.94,,3.57",
+            "16/07/2026,FPI,'11-00-73,18002761,A HUSSAIN FAZAL,,10.00,14.89",
+            "09/07/2026,DEP,'11-00-73,18002761,P.O. 274 RISHTON L,,820.00,837.64",
+            "19/06/2026,DEB,'11-00-73,18002761,HOME BARGAINS,.69,,6.81",
+        ]
+    )
+    imported = client.post(
+        "/api/life/finance/import",
+        data={"file": (BytesIO(csv_payload.encode("utf-8")), "halifax.csv")},
+        content_type="multipart/form-data",
+    )
+    assert imported.status_code == 201
+    assert imported.get_json()["imported"] == 4
+
+    entries = client.get("/api/life/finance").get_json()
+    assert any(entry["entry_date"] == "2026-07-17" and entry["description"] == "UBER   *TRIP" and entry["type"] == "expense" and entry["statement_type"] == "DEB" and entry["amount"] == 7.94 for entry in entries)
+    assert any(entry["description"] == "A HUSSAIN FAZAL" and entry["type"] == "income" and entry["statement_type"] == "FPI" for entry in entries)
+    assert any(entry["description"] == "P.O. 274 RISHTON L" and entry["type"] == "income" and entry["statement_type"] == "DEP" and entry["amount"] == 820.0 for entry in entries)
+    assert any(entry["description"] == "HOME BARGAINS" and entry["amount"] == 0.69 for entry in entries)
 
 
 def test_resource_search_favorites_and_project_links(client):

@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 import json
 import math
+import re
 import smtplib
 import sqlite3
 from urllib.error import HTTPError, URLError
@@ -43,6 +44,19 @@ _PROFILE_DEFAULTS_READY: set[str] = set()
 DEFAULT_TASK_EVENT_DURATION_MINUTES = 60
 TASK_ANALYTICS_DAYS = 14
 ACTIVE_TASK_STATUSES = ("pending", "in_progress", "on_hold")
+FINANCE_TYPES = {"income", "expense", "saving", "subscription"}
+FINANCE_CATEGORY_KEYWORDS = (
+    ("Groceries", ("tesco", "asda", "aldi", "lidl", "sainsbury", "morrisons", "coop", "co-op", "iceland", "waitrose", "grocery")),
+    ("Food", ("mcdonald", "kfc", "subway", "greggs", "restaurant", "cafe", "coffee", "deliveroo", "ubereats", "just eat", "pizza")),
+    ("Transport", ("tfl", "uber", "bolt", "train", "rail", "bus", "parking", "petrol", "fuel", "shell", "bp ")),
+    ("Income", ("salary", "wage", "payroll", "hmrc", "student finance", "grant", "refund")),
+    ("Subscriptions", ("netflix", "spotify", "apple.com/bill", "google", "amazon prime", "openai", "github", "notion", "subscription")),
+    ("Shopping", ("amazon", "ebay", "etsy", "argos", "currys", "primark", "tk maxx")),
+    ("Bills", ("direct debit", "electric", "gas", "water", "council tax", "broadband", "phone", "vodafone", "ee ", "o2 ")),
+    ("Education", ("udemy", "coursera", "school", "college", "university", "exam", "book")),
+    ("Health", ("pharmacy", "boots", "superdrug", "dentist", "doctor", "gym")),
+    ("Transfer", ("transfer", "standing order", "faster payment", "bank transfer")),
+)
 PLACEHOLDER_CONFIG_VALUES = {
     "",
     "replace-this",
@@ -474,6 +488,135 @@ def generate_journal_entry_feedback(entry_id: int) -> tuple[dict, str]:
     )
     updated = row_to_dict(query_db("SELECT * FROM journal_entries WHERE id = ?", [entry_id], one=True))
     return updated, ""
+
+
+def suggest_finance_transaction_metadata(transactions: list[dict]) -> list[dict]:
+    suggestions = [_fallback_finance_suggestion(transaction) for transaction in transactions]
+    if not transactions or not gemini_configuration_status()["configured"]:
+        return suggestions
+
+    existing_categories = [
+        row["category"]
+        for row in rows_to_dicts(
+            query_db(
+                """
+                SELECT category
+                FROM finance_entries
+                WHERE category IS NOT NULL AND TRIM(category) != ''
+                GROUP BY category
+                ORDER BY COUNT(*) DESC, category ASC
+                LIMIT 20
+                """
+            )
+        )
+    ]
+    prompt = _build_finance_category_prompt(transactions[:60], existing_categories)
+    model = str(current_app.config.get("GEMINI_MODEL", "gemini-2.5-flash-lite")).strip() or "gemini-2.5-flash-lite"
+    generated = _generate_text_with_gemini(
+        prompt,
+        model=model,
+        max_output_tokens=1200,
+        temperature=0.15,
+        top_p=0.7,
+    )
+    generated_rows = _parse_finance_suggestion_json(generated)
+    if not generated_rows:
+        return suggestions
+
+    by_id = {str(item.get("id")): item for item in suggestions}
+    for row in generated_rows:
+        row_id = str(row.get("id", "")).strip()
+        if row_id not in by_id:
+            continue
+        category = str(row.get("category") or "").strip()[:80]
+        entry_type = str(row.get("type") or "").strip()
+        if category:
+            by_id[row_id]["category"] = category
+        if entry_type in FINANCE_TYPES:
+            by_id[row_id]["type"] = entry_type
+        if isinstance(row.get("is_recurring"), bool):
+            by_id[row_id]["is_recurring"] = row["is_recurring"]
+    return [by_id[str(item.get("id", index))] for index, item in enumerate(transactions)]
+
+
+def _fallback_finance_suggestion(transaction: dict) -> dict:
+    description = str(transaction.get("description") or "").strip()
+    haystack = description.lower()
+    amount = float(transaction.get("amount") or 0)
+    entry_type = str(transaction.get("type") or "").strip()
+    if entry_type not in FINANCE_TYPES:
+        entry_type = "income" if amount < 0 else "expense"
+
+    category = str(transaction.get("category") or "").strip()
+    is_recurring = bool(transaction.get("is_recurring"))
+    if not category:
+        for candidate, keywords in FINANCE_CATEGORY_KEYWORDS:
+            if any(_finance_keyword_matches(haystack, keyword) for keyword in keywords):
+                category = candidate
+                break
+    if not category:
+        category = "Income" if entry_type == "income" else "Uncategorized"
+    if category == "Subscriptions":
+        entry_type = "subscription"
+        is_recurring = True
+    return {
+        "id": transaction.get("id", ""),
+        "type": entry_type,
+        "category": category[:80],
+        "is_recurring": is_recurring,
+    }
+
+
+def _finance_keyword_matches(haystack: str, keyword: str) -> bool:
+    clean_keyword = keyword.strip().lower()
+    if not clean_keyword:
+        return False
+    if len(clean_keyword) <= 3 and clean_keyword.isalnum():
+        return re.search(rf"(?<![a-z0-9]){re.escape(clean_keyword)}(?![a-z0-9])", haystack) is not None
+    return clean_keyword in haystack
+
+
+def _build_finance_category_prompt(transactions: list[dict], existing_categories: list[str]) -> str:
+    compact_rows = [
+        {
+            "id": transaction.get("id", index),
+            "date": transaction.get("entry_date") or "",
+            "description": str(transaction.get("description") or "")[:180],
+            "amount": transaction.get("amount"),
+            "direction": transaction.get("type") or "",
+            "statement_type": transaction.get("statement_type") or "",
+        }
+        for index, transaction in enumerate(transactions)
+    ]
+    return (
+        "Categorise personal bank transactions for a finance tracker.\n"
+        "Return only valid JSON: an array of objects with id, type, category, is_recurring.\n"
+        "Allowed type values: income, expense, saving, subscription.\n"
+        "The category is what the money was spent on or received for, not the bank statement code.\n"
+        "Use short spending-purpose category names such as Groceries, Food, Transport, Income, Bills, Education, Shopping, Subscriptions, Health, Transfer.\n"
+        "statement_type is only the bank transaction code such as DEB, FPI, FPO, DEP; do not copy it into category.\n"
+        "Mark subscriptions as type subscription and is_recurring true when a merchant looks recurring.\n"
+        "Do not invent merchants or dates. Prefer existing categories when they fit.\n\n"
+        f"Existing categories: {json.dumps(existing_categories[:20])}\n"
+        f"Transactions: {json.dumps(compact_rows, ensure_ascii=False)}"
+    )
+
+
+def _parse_finance_suggestion_json(text: str) -> list[dict]:
+    cleaned = _clean_generated_text(text)
+    if not cleaned:
+        return []
+    if cleaned.startswith("```"):
+        cleaned = cleaned.strip("`").strip()
+    start = cleaned.find("[")
+    end = cleaned.rfind("]")
+    if start == -1 or end == -1 or end <= start:
+        return []
+    try:
+        parsed = json.loads(cleaned[start : end + 1])
+    except json.JSONDecodeError:
+        return []
+    return [item for item in parsed if isinstance(item, dict)] if isinstance(parsed, list) else []
 
 
 def finalize_linkedin_draft_generation(draft_id: int, post_body: str) -> dict:

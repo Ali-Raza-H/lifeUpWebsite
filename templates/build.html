@@ -7,22 +7,28 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/life.css', v=asset_version('css/life.css')) }}">
 {% endblock %}
 
+{% block header_actions %}
+{% if not is_guest_user %}
+<button class="btn btn-primary" id="hub-quick-add-btn" type="button" onclick="HubUI.openQuickAdd()"><i class="ph ph-plus"></i> <span id="hub-quick-add-label">Add Project</span></button>
+{% endif %}
+{% endblock %}
+
 {% block content %}
 <div class="page-stack hub-shell">
     <div class="hub-tabs" role="tablist" aria-label="Build sections">
-        <button type="button" class="life-nav-item active" data-hub-frame="projects" data-hub-src="{{ url_for('projects') }}?embed=1" onclick="HubUI.switchFrame('projects')">
+        <button type="button" class="life-nav-item active" data-hub-frame="projects" data-hub-src="{{ url_for('projects') }}?embed=1" data-hub-quick-label="Add Project" onclick="HubUI.switchFrame('projects')">
             <i class="ph ph-kanban"></i>
             <span>Projects</span>
         </button>
-        <button type="button" class="life-nav-item" data-hub-frame="goals" data-hub-src="{{ url_for('goals') }}?embed=1" onclick="HubUI.switchFrame('goals')">
+        <button type="button" class="life-nav-item" data-hub-frame="goals" data-hub-src="{{ url_for('goals') }}?embed=1" data-hub-quick-label="Add Goal" onclick="HubUI.switchFrame('goals')">
             <i class="ph ph-target"></i>
             <span>Goals</span>
         </button>
-        <button type="button" class="life-nav-item" data-hub-frame="work" data-hub-src="{{ url_for('work') }}?embed=1" onclick="HubUI.switchFrame('work')">
+        <button type="button" class="life-nav-item" data-hub-frame="work" data-hub-src="{{ url_for('work') }}?embed=1" data-hub-quick-label="Add Work" onclick="HubUI.switchFrame('work')">
             <i class="ph ph-briefcase"></i>
             <span>Work</span>
         </button>
-        <button type="button" class="life-nav-item" data-hub-frame="cv" data-hub-src="{{ url_for('cv') }}?embed=1" onclick="HubUI.switchFrame('cv')">
+        <button type="button" class="life-nav-item" data-hub-frame="cv" data-hub-src="{{ url_for('cv') }}?embed=1" data-hub-quick-label="" onclick="HubUI.switchFrame('cv')">
             <i class="ph ph-file-text"></i>
             <span>CV</span>
         </button>

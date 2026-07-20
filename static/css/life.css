@@ -217,6 +217,21 @@
     gap: var(--space-2);
 }
 
+.finance-import-form,
+.input-action-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.finance-import-form .form-control {
+    max-width: 260px;
+}
+
+.input-action-row .form-control {
+    min-width: 0;
+}
+
 .finance-expense { color: var(--accent-red); }
 .finance-income { color: var(--accent-green); }
 .finance-saving { color: var(--accent-blue); }
@@ -425,6 +440,16 @@
     .life-finance-insights,
     .life-pie-layout {
         grid-template-columns: 1fr;
+    }
+
+    .finance-import-form,
+    .input-action-row {
+        width: 100%;
+    }
+
+    .finance-import-form .form-control {
+        max-width: none;
+        min-width: 0;
     }
 }
 

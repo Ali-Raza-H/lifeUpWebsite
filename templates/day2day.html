@@ -7,18 +7,22 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/life.css', v=asset_version('css/life.css')) }}">
 {% endblock %}
 
+{% block header_actions %}
+<button class="btn btn-primary" id="hub-quick-add-btn" type="button" onclick="HubUI.openQuickAdd()"><i class="ph ph-plus"></i> <span id="hub-quick-add-label">Add Habit</span></button>
+{% endblock %}
+
 {% block content %}
 <div class="page-stack hub-shell">
     <div class="hub-tabs" role="tablist" aria-label="Day2Day sections">
-        <button type="button" class="life-nav-item active" data-hub-frame="habits" data-hub-src="{{ url_for('habits') }}?embed=1" onclick="HubUI.switchFrame('habits')">
+        <button type="button" class="life-nav-item active" data-hub-frame="habits" data-hub-src="{{ url_for('habits') }}?embed=1" data-hub-quick-label="Add Habit" onclick="HubUI.switchFrame('habits')">
             <i class="ph ph-calendar-check"></i>
             <span>Habits</span>
         </button>
-        <button type="button" class="life-nav-item" data-hub-frame="tasks" data-hub-src="{{ url_for('tasks') }}?embed=1" onclick="HubUI.switchFrame('tasks')">
+        <button type="button" class="life-nav-item" data-hub-frame="tasks" data-hub-src="{{ url_for('tasks') }}?embed=1" data-hub-quick-label="Add Task" onclick="HubUI.switchFrame('tasks')">
             <i class="ph ph-list-checks"></i>
             <span>Tasks</span>
         </button>
-        <button type="button" class="life-nav-item" data-hub-frame="calendar" data-hub-src="{{ url_for('calendar') }}?embed=1" onclick="HubUI.switchFrame('calendar')">
+        <button type="button" class="life-nav-item" data-hub-frame="calendar" data-hub-src="{{ url_for('calendar') }}?embed=1" data-hub-quick-label="Add Event" onclick="HubUI.switchFrame('calendar')">
             <i class="ph ph-calendar-blank"></i>
             <span>Calendar</span>
         </button>

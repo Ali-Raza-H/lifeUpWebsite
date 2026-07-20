@@ -61,7 +61,6 @@ ATTACHMENT_ENTITY_TABLES = {
     "task": "tasks",
 }
 
-
 @bp.route("/system", methods=["GET"])
 def system_summary():
     return jsonify(_build_system_summary())

@@ -68,6 +68,7 @@ MIGRATIONS = (
     ("attachments", "is_favorite", "ALTER TABLE attachments ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0"),
     ("gym_exercises", "day_of_week", "ALTER TABLE gym_exercises ADD COLUMN day_of_week INTEGER"),
     ("gym_exercises", "machine", "ALTER TABLE gym_exercises ADD COLUMN machine TEXT DEFAULT ''"),
+    ("finance_entries", "statement_type", "ALTER TABLE finance_entries ADD COLUMN statement_type TEXT DEFAULT ''"),
 )
 
 
@@ -510,6 +511,7 @@ def _ensure_life_tables(db: sqlite3.Connection) -> None:
             category TEXT,
             amount REAL NOT NULL,
             description TEXT,
+            statement_type TEXT DEFAULT '',
             is_recurring INTEGER DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )

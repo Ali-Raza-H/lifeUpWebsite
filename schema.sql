@@ -264,6 +264,7 @@ CREATE TABLE IF NOT EXISTS finance_entries (
     category TEXT,
     amount REAL NOT NULL,
     description TEXT,
+    statement_type TEXT DEFAULT '',
     is_recurring INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

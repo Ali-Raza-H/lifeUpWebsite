@@ -492,11 +492,16 @@ const LifeUI = {
                         <span class="finance-${entry.type}">${entry.type === 'expense' ? '-' : '+'}${this.formatMoney(entry.amount)}</span>
                     </div>
                     <div class="item-desc">
-                        ${CoreUI.formatDate(entry.entry_date)} &middot; <span class="badge btn-sm">${entry.type}</span> ${entry.is_recurring ? '<i class="ph ph-repeat"></i>' : ''}
+                        ${CoreUI.formatDate(entry.entry_date)} &middot; <span class="badge btn-sm">${entry.type}</span>
+                        ${entry.statement_type ? `<span class="badge btn-sm">${CoreUI.escapeHtml(entry.statement_type)}</span>` : ''}
+                        ${entry.is_recurring ? '<i class="ph ph-repeat"></i>' : ''}
                     </div>
                     ${entry.description ? `<div class="item-desc text-muted">${CoreUI.escapeHtml(entry.description)}</div>` : ''}
                 </div>
-                <button type="button" class="btn btn-icon btn-danger" onclick="LifeUI.deleteItem('finance', ${entry.id})" title="Delete"><i class="ph ph-trash"></i></button>
+                <div class="life-row-actions">
+                    <button type="button" class="btn btn-icon" onclick="LifeUI.editFinance(${entry.id})" title="Edit"><i class="ph ph-pencil-simple"></i></button>
+                    <button type="button" class="btn btn-icon btn-danger" onclick="LifeUI.deleteItem('finance', ${entry.id})" title="Delete"><i class="ph ph-trash"></i></button>
+                </div>
             </div>
         `).join('');
     },
@@ -778,6 +783,9 @@ const LifeUI = {
         if (panelId === 'diet') {
             this.resetDietForm();
         }
+        if (panelId === 'finance') {
+            this.resetFinanceForm();
+        }
 
         modal.style.display = 'flex';
         this.setDefaultDates();
@@ -791,6 +799,9 @@ const LifeUI = {
         }
         if (panelId === 'diet') {
             this.resetDietForm();
+        }
+        if (panelId === 'finance') {
+            this.resetFinanceForm();
         }
     },
 
@@ -889,15 +900,69 @@ const LifeUI = {
 
     async saveFinance(event) {
         event.preventDefault();
+        const financeId = document.getElementById('finance-id').value;
         const payload = {
             entry_date: document.getElementById('finance-date').value,
             type: document.getElementById('finance-type').value,
             category: document.getElementById('finance-category').value,
             amount: this.valueOrNull('finance-amount'),
             description: document.getElementById('finance-description').value,
+            statement_type: document.getElementById('finance-statement-type').value,
             is_recurring: document.getElementById('finance-recurring').checked
         };
-        await this.postForm('/api/life/finance', payload, 'Finance entry saved.', 'life-finance-form', 'finance');
+        try {
+            if (financeId) {
+                await API.put(`/api/life/finance/${financeId}`, payload);
+            } else {
+                await API.post('/api/life/finance', payload);
+            }
+            this.closeModal('finance');
+            await this.loadAll();
+            CoreUI.showError(financeId ? 'Finance entry updated.' : 'Finance entry saved.', true);
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to save finance entry.');
+        }
+    },
+
+    async importFinanceStatement(event) {
+        event.preventDefault();
+        const fileInput = document.getElementById('finance-import-file');
+        if (!fileInput?.files?.length) return;
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        try {
+            const result = await API.postForm('/api/life/finance/import', formData);
+            fileInput.value = '';
+            await this.loadAll();
+            const skipped = Number(result.skipped || 0);
+            const duplicates = Number(result.duplicates || 0);
+            const suffix = [duplicates ? `${duplicates} duplicate(s)` : '', skipped ? `${skipped} skipped row(s)` : ''].filter(Boolean).join(', ');
+            CoreUI.showError(`${result.message || 'Statement imported.'}${suffix ? ` ${suffix}.` : ''}`, true);
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to import statement.');
+        }
+    },
+
+    async autofillFinanceCategory() {
+        const payload = {
+            entry_date: document.getElementById('finance-date').value,
+            type: document.getElementById('finance-type').value,
+            category: document.getElementById('finance-category').value,
+            amount: this.valueOrNull('finance-amount') || 0,
+            description: document.getElementById('finance-description').value,
+            statement_type: document.getElementById('finance-statement-type').value,
+            is_recurring: document.getElementById('finance-recurring').checked
+        };
+        try {
+            const result = await API.post('/api/life/finance/categorize', payload);
+            const suggestion = result.suggestion || {};
+            if (suggestion.category) document.getElementById('finance-category').value = suggestion.category;
+            if (suggestion.type) document.getElementById('finance-type').value = suggestion.type;
+            if (typeof suggestion.is_recurring === 'boolean') document.getElementById('finance-recurring').checked = suggestion.is_recurring;
+            CoreUI.showError('Finance category filled.', true);
+        } catch (error) {
+            CoreUI.showError(error.message || 'Failed to auto-fill category.');
+        }
     },
 
     async saveContact(event) {
@@ -989,6 +1054,43 @@ const LifeUI = {
         document.getElementById('contact-notes').value = contact.notes || '';
         document.getElementById('contact-modal-title').textContent = 'Edit Contact';
         this.openModal('contacts');
+    },
+
+    editFinance(financeId) {
+        const entry = this.finance.find((item) => item.id === financeId);
+        if (!entry) return;
+        this.openModal('finance');
+        this.setInputValue('finance-id', entry.id);
+        this.setInputValue('finance-date', entry.entry_date);
+        this.setInputValue('finance-type', entry.type);
+        this.setInputValue('finance-category', entry.category || '');
+        this.setInputValue('finance-amount', entry.amount);
+        this.setInputValue('finance-description', entry.description || '');
+        this.setInputValue('finance-statement-type', entry.statement_type || '');
+        const recurring = document.getElementById('finance-recurring');
+        if (recurring) recurring.checked = Boolean(entry.is_recurring);
+        const title = document.getElementById('finance-modal-title');
+        if (title) title.textContent = 'Edit Finance Entry';
+        const deleteBtn = document.getElementById('finance-delete-btn');
+        if (deleteBtn) deleteBtn.style.display = '';
+    },
+
+    resetFinanceForm() {
+        const form = document.getElementById('life-finance-form');
+        if (form) form.reset();
+        this.setInputValue('finance-id', '');
+        const title = document.getElementById('finance-modal-title');
+        if (title) title.textContent = 'Finance Entry';
+        const deleteBtn = document.getElementById('finance-delete-btn');
+        if (deleteBtn) deleteBtn.style.display = 'none';
+        this.setDefaultDates();
+    },
+
+    async deleteCurrentFinance() {
+        const financeId = document.getElementById('finance-id').value;
+        if (!financeId) return;
+        this.closeModal('finance');
+        await this.deleteItem('finance', financeId);
     },
 
     resetContactForm() {

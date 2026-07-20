@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from urllib.parse import quote_plus
-
 from flask import Blueprint, jsonify, request
 
 from database import query_db
@@ -11,6 +9,14 @@ from services import dashboard_today_payload
 from utils import parse_datetime, row_to_dict, rows_to_dicts
 
 bp = Blueprint("os_api", __name__, url_prefix="/api/os")
+
+DAY2DAY_HABITS_URL = "/day2day#habits"
+DAY2DAY_TASKS_URL = "/day2day#tasks"
+DAY2DAY_CALENDAR_URL = "/day2day#calendar"
+BUILD_PROJECTS_URL = "/build#projects"
+BUILD_GOALS_URL = "/build#goals"
+BUILD_WORK_URL = "/build#work"
+BUILD_CV_URL = "/build#cv"
 
 
 def _command_result(
@@ -65,18 +71,19 @@ def _page_commands() -> list[dict]:
             icon=module.icon,
         )
         for module in modules_for_commands()
+        if module.sidebar_visible
     ]
 
 
 def _section_commands() -> list[dict]:
     sections = (
-        ("Day2Day: Habits", "Open the habits section inside the daily workspace.", "/day2day#habits", "ph ph-calendar-check"),
-        ("Day2Day: Tasks", "Open the tasks section inside the daily workspace.", "/day2day#tasks", "ph ph-list-checks"),
-        ("Day2Day: Calendar", "Open the calendar section inside the daily workspace.", "/day2day#calendar", "ph ph-calendar-blank"),
-        ("Build: Projects", "Open the projects area inside the build hub.", "/build#projects", "ph ph-kanban"),
-        ("Build: Goals", "Open the goals area inside the build hub.", "/build#goals", "ph ph-target"),
-        ("Build: Work", "Open the work area inside the build hub.", "/build#work", "ph ph-briefcase"),
-        ("Build: CV", "Open the CV area inside the build hub.", "/build#cv", "ph ph-file-text"),
+        ("Day2Day: Habits", "Open the habits section inside the daily workspace.", DAY2DAY_HABITS_URL, "ph ph-calendar-check"),
+        ("Day2Day: Tasks", "Open the tasks section inside the daily workspace.", DAY2DAY_TASKS_URL, "ph ph-list-checks"),
+        ("Day2Day: Calendar", "Open the calendar section inside the daily workspace.", DAY2DAY_CALENDAR_URL, "ph ph-calendar-blank"),
+        ("Build: Projects", "Open the projects area inside the build hub.", BUILD_PROJECTS_URL, "ph ph-kanban"),
+        ("Build: Goals", "Open the goals area inside the build hub.", BUILD_GOALS_URL, "ph ph-target"),
+        ("Build: Work", "Open the work area inside the build hub.", BUILD_WORK_URL, "ph ph-briefcase"),
+        ("Build: CV", "Open the CV area inside the build hub.", BUILD_CV_URL, "ph ph-file-text"),
         ("Life: Health Hub", "Jump to the Life health hub.", "/life#health", "ph ph-heartbeat"),
         ("Life: Gym", "Jump to the gym planner and workout logs.", "/life#health-gym", "ph ph-barbell"),
         ("Life: Diet", "Jump to diet targets and meal logs.", "/life#health-diet", "ph ph-bowl-food"),
@@ -141,7 +148,7 @@ def _default_command_results(limit: int) -> list[dict]:
                 item_type="task",
                 title=task["title"],
                 subtitle=_compact_parts(task["status"].replace("_", " "), f"Due {_format_date(task.get('due_date'))}" if task.get("due_date") else "No due date"),
-                action_url="/tasks",
+                action_url=DAY2DAY_TASKS_URL,
                 source_id=task["id"],
                 icon="ph ph-list-checks",
                 meta={"priority": task.get("priority"), "status": task.get("status")},
@@ -165,7 +172,7 @@ def _default_command_results(limit: int) -> list[dict]:
                 item_type="project",
                 title=project["name"],
                 subtitle=_compact_parts(project.get("status"), f"Deadline {_format_date(project.get('deadline'))}" if project.get("deadline") else "No deadline"),
-                action_url="/projects",
+                action_url=BUILD_PROJECTS_URL,
                 source_id=project["id"],
                 icon="ph ph-kanban",
             )
@@ -207,7 +214,7 @@ def _search_table_results(query_text: str, limit: int) -> list[dict]:
                 item_type="task",
                 title=task["title"],
                 subtitle=_compact_parts(task.get("project_name"), task["status"].replace("_", " "), f"Due {_format_date(task.get('due_date'))}" if task.get("due_date") else ""),
-                action_url="/tasks",
+                action_url=DAY2DAY_TASKS_URL,
                 source_id=task["id"],
                 icon="ph ph-list-checks",
                 meta={"priority": task.get("priority"), "status": task.get("status")},
@@ -235,7 +242,7 @@ def _search_table_results(query_text: str, limit: int) -> list[dict]:
                 item_type="project",
                 title=project["name"],
                 subtitle=_compact_parts(project.get("status"), f"Deadline {_format_date(project.get('deadline'))}" if project.get("deadline") else "No deadline"),
-                action_url="/projects",
+                action_url=BUILD_PROJECTS_URL,
                 source_id=project["id"],
                 icon="ph ph-kanban",
             )
@@ -262,7 +269,7 @@ def _search_table_results(query_text: str, limit: int) -> list[dict]:
                 item_type="goal",
                 title=goal["title"],
                 subtitle=_compact_parts(goal.get("type"), goal.get("status"), f"Target {_format_date(goal.get('target_date'))}" if goal.get("target_date") else ""),
-                action_url="/goals",
+                action_url=BUILD_GOALS_URL,
                 source_id=goal["id"],
                 icon="ph ph-target",
             )
@@ -286,7 +293,7 @@ def _search_table_results(query_text: str, limit: int) -> list[dict]:
                 item_type="event",
                 title=event["title"],
                 subtitle=_compact_parts(_format_event_window(event), event.get("location") or event.get("category")),
-                action_url="/calendar",
+                action_url=DAY2DAY_CALENDAR_URL,
                 source_id=event["id"],
                 icon="ph ph-calendar-dots",
             )
@@ -434,7 +441,7 @@ def _search_table_results(query_text: str, limit: int) -> list[dict]:
                 item_type="work",
                 title=work["title"],
                 subtitle=_compact_parts(work.get("organization"), work.get("experience_type"), work.get("status")),
-                action_url="/work",
+                action_url=BUILD_WORK_URL,
                 source_id=work["id"],
                 icon="ph ph-briefcase",
             )
@@ -486,7 +493,7 @@ def _search_table_results(query_text: str, limit: int) -> list[dict]:
                 item_type="cv",
                 title=item["title"],
                 subtitle=_compact_parts(item.get("section_title"), item.get("organization"), item.get("skills")),
-                action_url="/cv",
+                action_url=BUILD_CV_URL,
                 source_id=item["id"],
                 icon="ph ph-file-text",
             )
@@ -498,7 +505,7 @@ def _search_table_results(query_text: str, limit: int) -> list[dict]:
                 item_type="command",
                 title=f"Search tasks for \"{query_text}\"",
                 subtitle="Open the task board with this search.",
-                action_url=f"/tasks?q={quote_plus(query_text)}",
+                action_url=DAY2DAY_TASKS_URL,
                 icon="ph ph-magnifying-glass",
             )
         )
@@ -583,7 +590,7 @@ def daily_plan():
                 "label": status_label,
                 "title": event.get("title") or "Scheduled block",
                 "description": _compact_parts(_format_event_window(event), event.get("location") or event.get("category"), f"{event.get('related_open_task_count', 0)} linked tasks" if event.get("related_open_task_count") else ""),
-                "action_url": "/calendar",
+                "action_url": DAY2DAY_CALENDAR_URL,
                 "severity": "medium" if event.get("related_open_task_count") else "low",
             }
         )
@@ -593,7 +600,7 @@ def daily_plan():
                 "label": "Open schedule",
                 "title": "Protect a deep work block",
                 "description": "No current or upcoming event is forcing the day. Reserve time instead of letting it fragment.",
-                "action_url": "/calendar",
+                "action_url": DAY2DAY_CALENDAR_URL,
                 "severity": "low",
             }
         )
@@ -604,7 +611,7 @@ def daily_plan():
                 "label": "Primary action",
                 "title": primary.get("title"),
                 "description": _compact_parts(primary.get("project_name"), f"Due {_format_date(primary.get('due_date'))}" if primary.get("due_date") else "", f"{primary.get('estimated_minutes')} min" if primary.get("estimated_minutes") else "", primary.get("focus_reason", "").replace("_", " ")),
-                "action_url": "/tasks",
+                "action_url": DAY2DAY_TASKS_URL,
                 "severity": "high" if primary.get("focus_reason") in {"overdue", "due_today"} else "medium",
             }
         )
@@ -617,31 +624,31 @@ def daily_plan():
                 "label": "Close loops",
                 "title": _compact_parts(f"{open_habits} habits open" if open_habits else "", f"{follow_ups} follow-ups due" if follow_ups else ""),
                 "description": "Handle the small maintenance items before they become stale backlog.",
-                "action_url": "/life" if follow_ups else "/habits",
+                "action_url": "/life" if follow_ups else DAY2DAY_HABITS_URL,
                 "severity": "medium",
             }
         )
 
     actions: list[dict] = []
     if primary:
-        actions.append({"title": f"Start: {primary.get('title')}", "detail": "Primary task chosen by priority and deadline.", "action_url": "/tasks"})
+        actions.append({"title": f"Start: {primary.get('title')}", "detail": "Primary task chosen by priority and deadline.", "action_url": DAY2DAY_TASKS_URL})
     if event and event.get("related_open_task_count"):
-        actions.append({"title": "Prep the next schedule block", "detail": f"{event.get('related_open_task_count')} related task(s) are still open.", "action_url": "/calendar"})
+        actions.append({"title": "Prep the next schedule block", "detail": f"{event.get('related_open_task_count')} related task(s) are still open.", "action_url": DAY2DAY_CALENDAR_URL})
     if open_habits:
-        actions.append({"title": "Log remaining habits", "detail": ", ".join(today_payload.get("open_habit_names") or []) or "Open daily habits remain.", "action_url": "/habits"})
+        actions.append({"title": "Log remaining habits", "detail": ", ".join(today_payload.get("open_habit_names") or []) or "Open daily habits remain.", "action_url": DAY2DAY_HABITS_URL})
     if follow_ups:
         actions.append({"title": "Clear relationship follow-ups", "detail": f"{follow_ups} contact follow-up(s) are due.", "action_url": "/life"})
     if not actions:
-        actions.append({"title": "Choose one proactive project block", "detail": "There is no urgent pressure, so add useful progress deliberately.", "action_url": "/projects"})
+        actions.append({"title": "Choose one proactive project block", "detail": "There is no urgent pressure, so add useful progress deliberately.", "action_url": BUILD_PROJECTS_URL})
 
     stalled_projects = _project_stall_count()
     risks: list[dict] = []
     if int(today_payload.get("overdue_tasks") or 0):
-        risks.append({"title": "Overdue task pressure", "detail": f"{today_payload['overdue_tasks']} task(s) are past due.", "severity": "high", "action_url": "/tasks"})
+        risks.append({"title": "Overdue task pressure", "detail": f"{today_payload['overdue_tasks']} task(s) are past due.", "severity": "high", "action_url": DAY2DAY_TASKS_URL})
     if stalled_projects:
-        risks.append({"title": "Projects without next actions", "detail": f"{stalled_projects} active project(s) have no open task or milestone.", "severity": "medium", "action_url": "/projects"})
+        risks.append({"title": "Projects without next actions", "detail": f"{stalled_projects} active project(s) have no open task or milestone.", "severity": "medium", "action_url": BUILD_PROJECTS_URL})
     if next_event and int(next_event.get("minutes_until_start") or 9999) <= 30 and int(next_event.get("related_open_task_count") or 0):
-        risks.append({"title": "Low prep buffer", "detail": "The next event starts soon and still has linked open work.", "severity": "medium", "action_url": "/calendar"})
+        risks.append({"title": "Low prep buffer", "detail": "The next event starts soon and still has linked open work.", "severity": "medium", "action_url": DAY2DAY_CALENDAR_URL})
 
     return jsonify(
         {
@@ -809,11 +816,11 @@ def weekly_review():
 
     wins: list[dict] = []
     if completed_tasks:
-        wins.append({"title": f"{completed_tasks} tasks completed", "detail": ", ".join(task["title"] for task in completed_task_rows[:3]), "action_url": "/tasks"})
+        wins.append({"title": f"{completed_tasks} tasks completed", "detail": ", ".join(task["title"] for task in completed_task_rows[:3]), "action_url": DAY2DAY_TASKS_URL})
     if projects_completed:
-        wins.append({"title": f"{projects_completed} project(s) completed", "detail": "Project completion momentum showed up this week.", "action_url": "/projects"})
+        wins.append({"title": f"{projects_completed} project(s) completed", "detail": "Project completion momentum showed up this week.", "action_url": BUILD_PROJECTS_URL})
     if habit_completion_rate >= 70:
-        wins.append({"title": "Habit base stayed stable", "detail": f"{habit_completion_rate}% completion across active habits.", "action_url": "/habits"})
+        wins.append({"title": "Habit base stayed stable", "detail": f"{habit_completion_rate}% completion across active habits.", "action_url": DAY2DAY_HABITS_URL})
     if int(health.get("exercise_minutes") or 0):
         wins.append({"title": "Exercise was logged", "detail": f"{int(health.get('exercise_minutes') or 0)} minutes recorded.", "action_url": "/life"})
     if not wins:
@@ -821,11 +828,11 @@ def weekly_review():
 
     risks: list[dict] = []
     if overdue_tasks:
-        risks.append({"title": "Overdue work is accumulating", "detail": f"{overdue_tasks} task(s) are overdue.", "severity": "high", "action_url": "/tasks"})
+        risks.append({"title": "Overdue work is accumulating", "detail": f"{overdue_tasks} task(s) are overdue.", "severity": "high", "action_url": DAY2DAY_TASKS_URL})
     if contacts_due:
         risks.append({"title": "Relationship follow-ups are due", "detail": f"{contacts_due} contact(s) need attention.", "severity": "medium", "action_url": "/life"})
     if projects_due_soon:
-        risks.append({"title": "Project deadlines are close", "detail": f"{projects_due_soon} active project(s) are due within 14 days.", "severity": "medium", "action_url": "/projects"})
+        risks.append({"title": "Project deadlines are close", "detail": f"{projects_due_soon} active project(s) are due within 14 days.", "severity": "medium", "action_url": BUILD_PROJECTS_URL})
     if health.get("avg_sleep") and float(health["avg_sleep"]) < 6:
         risks.append({"title": "Sleep average is low", "detail": f"{round(float(health['avg_sleep']), 1)} hours average from logged health data.", "severity": "medium", "action_url": "/life"})
     if not risks:
@@ -835,9 +842,9 @@ def weekly_review():
     primary = today_payload.get("primary_focus") or {}
     next_focus: list[dict] = []
     if primary:
-        next_focus.append({"title": primary.get("title"), "detail": "Best next task from today's command logic.", "action_url": "/tasks"})
+        next_focus.append({"title": primary.get("title"), "detail": "Best next task from today's command logic.", "action_url": DAY2DAY_TASKS_URL})
     if projects_due_soon:
-        next_focus.append({"title": "Review deadline-heavy projects", "detail": "Check scope, next actions, and schedule protection.", "action_url": "/projects"})
+        next_focus.append({"title": "Review deadline-heavy projects", "detail": "Check scope, next actions, and schedule protection.", "action_url": BUILD_PROJECTS_URL})
     if contacts_due:
         next_focus.append({"title": "Clear due follow-ups", "detail": "Relationship maintenance is overdue or due today.", "action_url": "/life"})
     if len(next_focus) < 3:

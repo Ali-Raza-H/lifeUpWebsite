@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import importlib.util
 from datetime import timedelta
 from pathlib import Path
 from functools import lru_cache
@@ -163,6 +164,25 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(project_notes_api.bp)
     app.register_blueprint(settings_api.bp)
     app.register_blueprint(work_api.bp)
+    _register_local_debug_blueprint(app)
+
+
+def _register_local_debug_blueprint(app: Flask) -> None:
+    debug_path = BASE_DIR / "local_debug_api.py"
+    if not debug_path.exists():
+        return
+
+    spec = importlib.util.spec_from_file_location("local_debug_api", debug_path)
+    if not spec or not spec.loader:
+        app.logger.warning("Local debug file exists but could not be loaded: %s", debug_path)
+        return
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    blueprint = getattr(module, "bp", None)
+    if blueprint is None:
+        app.logger.warning("Local debug file has no Flask blueprint named bp: %s", debug_path)
+        return
+    app.register_blueprint(blueprint)
 
 
 def _register_routes(app: Flask) -> None:
@@ -201,9 +221,14 @@ def _register_routes(app: Flask) -> None:
     def dashboard():
         return render_template("dashboard.html")
 
+    def render_embedded_or_redirect(template_name: str, canonical_path: str, *, allow_guest_full_page: bool = False):
+        if request.args.get("embed") == "1" or (allow_guest_full_page and session.get("user_role") == GUEST_ROLE):
+            return render_template(template_name)
+        return redirect(canonical_path)
+
     @app.route("/tasks")
     def tasks():
-        return render_template("tasks.html")
+        return render_embedded_or_redirect("tasks.html", "/day2day#tasks")
 
     @app.route("/day2day")
     def day2day():
@@ -211,11 +236,11 @@ def _register_routes(app: Flask) -> None:
 
     @app.route("/habits")
     def habits():
-        return render_template("habits.html")
+        return render_embedded_or_redirect("habits.html", "/day2day#habits")
 
     @app.route("/projects")
     def projects():
-        return render_template("projects.html")
+        return render_embedded_or_redirect("projects.html", "/build#projects", allow_guest_full_page=True)
 
     @app.route("/build")
     def build():
@@ -227,7 +252,7 @@ def _register_routes(app: Flask) -> None:
 
     @app.route("/goals")
     def goals():
-        return render_template("goals.html")
+        return render_embedded_or_redirect("goals.html", "/build#goals")
 
     @app.route("/analytics")
     def analytics():
@@ -259,15 +284,15 @@ def _register_routes(app: Flask) -> None:
 
     @app.route("/work")
     def work():
-        return render_template("work.html")
+        return render_embedded_or_redirect("work.html", "/build#work", allow_guest_full_page=True)
 
     @app.route("/cv")
     def cv():
-        return render_template("cv.html")
+        return render_embedded_or_redirect("cv.html", "/build#cv")
 
     @app.route("/calendar")
     def calendar():
-        return render_template("calendar.html")
+        return render_embedded_or_redirect("calendar.html", "/day2day#calendar")
 
     @app.route("/mindset")
     def mindset():

@@ -6,3 +6,4 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .dev.json
+local_debug_api.py

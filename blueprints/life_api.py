@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import csv
+import io
+import re
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from urllib.parse import urlparse
 
 from flask import Blueprint, jsonify, request
 
 from database import execute_db, query_db
+from services import suggest_finance_transaction_metadata
 from utils import (
     ValidationError,
     get_optional_bool,
@@ -21,6 +27,7 @@ from utils import (
 bp = Blueprint("life_api", __name__, url_prefix="/api/life")
 
 FINANCE_TYPES = {"income", "expense", "saving", "subscription"}
+STATEMENT_IMPORT_LIMIT = 1000
 CONTACT_PRIORITIES = {"low", "normal", "high"}
 REVIEW_PERIODS = {"weekly", "monthly"}
 ATTACHMENT_ENTITIES = {"general", "note", "project", "goal", "journal", "task"}
@@ -66,6 +73,342 @@ def _normalize_url(value: str) -> str:
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValidationError("Url must be a valid website link.", "url")
     return clean_value
+
+
+def _parse_statement_date(value: str) -> str | None:
+    clean_value = str(value or "").strip().rstrip(".")
+    if not clean_value:
+        return None
+    clean_value = re.sub(r"\s+", " ", clean_value)
+    for date_format in ("%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y", "%d-%m-%Y", "%d-%m-%y", "%d %b %Y", "%d %b %y", "%d %B %Y", "%d %B %y"):
+        try:
+            return datetime.strptime(clean_value, date_format).date().isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+def _parse_money(value: str | int | float | Decimal | None) -> Decimal | None:
+    if value in (None, ""):
+        return None
+    clean_value = str(value).strip()
+    if not clean_value:
+        return None
+    is_parenthesized = clean_value.startswith("(") and clean_value.endswith(")")
+    if is_parenthesized:
+        clean_value = clean_value[1:-1]
+    clean_value = clean_value.replace(",", "").replace("£", "").replace("$", "").replace("€", "")
+    clean_value = re.sub(r"[^0-9.\-]", "", clean_value)
+    clean_value = clean_value.rstrip(".")
+    if clean_value in {"", "-", "."}:
+        return None
+    try:
+        amount = Decimal(clean_value)
+    except InvalidOperation:
+        return None
+    return -amount if is_parenthesized else amount
+
+
+def _normalize_header(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
+
+
+def _first_present(row: dict, names: tuple[str, ...]) -> str:
+    normalized = {_normalize_header(key): value for key, value in row.items()}
+    for name in names:
+        if name in normalized and str(normalized[name]).strip():
+            return str(normalized[name]).strip()
+    return ""
+
+
+def _transaction_from_fields(row: dict, row_id: int) -> dict | None:
+    entry_date = _parse_statement_date(
+        _first_present(row, ("date", "transactiondate", "postingdate", "posteddate", "valuedate", "completeddate"))
+    )
+    if not entry_date:
+        return None
+
+    description_parts = [
+        _first_present(row, ("description", "transactiondescription", "details", "narrative", "merchant", "name", "transaction", "payee")),
+        _first_present(row, ("reference", "memo", "notes")),
+    ]
+    description = " ".join(part for part in description_parts if part).strip()
+    if not description:
+        description = "Imported transaction"
+
+    debit = _parse_money(_first_present(row, ("debit", "debitamount", "paidout", "withdrawal", "moneyout", "out")))
+    credit = _parse_money(_first_present(row, ("credit", "creditamount", "paidin", "deposit", "moneyin", "in")))
+    amount = _parse_money(_first_present(row, ("amount", "value", "transactionamount")))
+
+    entry_type = "expense"
+    if credit is not None and credit != 0:
+        amount = abs(credit)
+        entry_type = "income"
+    elif debit is not None and debit != 0:
+        amount = abs(debit)
+        entry_type = "expense"
+    elif amount is not None:
+        entry_type = "income" if amount > 0 else "expense"
+        amount = abs(amount)
+
+    if amount is None or amount <= 0:
+        return None
+
+    category = _first_present(row, ("category", "spendcategory", "merchantcategory"))
+    return {
+        "id": row_id,
+        "entry_date": entry_date,
+        "type": entry_type,
+        "category": category,
+        "amount": float(amount),
+        "description": description[:500],
+        "statement_type": _first_present(row, ("statementtype", "banktype", "transactiontype", "type", "code")).strip(".").upper(),
+        "is_recurring": False,
+    }
+
+
+def _parse_statement_csv(text: str) -> tuple[list[dict], int]:
+    sample = text[:2048]
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t")
+    except csv.Error:
+        dialect = csv.excel
+    try:
+        has_header = csv.Sniffer().has_header(sample)
+    except csv.Error:
+        has_header = True
+
+    stream = io.StringIO(text)
+    skipped = 0
+    transactions: list[dict] = []
+    if has_header:
+        reader = csv.DictReader(stream, dialect=dialect)
+    else:
+        reader = csv.DictReader(stream, fieldnames=("date", "description", "amount"), dialect=dialect)
+
+    for row_id, row in enumerate(reader, start=1):
+        if len(transactions) >= STATEMENT_IMPORT_LIMIT:
+            break
+        transaction = _transaction_from_fields(row, row_id)
+        if transaction:
+            transactions.append(transaction)
+        else:
+            skipped += 1
+    return transactions, skipped
+
+
+def _statement_lines(text: str) -> list[str]:
+    return [re.sub(r"\s+", " ", line).strip() for line in text.splitlines() if re.sub(r"\s+", " ", line).strip()]
+
+
+def _is_halifax_statement(text: str) -> bool:
+    return "Halifax" in text and "Your Transactions" in text and "Money In" in text and "Money Out" in text
+
+
+def _parse_halifax_statement_text(text: str) -> tuple[list[dict], int]:
+    lines = _statement_lines(text)
+    transactions: list[dict] = []
+    skipped = 0
+    i = 0
+    row_id = 1
+    while i < len(lines) - 1:
+        if lines[i] != "Date":
+            i += 1
+            continue
+        entry_date = _parse_statement_date(lines[i + 1])
+        if not entry_date:
+            i += 1
+            continue
+
+        row = {
+            "Date": entry_date,
+            "Description": "",
+            "Statement Type": "",
+            "Money In (£)": "",
+            "Money Out (£)": "",
+        }
+        i += 2
+        while i < len(lines):
+            if i < len(lines) - 1 and lines[i] == "Date" and _parse_statement_date(lines[i + 1]):
+                break
+            label = lines[i]
+            if label in {"Description", "Type", "Money In (£)", "Money Out (£)", "Balance (£)"} and i + 1 < len(lines):
+                row["Statement Type" if label == "Type" else label] = lines[i + 1]
+                i += 2
+                continue
+            i += 1
+
+        transaction = _transaction_from_fields(row, row_id)
+        if transaction:
+            transactions.append(transaction)
+            row_id += 1
+        else:
+            skipped += 1
+        if len(transactions) >= STATEMENT_IMPORT_LIMIT:
+            break
+    return transactions, skipped
+
+
+def _is_monzo_statement(text: str) -> bool:
+    return "Monzo Bank" in text and "Date Description (GBP) Amount (GBP) Balance" in text
+
+
+def _is_monzo_noise_line(line: str) -> bool:
+    return (
+        line.startswith("Date Description")
+        or line.startswith("Monzo Bank Limited")
+        or line.startswith("House, ")
+        or line.startswith("by the Financial Conduct")
+        or line.startswith("Sort code:")
+        or line.startswith("Account number:")
+        or line.startswith("BIC:")
+        or line.startswith("IBAN:")
+    )
+
+
+def _parse_monzo_transaction_line(line: str, row_id: int) -> dict | None:
+    match = re.match(
+        r"^(?P<date>\d{2}/\d{2}/\d{4})\s+(?P<description>.+?)\s+(?P<amount>[+-]?\d[\d,]*\.\d{2})\s+(?P<balance>[+-]?\d[\d,]*\.\d{2})$",
+        line,
+    )
+    if not match:
+        return None
+    amount = _parse_money(match.group("amount"))
+    if amount is None or amount == 0:
+        return None
+    entry_type = "income" if amount > 0 else "expense"
+    return {
+        "id": row_id,
+        "entry_date": _parse_statement_date(match.group("date")),
+        "type": entry_type,
+        "category": "",
+        "amount": float(abs(amount)),
+        "description": match.group("description").strip()[:500],
+        "statement_type": "",
+        "is_recurring": False,
+    }
+
+
+def _parse_monzo_statement_text(text: str) -> tuple[list[dict], int]:
+    personal_text = text.split("Pot statement", 1)[0]
+    lines = _statement_lines(personal_text)
+    transactions: list[dict] = []
+    skipped = 0
+    current = ""
+    row_id = 1
+
+    def flush_current() -> None:
+        nonlocal current, row_id, skipped
+        if not current:
+            return
+        transaction = _parse_monzo_transaction_line(current, row_id)
+        if transaction and transaction["entry_date"]:
+            transactions.append(transaction)
+            row_id += 1
+        else:
+            skipped += 1
+        current = ""
+
+    for line in lines:
+        if re.match(r"^\d{2}/\d{2}/\d{4}\s+-\s+\d{2}/\d{2}/\d{4}$", line):
+            continue
+        starts_transaction = re.match(r"^\d{2}/\d{2}/\d{4}\s+", line) is not None
+        if starts_transaction:
+            flush_current()
+            current = line
+            if len(transactions) >= STATEMENT_IMPORT_LIMIT:
+                break
+            continue
+        if not current:
+            continue
+        if _is_monzo_noise_line(line):
+            flush_current()
+            continue
+        current = f"{current} {line}"
+    flush_current()
+    return transactions[:STATEMENT_IMPORT_LIMIT], skipped
+
+
+def _parse_statement_text(text: str) -> tuple[list[dict], int]:
+    transactions: list[dict] = []
+    skipped = 0
+    line_pattern = re.compile(
+        r"^(?P<date>\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2})\s+"
+        r"(?P<description>.+?)\s+"
+        r"(?P<amount>[-(]?\£?\d[\d,]*\.\d{2}\)?)$"
+    )
+    for row_id, raw_line in enumerate(text.splitlines(), start=1):
+        if len(transactions) >= STATEMENT_IMPORT_LIMIT:
+            break
+        line = re.sub(r"\s+", " ", raw_line).strip()
+        if not line:
+            continue
+        match = line_pattern.match(line)
+        if not match:
+            skipped += 1
+            continue
+        transaction = _transaction_from_fields(match.groupdict(), row_id)
+        if transaction:
+            transactions.append(transaction)
+        else:
+            skipped += 1
+    return transactions, skipped
+
+
+def _read_statement_upload_text(upload) -> str:
+    filename = (upload.filename or "").lower()
+    data = upload.read()
+    if filename.endswith(".pdf") or upload.mimetype == "application/pdf":
+        try:
+            from pypdf import PdfReader
+        except ImportError as exc:
+            raise ValidationError("PDF import requires pypdf to be installed.", "file") from exc
+        reader = PdfReader(io.BytesIO(data))
+        return "\n".join(page.extract_text() or "" for page in reader.pages)
+    for encoding in ("utf-8-sig", "utf-8", "latin-1"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise ValidationError("Statement file must be text, CSV, or PDF.", "file")
+
+
+def _parse_statement_upload(upload) -> tuple[list[dict], int]:
+    filename = (upload.filename or "").lower()
+    text = _read_statement_upload_text(upload)
+    if not text.strip():
+        raise ValidationError("Statement file appears to be empty.", "file")
+    if _is_halifax_statement(text):
+        return _parse_halifax_statement_text(text)
+    if _is_monzo_statement(text):
+        return _parse_monzo_statement_text(text)
+    if filename.endswith(".csv") or "," in text[:2048] or "\t" in text[:2048]:
+        return _parse_statement_csv(text)
+    return _parse_statement_text(text)
+
+
+def _save_finance_entry(payload: dict) -> tuple[dict, int]:
+    entry_date = get_optional_date(payload, "entry_date")
+    if not entry_date:
+        raise ValidationError("Entry date is required.", "entry_date")
+    entry_type = get_optional_choice(payload, "type", allowed=FINANCE_TYPES, default="expense") or "expense"
+    category = get_optional_string(payload, "category", max_length=80, default="") or ""
+    amount = _required_float(payload, "amount", minimum=0)
+    description = get_optional_string(payload, "description", max_length=500, default="") or ""
+    statement_type = get_optional_string(payload, "statement_type", max_length=40, default="") or ""
+    is_recurring = 1 if payload.get("is_recurring") else 0
+    return (
+        {
+            "entry_date": entry_date,
+            "type": entry_type,
+            "category": category,
+            "amount": amount,
+            "description": description,
+            "statement_type": statement_type.upper(),
+            "is_recurring": is_recurring,
+        },
+        is_recurring,
+    )
 
 
 def _attachment_query(filters: list[str], params: list[object]) -> list[dict]:
@@ -635,24 +978,145 @@ def get_finance_entries():
 @bp.route("/finance", methods=["POST"])
 def create_finance_entry():
     payload = require_object(request.get_json(silent=True))
-    entry_date = get_optional_date(payload, "entry_date")
-    if not entry_date:
-        raise ValidationError("Entry date is required.", "entry_date")
-    entry_type = get_optional_choice(payload, "type", allowed=FINANCE_TYPES, default="expense") or "expense"
-    category = get_optional_string(payload, "category", max_length=80, default="") or ""
-    amount = _required_float(payload, "amount", minimum=0)
-    description = get_optional_string(payload, "description", max_length=500, default="") or ""
-    is_recurring = 1 if payload.get("is_recurring") else 0
+    data, _ = _save_finance_entry(payload)
 
     entry_id = execute_db(
         """
-        INSERT INTO finance_entries (entry_date, type, category, amount, description, is_recurring)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO finance_entries (entry_date, type, category, amount, description, statement_type, is_recurring)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (entry_date, entry_type, category, amount, description, is_recurring),
+        (
+            data["entry_date"],
+            data["type"],
+            data["category"],
+            data["amount"],
+            data["description"],
+            data["statement_type"],
+            data["is_recurring"],
+        ),
     )
     entry = query_db("SELECT * FROM finance_entries WHERE id = ?", [entry_id], one=True)
     return jsonify({"entry": row_to_dict(entry), "message": "Finance entry saved."}), 201
+
+
+@bp.route("/finance/<int:entry_id>", methods=["PUT"])
+def update_finance_entry(entry_id: int):
+    current = row_to_dict(query_db("SELECT * FROM finance_entries WHERE id = ?", [entry_id], one=True))
+    if not current:
+        return jsonify({"error": "Finance entry not found."}), 404
+
+    payload = require_object(request.get_json(silent=True))
+    merged = {
+        "entry_date": payload.get("entry_date", current["entry_date"]),
+        "type": payload.get("type", current["type"]),
+        "category": payload.get("category", current.get("category") or ""),
+        "amount": payload.get("amount", current["amount"]),
+        "description": payload.get("description", current.get("description") or ""),
+        "statement_type": payload.get("statement_type", current.get("statement_type") or ""),
+        "is_recurring": payload.get("is_recurring", bool(current.get("is_recurring"))),
+    }
+    data, _ = _save_finance_entry(merged)
+    execute_db(
+        """
+        UPDATE finance_entries
+        SET entry_date = ?, type = ?, category = ?, amount = ?, description = ?, statement_type = ?, is_recurring = ?
+        WHERE id = ?
+        """,
+        (
+            data["entry_date"],
+            data["type"],
+            data["category"],
+            data["amount"],
+            data["description"],
+            data["statement_type"],
+            data["is_recurring"],
+            entry_id,
+        ),
+    )
+    entry = query_db("SELECT * FROM finance_entries WHERE id = ?", [entry_id], one=True)
+    return jsonify({"entry": row_to_dict(entry), "message": "Finance entry updated."})
+
+
+@bp.route("/finance/categorize", methods=["POST"])
+def categorize_finance_entry():
+    payload = require_object(request.get_json(silent=True))
+    transaction = {
+        "id": 1,
+        "entry_date": payload.get("entry_date") or "",
+        "description": get_optional_string(payload, "description", max_length=500, default="") or "",
+        "amount": _optional_float(payload, "amount", minimum=0) or 0,
+        "type": get_optional_choice(payload, "type", allowed=FINANCE_TYPES, default="expense") or "expense",
+        "category": get_optional_string(payload, "category", max_length=80, default="") or "",
+        "statement_type": get_optional_string(payload, "statement_type", max_length=40, default="") or "",
+        "is_recurring": bool(payload.get("is_recurring")),
+    }
+    suggestion = suggest_finance_transaction_metadata([transaction])[0]
+    return jsonify({"suggestion": suggestion})
+
+
+@bp.route("/finance/import", methods=["POST"])
+def import_finance_statement():
+    upload = request.files.get("file")
+    if upload is None or not upload.filename:
+        raise ValidationError("Statement file is required.", "file")
+
+    parsed, skipped_rows = _parse_statement_upload(upload)
+    if not parsed:
+        raise ValidationError("No transactions could be read from that statement.", "file")
+
+    suggestions = suggest_finance_transaction_metadata(parsed)
+    suggestion_by_id = {str(item.get("id")): item for item in suggestions}
+    imported_entries: list[dict] = []
+    duplicate_count = 0
+    for transaction in parsed:
+        suggestion = suggestion_by_id.get(str(transaction["id"]), {})
+        transaction.update(
+            {
+                "type": suggestion.get("type") or transaction["type"],
+                "category": suggestion.get("category") or transaction.get("category") or "",
+                "is_recurring": bool(suggestion.get("is_recurring")),
+            }
+        )
+        duplicate = query_db(
+            """
+            SELECT id
+            FROM finance_entries
+            WHERE entry_date = ? AND type = ? AND amount = ? AND COALESCE(description, '') = ?
+            LIMIT 1
+            """,
+            [transaction["entry_date"], transaction["type"], transaction["amount"], transaction["description"]],
+            one=True,
+        )
+        if duplicate:
+            duplicate_count += 1
+            continue
+        entry_id = execute_db(
+            """
+            INSERT INTO finance_entries (entry_date, type, category, amount, description, statement_type, is_recurring)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                transaction["entry_date"],
+                transaction["type"],
+                transaction["category"],
+                transaction["amount"],
+                transaction["description"],
+                transaction.get("statement_type") or "",
+                1 if transaction["is_recurring"] else 0,
+            ),
+        )
+        imported_entries.append(row_to_dict(query_db("SELECT * FROM finance_entries WHERE id = ?", [entry_id], one=True)))
+
+    return jsonify(
+        {
+            "entries": imported_entries,
+            "imported": len(imported_entries),
+            "duplicates": duplicate_count,
+            "skipped": skipped_rows,
+            "parsed": len(parsed),
+            "message": f"Imported {len(imported_entries)} transaction(s).",
+        }
+    ), 201
 
 
 @bp.route("/finance/<int:entry_id>", methods=["DELETE"])

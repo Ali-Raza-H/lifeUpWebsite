@@ -127,7 +127,13 @@
             <section id="panel-finance" class="life-content-panel">
                 <div class="life-section-header">
                     <h2 class="life-section-title"><i class="ph ph-wallet"></i> Finance Manager</h2>
-                    <button class="btn btn-sm btn-primary" onclick="LifeUI.openModal('finance')"><i class="ph ph-plus"></i> Add Entry</button>
+                    <div class="section-toolbar-actions">
+                        <form id="finance-import-form" class="finance-import-form" onsubmit="LifeUI.importFinanceStatement(event)">
+                            <input type="file" id="finance-import-file" class="form-control" accept=".csv,.txt,.pdf,text/csv,text/plain,application/pdf" required>
+                            <button class="btn btn-sm" type="submit"><i class="ph ph-upload-simple"></i> Import</button>
+                        </form>
+                        <button class="btn btn-sm btn-primary" onclick="LifeUI.openModal('finance')"><i class="ph ph-plus"></i> Add Entry</button>
+                    </div>
                 </div>
                 <div class="metric-grid cols-4" id="life-finance-dashboard">
                     <div class="compact-item metric-card"><span class="item-desc">Loading finance dashboard...</span></div>
@@ -446,17 +452,18 @@
 <div id="modal-finance" class="modal-overlay">
     <div class="modal-content life-modal-content">
         <div class="card-header">
-            <h3 class="card-title">Finance Entry</h3>
+            <h3 class="card-title" id="finance-modal-title">Finance Entry</h3>
             <button class="btn btn-icon" onclick="LifeUI.closeModal('finance')"><i class="ph ph-x"></i></button>
         </div>
         <form id="life-finance-form" onsubmit="LifeUI.saveFinance(event)">
+            <input type="hidden" id="finance-id">
             <div class="life-form-grid">
                 <div class="form-group">
                     <label class="form-label" for="finance-date">Date</label>
                     <input type="date" id="finance-date" class="form-control" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="finance-type">Type</label>
+                    <label class="form-label" for="finance-type">Direction</label>
                     <select id="finance-type" class="form-control">
                         <option value="expense">Expense</option>
                         <option value="income">Income</option>
@@ -465,8 +472,15 @@
                     </select>
                 </div>
                 <div class="form-group">
+                    <label class="form-label" for="finance-statement-type">Statement Type</label>
+                    <input type="text" id="finance-statement-type" class="form-control" placeholder="DEB, FPI, FPO, DEP">
+                </div>
+                <div class="form-group">
                     <label class="form-label" for="finance-category">Category</label>
-                    <input type="text" id="finance-category" class="form-control" placeholder="Food, transport, hosting">
+                    <div class="input-action-row">
+                        <input type="text" id="finance-category" class="form-control" placeholder="Food, transport, hosting">
+                        <button type="button" class="btn btn-icon" onclick="LifeUI.autofillFinanceCategory()" title="Auto-fill category"><i class="ph ph-sparkle"></i></button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="finance-amount">Amount</label>
@@ -482,6 +496,8 @@
                 </div>
             </div>
             <div class="modal-footer">
+                <button type="button" class="btn btn-danger" id="finance-delete-btn" onclick="LifeUI.deleteCurrentFinance()" style="display:none;">Delete</button>
+                <div style="flex: 1;"></div>
                 <button type="button" class="btn" onclick="LifeUI.closeModal('finance')">Cancel</button>
                 <button type="submit" class="btn btn-primary">Save Entry</button>
             </div>
