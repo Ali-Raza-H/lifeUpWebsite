@@ -128,6 +128,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             "LIFEOS_ASSISTANT_API_KEY_SCOPES",
             "lifeos:read,lifeos:write,events:read,events:ack",
         ),
+        ASSISTANT_SSE_ENABLED=os.environ.get("ASSISTANT_SSE_ENABLED", "0") != "0",
         ASSISTANT_EVENT_HEARTBEAT_SECONDS=int(os.environ.get("ASSISTANT_EVENT_HEARTBEAT_SECONDS", "15")),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE=os.environ.get("SESSION_COOKIE_SAMESITE", "Lax"),

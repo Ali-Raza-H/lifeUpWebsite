@@ -1873,11 +1873,31 @@ def test_assistant_api_authentication_scopes_and_capabilities(client):
     payload = capabilities.get_json()
     assert payload["api_version"] == "v1"
     assert payload["deletions_available"] is False
-    assert "sse" in payload["transports"]
+    assert payload["recommended_notification_transport"] == "polling"
+    assert payload["transports"] == ["rest", "polling"]
 
     sensitive = client.get("/api/v1/assistant/finance", headers=headers)
     assert sensitive.status_code == 403
     assert sensitive.get_json()["error"] == "insufficient_scope"
+
+
+def test_assistant_event_stream_is_disabled_by_default(client):
+    headers = _assistant_headers(client, ("events:read",))
+
+    response = client.get("/api/v1/assistant/events/stream", headers=headers)
+
+    assert response.status_code == 503
+    assert response.get_json()["error"] == "transport_unavailable"
+
+
+def test_assistant_capabilities_advertise_sse_when_enabled(client):
+    headers = _assistant_headers(client, ("lifeos:read",))
+    client.application.config["ASSISTANT_SSE_ENABLED"] = True
+
+    response = client.get("/api/v1/assistant/capabilities", headers=headers)
+
+    assert response.status_code == 200
+    assert response.get_json()["transports"] == ["rest", "polling", "sse"]
 
 
 def test_assistant_search_does_not_leak_sensitive_or_unexposed_records(client):

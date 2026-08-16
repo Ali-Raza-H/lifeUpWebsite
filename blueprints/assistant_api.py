@@ -174,6 +174,9 @@ def assistant_endpoint(
 @bp.get("/capabilities")
 @assistant_endpoint("capabilities.read", "lifeos:read")
 def capabilities():
+    transports = ["rest", "polling"]
+    if current_app.config.get("ASSISTANT_SSE_ENABLED", False):
+        transports.append("sse")
     return jsonify(
         {
             "api_version": "v1",
@@ -184,7 +187,8 @@ def capabilities():
             },
             "known_scopes": KNOWN_ASSISTANT_SCOPES,
             "deletions_available": False,
-            "transports": ["rest", "polling", "sse"],
+            "transports": transports,
+            "recommended_notification_transport": "polling",
         }
     )
 
@@ -557,6 +561,17 @@ def acknowledge_event(event_id: int):
 @bp.get("/events/stream")
 @assistant_endpoint("events.stream", "events:read", entity_type="assistant_event")
 def stream_events():
+    if not current_app.config.get("ASSISTANT_SSE_ENABLED", False):
+        return (
+            jsonify(
+                {
+                    "error": "transport_unavailable",
+                    "message": "SSE is disabled for this deployment. Poll GET /events instead.",
+                }
+            ),
+            503,
+        )
+
     header_id = request.headers.get("Last-Event-ID", "").strip()
     after_id = request.args.get("after", default=0, type=int)
     if header_id.isdigit():

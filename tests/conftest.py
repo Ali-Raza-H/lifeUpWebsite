@@ -16,6 +16,7 @@ def app(tmp_path: Path):
             "AUTH_USERNAME": "tester",
             "AUTH_PASSWORD": "test-password",
             "SESSION_COOKIE_SECURE": False,
+            "ASSISTANT_SSE_ENABLED": False,
         }
     )
     return app
