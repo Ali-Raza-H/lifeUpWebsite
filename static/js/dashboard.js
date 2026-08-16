@@ -1091,7 +1091,7 @@ const DashboardUI = {
                     },
                     {
                         type: 'line',
-                        label: `Completion Share${taskAnalytics?.total_tasks ? ` (${taskAnalytics.total_tasks})` : ''}`,
+                        label: `Completion Share${taskAnalytics?.active_total ? ` (${taskAnalytics.active_total} open)` : ''}`,
                         data: taskAnalytics?.share_of_total || [],
                         borderColor: '#ff00ff',
                         borderWidth: 2,

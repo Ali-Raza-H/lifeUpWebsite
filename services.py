@@ -1956,13 +1956,16 @@ def task_analytics_series(days: int = TASK_ANALYTICS_DAYS) -> dict[str, list]:
     safe_days = max(1, days)
     today = date.today()
     start_date = today - timedelta(days=safe_days - 1)
-    total_tasks = int(
+    active_status_placeholders = ",".join("?" for _ in ACTIVE_TASK_STATUSES)
+    active_total = int(
         query_db(
-            "SELECT COUNT(*) AS count FROM tasks",
+            f"SELECT COUNT(*) AS count FROM tasks WHERE status IN ({active_status_placeholders})",
+            list(ACTIVE_TASK_STATUSES),
             one=True,
         )["count"]
         or 0
     )
+    total_tasks = int(query_db("SELECT COUNT(*) AS count FROM tasks", one=True)["count"] or 0)
     completed_total = int(
         query_db(
             "SELECT COUNT(*) AS count FROM tasks WHERE status = 'completed'",
@@ -1995,12 +1998,13 @@ def task_analytics_series(days: int = TASK_ANALYTICS_DAYS) -> dict[str, list]:
         completed_count = completed_map.get(key, 0)
         labels.append(current.strftime("%d %b"))
         completed_values.append(completed_count)
-        share_values.append(round((completed_count / total_tasks) * 100) if total_tasks else 0)
+        share_values.append(round((completed_count / active_total) * 100) if active_total else 0)
 
     return {
         "labels": labels,
         "completed": completed_values,
         "share_of_total": share_values,
+        "active_total": active_total,
         "total_tasks": total_tasks,
         "completed_total": completed_total,
     }

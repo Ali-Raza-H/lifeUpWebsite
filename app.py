@@ -8,12 +8,15 @@ from pathlib import Path
 from functools import lru_cache
 
 from flask import Flask, jsonify, render_template, request, session, redirect, url_for
+from werkzeug.exceptions import HTTPException
 
+from assistant_auth import authenticate_assistant_request, init_assistant_auth
 from database import init_app
 from modules import modules_for_sidebar
 from utils import ValidationError
 
 import blueprints.analytics_api as analytics_api
+import blueprints.assistant_api as assistant_api
 import blueprints.calendar_api as calendar_api
 import blueprints.cv_api as cv_api
 import blueprints.goals_api as goals_api
@@ -119,6 +122,13 @@ def create_app(test_config: dict | None = None) -> Flask:
             os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite"),
         ),
         GEMINI_TIMEOUT_SECONDS=float(os.environ.get("GEMINI_TIMEOUT_SECONDS", "45")),
+        ASSISTANT_API_KEY=os.environ.get("LIFEOS_ASSISTANT_API_KEY", ""),
+        ASSISTANT_API_KEY_NAME=os.environ.get("LIFEOS_ASSISTANT_API_KEY_NAME", "CIEL"),
+        ASSISTANT_API_KEY_SCOPES=os.environ.get(
+            "LIFEOS_ASSISTANT_API_KEY_SCOPES",
+            "lifeos:read,lifeos:write,events:read,events:ack",
+        ),
+        ASSISTANT_EVENT_HEARTBEAT_SECONDS=int(os.environ.get("ASSISTANT_EVENT_HEARTBEAT_SECONDS", "15")),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE=os.environ.get("SESSION_COOKIE_SAMESITE", "Lax"),
         SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE", "1") != "0",
@@ -134,6 +144,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     logging.basicConfig(level=logging.INFO)
 
     init_app(app)
+    init_assistant_auth(app)
     _register_blueprints(app)
     _register_routes(app)
     _register_template_helpers(app)
@@ -145,6 +156,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
 
 def _register_blueprints(app: Flask) -> None:
+    app.register_blueprint(assistant_api.bp)
     app.register_blueprint(tasks_api.bp)
     app.register_blueprint(habits_api.bp)
     app.register_blueprint(projects_api.bp)
@@ -362,6 +374,10 @@ def _register_error_handlers(app: Flask) -> None:
 
     @app.errorhandler(Exception)
     def handle_unexpected_error(error: Exception):
+        if isinstance(error, HTTPException):
+            if request.path.startswith("/api/"):
+                return jsonify({"error": error.name.lower().replace(" ", "_"), "message": error.description}), error.code
+            return error
         app.logger.exception("Unhandled application error", exc_info=error)
         if request.path.startswith("/api/"):
             return jsonify({"error": "Internal server error."}), 500
@@ -384,6 +400,9 @@ def _register_response_hooks(app: Flask) -> None:
 def _register_auth_hooks(app: Flask) -> None:
     @app.before_request
     def require_login():
+        if request.path.startswith("/api/v1/assistant"):
+            return authenticate_assistant_request()
+
         # Exempt routes from login
         exempt_routes = ["login", "static"]
         if request.endpoint not in exempt_routes and not session.get("logged_in"):

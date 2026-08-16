@@ -2,7 +2,9 @@ import sqlite3
 from io import BytesIO
 from datetime import date, timedelta
 
+from assistant_auth import create_assistant_key
 from app import create_app
+from database import query_db
 
 
 def test_page_routes_require_login(anon_client):
@@ -482,6 +484,22 @@ def test_task_completion_updates_progress_and_analytics(client):
 
     invalid_status_response = client.get("/api/tasks/?status=canceled")
     assert invalid_status_response.status_code == 400
+
+
+def test_task_completion_share_uses_open_tasks_as_denominator(client):
+    client.post("/api/tasks/", json={"title": "Pending denominator"})
+    client.post("/api/tasks/", json={"title": "Progress denominator", "status": "in_progress"})
+    client.post("/api/tasks/", json={"title": "Hold denominator", "status": "on_hold"})
+    client.post("/api/tasks/", json={"title": "Old completed numerator", "status": "completed"})
+    client.post("/api/tasks/", json={"title": "Second completed numerator", "status": "completed"})
+
+    analytics_payload = client.get("/api/analytics/page").get_json()
+    task_analytics = analytics_payload["task_analytics"]
+
+    assert task_analytics["active_total"] == 3
+    assert task_analytics["total_tasks"] == 5
+    assert task_analytics["completed_total"] == 2
+    assert task_analytics["share_of_total"][-1] == 67
 
 
 def test_completed_flagged_task_creates_linkedin_email_draft(client):
@@ -1833,3 +1851,218 @@ def test_calendar_event_lifecycle_and_week_payload(client):
     assert delete_response.status_code == 200
     refreshed = client.get("/api/calendar/week?start=2026-05-18").get_json()
     assert not any(item["id"] == event["id"] for item in refreshed["days"][0]["events"])
+
+
+def _assistant_headers(client, scopes=None):
+    with client.application.app_context():
+        secret, _record = create_assistant_key(
+            "CIEL test",
+            scopes or ("lifeos:read", "lifeos:write", "events:read", "events:ack"),
+        )
+    return {"Authorization": f"Bearer {secret}"}
+
+
+def test_assistant_api_authentication_scopes_and_capabilities(client):
+    missing_key = client.get("/api/v1/assistant/capabilities")
+    assert missing_key.status_code == 401
+    assert missing_key.get_json()["error"] == "assistant_authentication_required"
+
+    headers = _assistant_headers(client)
+    capabilities = client.get("/api/v1/assistant/capabilities", headers=headers)
+    assert capabilities.status_code == 200
+    payload = capabilities.get_json()
+    assert payload["api_version"] == "v1"
+    assert payload["deletions_available"] is False
+    assert "sse" in payload["transports"]
+
+    sensitive = client.get("/api/v1/assistant/finance", headers=headers)
+    assert sensitive.status_code == 403
+    assert sensitive.get_json()["error"] == "insufficient_scope"
+
+
+def test_assistant_search_does_not_leak_sensitive_or_unexposed_records(client):
+    private_title = "Private assistant journal sentinel"
+    journal_response = client.post(
+        "/api/journal/",
+        json={"title": private_title, "content": "Only a scoped key should find this."},
+    )
+    assert journal_response.status_code == 201
+
+    standard_headers = _assistant_headers(client)
+    standard_results = client.get(
+        "/api/v1/assistant/search?q=sentinel",
+        headers=standard_headers,
+    ).get_json()["results"]
+    assert all(item["type"] != "journal" for item in standard_results)
+
+    journal_headers = _assistant_headers(client, ("lifeos:read", "sensitive:journal"))
+    scoped_results = client.get(
+        "/api/v1/assistant/search?q=sentinel",
+        headers=journal_headers,
+    ).get_json()["results"]
+    assert any(item["type"] == "journal" and item["title"] == private_title for item in scoped_results)
+
+
+def test_assistant_context_redacts_sensitive_aggregates_without_scopes(client):
+    standard_headers = _assistant_headers(client)
+    today = client.get("/api/v1/assistant/context/today", headers=standard_headers).get_json()
+    assert "follow_ups_due" not in today["today"]
+    assert "follow_ups_due" not in today["daily_plan"]["metrics"]
+
+    weekly = client.get("/api/v1/assistant/context/weekly-review", headers=standard_headers).get_json()
+    scorecard_labels = {item["label"] for item in weekly["scorecard"]}
+    assert "Journal entries" not in scorecard_labels
+    assert "Net money" not in scorecard_labels
+    assert "contacts_touched" not in weekly["evidence"]
+    assert "finance" not in weekly["evidence"]
+    assert "health" not in weekly["evidence"]
+    assert "diet" not in weekly["evidence"]
+
+    sensitive_headers = _assistant_headers(
+        client,
+        (
+            "lifeos:read",
+            "sensitive:contacts",
+            "sensitive:journal",
+            "sensitive:health",
+            "sensitive:finance",
+        ),
+    )
+    sensitive_weekly = client.get(
+        "/api/v1/assistant/context/weekly-review",
+        headers=sensitive_headers,
+    ).get_json()
+    sensitive_labels = {item["label"] for item in sensitive_weekly["scorecard"]}
+    assert {"Journal entries", "Net money"} <= sensitive_labels
+    assert {"contacts_touched", "finance", "health", "diet"} <= set(sensitive_weekly["evidence"])
+
+
+def test_assistant_api_idempotent_task_write_and_audit(client):
+    headers = {
+        **_assistant_headers(client),
+        "Idempotency-Key": "assistant-create-task-1",
+    }
+    first = client.post(
+        "/api/v1/assistant/tasks",
+        headers=headers,
+        json={"title": "Created once by CIEL", "priority": 2},
+    )
+    assert first.status_code == 201
+    task_id = first.get_json()["task"]["id"]
+
+    replay = client.post(
+        "/api/v1/assistant/tasks",
+        headers=headers,
+        json={"title": "This retry must not create another row", "priority": 4},
+    )
+    assert replay.status_code == 201
+    assert replay.headers["X-Idempotent-Replay"] == "true"
+    assert replay.get_json()["task"]["id"] == task_id
+
+    tasks = client.get("/api/v1/assistant/tasks?q=Created+once+by+CIEL", headers=headers).get_json()
+    assert len([task for task in tasks if task["id"] == task_id]) == 1
+    assert client.delete(f"/api/v1/assistant/tasks/{task_id}", headers=headers).status_code == 405
+
+    with client.application.app_context():
+        audit_count = query_db(
+            "SELECT COUNT(*) AS count FROM assistant_audit_log WHERE operation = 'tasks.create'",
+            one=True,
+        )["count"]
+    assert audit_count == 2
+
+
+def test_assistant_notification_polling_and_acknowledgement(client):
+    headers = _assistant_headers(client)
+    due_at = (date.today() - timedelta(days=1)).isoformat() + "T09:00"
+    task = client.post(
+        "/api/v1/assistant/tasks",
+        headers={**headers, "Idempotency-Key": "assistant-overdue-task"},
+        json={"title": "Assistant overdue notification", "due_date": due_at},
+    ).get_json()["task"]
+
+    event_response = client.get("/api/v1/assistant/events", headers=headers)
+    assert event_response.status_code == 200
+    events = event_response.get_json()["events"]
+    event = next(
+        item
+        for item in events
+        if item["source_type"] == "task" and item["source_id"] == task["id"]
+    )
+    assert event["event_type"] == "task.attention_required"
+    assert event["acknowledged"] is False
+
+    acknowledged = client.post(
+        f"/api/v1/assistant/events/{event['id']}/acknowledge",
+        headers={**headers, "Idempotency-Key": f"ack-{event['id']}"},
+        json={},
+    )
+    assert acknowledged.status_code == 200
+    assert acknowledged.get_json()["event"]["acknowledged"] is True
+
+    active_events = client.get("/api/v1/assistant/events", headers=headers).get_json()["events"]
+    assert all(item["id"] != event["id"] for item in active_events)
+
+
+def test_assistant_contact_notifications_require_contact_scope(client):
+    contact_response = client.post(
+        "/api/life/contacts",
+        json={
+            "name": "Private follow-up sentinel",
+            "priority": "high",
+            "next_follow_up": date.today().isoformat(),
+        },
+    )
+    assert contact_response.status_code == 201
+    contact_id = contact_response.get_json()["contact"]["id"]
+
+    standard_headers = _assistant_headers(client)
+    standard_events = client.get("/api/v1/assistant/events", headers=standard_headers).get_json()["events"]
+    assert all(item["source_type"] != "contact" for item in standard_events)
+
+    contact_headers = _assistant_headers(client, ("events:read", "sensitive:contacts"))
+    scoped_events = client.get("/api/v1/assistant/events", headers=contact_headers).get_json()["events"]
+    assert any(item["source_type"] == "contact" and item["source_id"] == contact_id for item in scoped_events)
+
+
+def test_assistant_habits_and_goal_milestones_are_non_destructive(client):
+    headers = _assistant_headers(client)
+    habit_response = client.post(
+        "/api/v1/assistant/habits",
+        headers={**headers, "Idempotency-Key": "assistant-create-habit"},
+        json={"name": "Assistant reading", "frequency": "daily", "target_streak": 14},
+    )
+    assert habit_response.status_code == 201
+    habit_id = habit_response.get_json()["habit"]["id"]
+
+    updated_habit = client.patch(
+        f"/api/v1/assistant/habits/{habit_id}",
+        headers={**headers, "Idempotency-Key": "assistant-update-habit"},
+        json={"category": "study"},
+    )
+    assert updated_habit.status_code == 200
+    assert updated_habit.get_json()["habit"]["category"] == "study"
+
+    goal_response = client.post(
+        "/api/v1/assistant/goals",
+        headers={**headers, "Idempotency-Key": "assistant-create-goal"},
+        json={"title": "Assistant goal"},
+    )
+    assert goal_response.status_code == 201
+    goal_id = goal_response.get_json()["goal"]["id"]
+    milestone_response = client.post(
+        f"/api/v1/assistant/goals/{goal_id}/milestones",
+        headers={**headers, "Idempotency-Key": "assistant-create-goal-milestone"},
+        json={"title": "Document the integration"},
+    )
+    assert milestone_response.status_code == 201
+    milestone_id = milestone_response.get_json()["milestone"]["id"]
+
+    updated_milestone = client.patch(
+        f"/api/v1/assistant/goals/{goal_id}/milestones/{milestone_id}",
+        headers={**headers, "Idempotency-Key": "assistant-update-goal-milestone"},
+        json={"status": "completed"},
+    )
+    assert updated_milestone.status_code == 200
+    assert updated_milestone.get_json()["milestone"]["status"] == "completed"
+
+    assert client.delete(f"/api/v1/assistant/habits/{habit_id}", headers=headers).status_code == 405

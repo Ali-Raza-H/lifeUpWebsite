@@ -477,6 +477,59 @@ CREATE TABLE IF NOT EXISTS linkedin_drafts (
     UNIQUE(source_type, source_id)
 );
 
+CREATE TABLE IF NOT EXISTS assistant_api_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    key_hash TEXT NOT NULL UNIQUE,
+    key_prefix TEXT NOT NULL,
+    scopes TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_used_at DATETIME,
+    revoked_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS assistant_audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    api_key_id INTEGER NOT NULL,
+    operation TEXT NOT NULL,
+    method TEXT NOT NULL,
+    path TEXT NOT NULL,
+    entity_type TEXT,
+    entity_id INTEGER,
+    idempotency_key TEXT,
+    status_code INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (api_key_id) REFERENCES assistant_api_keys(id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS assistant_idempotency (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    api_key_id INTEGER NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    method TEXT NOT NULL,
+    path TEXT NOT NULL,
+    status_code INTEGER NOT NULL,
+    response_json TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (api_key_id) REFERENCES assistant_api_keys(id) ON DELETE CASCADE,
+    UNIQUE(api_key_id, idempotency_key)
+);
+
+CREATE TABLE IF NOT EXISTS assistant_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_key TEXT NOT NULL UNIQUE,
+    event_type TEXT NOT NULL,
+    severity TEXT NOT NULL DEFAULT 'low',
+    title TEXT NOT NULL,
+    message TEXT DEFAULT '',
+    source_type TEXT,
+    source_id INTEGER,
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    available_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    acknowledged_at DATETIME
+);
+
 CREATE INDEX IF NOT EXISTS idx_habit_logs_habit_date ON habit_logs(habit_id, log_date DESC);
 CREATE INDEX IF NOT EXISTS idx_habit_logs_date_status ON habit_logs(log_date DESC, status);
 CREATE INDEX IF NOT EXISTS idx_tasks_status_due_date ON tasks(status, due_date);
@@ -513,3 +566,6 @@ CREATE INDEX IF NOT EXISTS idx_cv_sections_order ON cv_sections(display_order, i
 CREATE INDEX IF NOT EXISTS idx_cv_items_section_order ON cv_items(section_id, display_order, id);
 CREATE INDEX IF NOT EXISTS idx_linkedin_drafts_status ON linkedin_drafts(email_status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_linkedin_drafts_source ON linkedin_drafts(source_type, source_id);
+CREATE INDEX IF NOT EXISTS idx_assistant_api_keys_active ON assistant_api_keys(key_hash, revoked_at);
+CREATE INDEX IF NOT EXISTS idx_assistant_audit_created ON assistant_audit_log(created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_assistant_events_delivery ON assistant_events(acknowledged_at, available_at, id);
