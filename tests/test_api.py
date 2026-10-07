@@ -1957,6 +1957,86 @@ def test_assistant_context_redacts_sensitive_aggregates_without_scopes(client):
     assert {"contacts_touched", "finance", "health", "diet"} <= set(sensitive_weekly["evidence"])
 
 
+def test_assistant_scoped_task_api_revision_conflicts(client):
+    headers = _assistant_headers(client, ("tasks:read", "tasks:write"))
+    created = client.post(
+        "/api/v1/assistant/tasks", headers={**headers, "Idempotency-Key": "scoped-task-create"},
+        json={"title": "Revisioned task"},
+    )
+    assert created.status_code == 201
+    task = created.get_json()["task"]
+    assert task["revision"] == 1
+    updated = client.patch(
+        f"/api/v1/assistant/tasks/{task['id']}",
+        headers={**headers, "Idempotency-Key": "scoped-task-update", "If-Match": "1"},
+        json={"title": "Updated title"},
+    )
+    assert updated.status_code == 200
+    assert updated.get_json()["task"]["revision"] == 2
+    conflict = client.patch(
+        f"/api/v1/assistant/tasks/{task['id']}",
+        headers={**headers, "Idempotency-Key": "scoped-task-stale", "If-Match": "1"},
+        json={"title": "Stale title"},
+    )
+    assert conflict.status_code == 409
+    assert conflict.get_json()["server"]["title"] == "Updated title"
+    weak_etag = client.patch(
+        f"/api/v1/assistant/tasks/{task['id']}", headers={**headers, "If-Match": 'W/"2"'},
+        json={"title": "Weak validator"},
+    )
+    assert weak_etag.status_code == 400
+    malformed = client.patch(
+        f"/api/v1/assistant/tasks/{task['id']}", headers={**headers, "If-Match": "not-a-revision"},
+        json={"title": "Malformed validator"},
+    )
+    assert malformed.status_code == 400
+    assert client.get("/api/v1/assistant/projects", headers=headers).status_code == 403
+
+
+def test_assistant_focus_session_routes_are_scoped_idempotent_and_stable(client):
+    task_headers = _assistant_headers(client, ("tasks:read", "tasks:write"))
+    task = client.post(
+        "/api/v1/assistant/tasks", headers={**task_headers, "Idempotency-Key": "focus-linked-task"},
+        json={"title": "Focus linked task"},
+    ).get_json()["task"]
+    focus_headers = _assistant_headers(client, ("focus:read", "focus:write"))
+    body = {
+        "session_key": "timer-offline-safe", "timer_id": "timer-offline-safe", "task_id": task["id"],
+        "session_type": "timer", "planned_seconds": 1800, "elapsed_seconds": 0,
+        "started_at": "2026-10-05T10:00:00Z", "status": "running", "notes": "Deep work",
+    }
+    created = client.post(
+        "/api/v1/assistant/focus-sessions",
+        headers={**focus_headers, "Idempotency-Key": "focus-create-once"}, json=body,
+    )
+    assert created.status_code == 201
+    session_id = created.get_json()["session"]["id"]
+    replay = client.post(
+        "/api/v1/assistant/focus-sessions",
+        headers={**focus_headers, "Idempotency-Key": "focus-create-once"}, json=body,
+    )
+    assert replay.status_code == 201
+    assert replay.headers["X-Idempotent-Replay"] == "true"
+    assert replay.get_json()["session"]["id"] == session_id
+    finalized = client.patch(
+        f"/api/v1/assistant/focus-sessions/{session_id}",
+        headers={**focus_headers, "Idempotency-Key": "focus-finalize"},
+        json={"elapsed_seconds": 812, "status": "completed", "ended_at": "2026-10-05T10:13:32Z"},
+    )
+    assert finalized.status_code == 200
+    assert finalized.get_json()["session"]["elapsed_seconds"] == 812
+    task_only_headers = _assistant_headers(client, ("tasks:read",))
+    assert client.get(
+        f"/api/v1/assistant/tasks/{task['id']}/focus-sessions", headers=task_only_headers,
+    ).status_code == 403
+    listed = client.get(
+        f"/api/v1/assistant/tasks/{task['id']}/focus-sessions",
+        headers=focus_headers,
+    )
+    assert listed.status_code == 200
+    assert listed.get_json()["sessions"][0]["status"] == "completed"
+
+
 def test_assistant_api_idempotent_task_write_and_audit(client):
     headers = {
         **_assistant_headers(client),
@@ -2009,6 +2089,11 @@ def test_assistant_notification_polling_and_acknowledgement(client):
         if item["source_type"] == "task" and item["source_id"] == task["id"]
     )
     assert event["event_type"] == "task.attention_required"
+    lifecycle = next(
+        item for item in events
+        if item["source_type"] == "task_lifecycle" and item["source_id"] == task["id"]
+    )
+    assert lifecycle["event_type"] == "task.changed"
     assert event["acknowledged"] is False
 
     acknowledged = client.post(

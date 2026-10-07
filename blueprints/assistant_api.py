@@ -8,7 +8,7 @@ import uuid
 from flask import Blueprint, Response, current_app, g, jsonify, make_response, request, stream_with_context
 
 from assistant_auth import KNOWN_ASSISTANT_SCOPES
-from assistant_events import acknowledge_assistant_event, list_assistant_events, materialize_current_notifications
+from assistant_events import acknowledge_assistant_event, list_assistant_events, materialize_current_notifications, publish_assistant_event
 from database import execute_db, query_db
 from services import dashboard_today_payload
 from utils import row_to_dict
@@ -20,7 +20,13 @@ import blueprints.journal_api as journal_api
 import blueprints.library_api as library_api
 import blueprints.life_api as life_api
 import blueprints.notes_api as notes_api
+import blueprints.notebooks_api as notebooks_api
+import blueprints.work_api as work_api
+import blueprints.cv_api as cv_api
+import blueprints.linkedin_api as linkedin_api
+import blueprints.analytics_api as analytics_api
 import blueprints.os_api as os_api
+import blueprints.settings_api as settings_api
 import blueprints.projects_api as projects_api
 import blueprints.tasks_api as tasks_api
 
@@ -137,7 +143,11 @@ def assistant_endpoint(
         @wraps(function)
         def wrapped(*args, **kwargs):
             granted = getattr(g, "assistant_scopes", set())
-            missing = [scope for scope in required_scopes if "*" not in granted and scope not in granted]
+            missing = [
+                scope for scope in required_scopes
+                if "*" not in granted
+                and not any(candidate in granted for candidate in scope.split("|"))
+            ]
             if missing:
                 response = make_response(
                     jsonify(
@@ -164,6 +174,37 @@ def assistant_endpoint(
             if write:
                 _store_idempotent_response(response)
             _audit(operation, response, entity_type=entity_type)
+            if write and response.status_code < 300 and entity_type in {"task", "project", "project_milestone"}:
+                payload = _json_response_body(response)
+                entity_id = _extract_entity_id(payload)
+                if entity_id is not None:
+                    entity = payload
+                    if isinstance(payload, dict):
+                        for value in payload.values():
+                            if isinstance(value, dict) and value.get("id") == entity_id:
+                                entity = value
+                                break
+                    event_type = {
+                        "task": "task.changed",
+                        "project": "project.changed",
+                        "project_milestone": "project.milestone_changed",
+                    }[entity_type]
+                    event_key = (
+                        f"{operation}:{entity_type}:{entity_id}:"
+                        f"{request.headers.get('Idempotency-Key') or request.headers.get('X-Request-ID') or uuid.uuid4().hex}"
+                    )
+                    action = operation.rsplit(".", 1)[-1]
+                    verb = "created" if action == "create" else "updated"
+                    publish_assistant_event(
+                        event_type,
+                        str(entity.get("title") or entity.get("name") or f"{entity_type} {entity_id}"),
+                        message=f"{entity_type.replace('_', ' ').title()} was {verb}.",
+                        severity="low",
+                        source_type=f"{entity_type}_lifecycle",
+                        source_id=entity_id,
+                        payload={"operation": operation, "entity_type": entity_type, "entity": entity},
+                        event_key=event_key,
+                    )
             return response
 
         return wrapped
@@ -265,29 +306,47 @@ def search():
 
 
 @bp.get("/tasks")
-@assistant_endpoint("tasks.list", "lifeos:read", entity_type="task")
+@assistant_endpoint("tasks.list", "lifeos:read|tasks:read", entity_type="task")
 def list_tasks():
     return tasks_api.get_tasks()
 
 
 @bp.get("/tasks/<int:task_id>")
-@assistant_endpoint("tasks.get", "lifeos:read", entity_type="task")
+@assistant_endpoint("tasks.get", "lifeos:read|tasks:read", entity_type="task")
 def get_task(task_id: int):
     row = query_db("SELECT * FROM tasks WHERE id = ?", [task_id], one=True)
     if not row:
         return jsonify({"error": "not_found", "message": "Task not found."}), 404
-    return jsonify(row_to_dict(row))
+    return jsonify({"task": row_to_dict(row)})
 
 
 @bp.post("/tasks")
-@assistant_endpoint("tasks.create", "lifeos:write", write=True, entity_type="task")
+@assistant_endpoint("tasks.create", "lifeos:write|tasks:write", write=True, entity_type="task")
 def create_task():
     return tasks_api.create_task()
 
 
 @bp.patch("/tasks/<int:task_id>")
-@assistant_endpoint("tasks.update", "lifeos:write", write=True, entity_type="task")
+@assistant_endpoint("tasks.update", "lifeos:write|tasks:write", write=True, entity_type="task")
 def update_task(task_id: int):
+    current = query_db("SELECT revision FROM tasks WHERE id = ?", [task_id], one=True)
+    if not current:
+        return jsonify({"error": "not_found", "message": "Task not found."}), 404
+    payload = request.get_json(silent=True) or {}
+    expected = request.headers.get("If-Match")
+    if expected is None and isinstance(payload, dict):
+        expected = payload.pop("expected_revision", None)
+    if expected is not None:
+        expected = str(expected).strip()
+        if expected.startswith("W/"):
+            return jsonify({"error": "validation_error", "message": "Weak ETags are not supported for task revisions."}), 400
+        try:
+            expected_revision = int(expected.strip('"'))
+        except (TypeError, ValueError):
+            return jsonify({"error": "validation_error", "message": "If-Match must be a task revision."}), 400
+        if expected_revision != int(current["revision"] or 1):
+            server = query_db("SELECT * FROM tasks WHERE id = ?", [task_id], one=True)
+            return jsonify({"error": "conflict", "message": "Task changed on the server.", "server": row_to_dict(server), "expected_revision": expected_revision}), 409
     return tasks_api.update_task(task_id)
 
 
@@ -355,6 +414,204 @@ def create_goal_milestone(goal_id: int):
 @assistant_endpoint("goals.milestones.update", "lifeos:write", write=True, entity_type="goal_milestone")
 def update_goal_milestone(goal_id: int, milestone_id: int):
     return goals_api.update_goal_milestone(goal_id, milestone_id)
+
+
+@bp.get("/work/experiences")
+@assistant_endpoint("work.experiences.list", "lifeos:read")
+def list_work_experiences():
+    return work_api.get_work_experiences()
+
+
+@bp.post("/work/experiences")
+@assistant_endpoint("work.experiences.create", "lifeos:write", write=True, entity_type="work_experience")
+def create_work_experience():
+    return work_api.create_work_experience()
+
+
+@bp.route("/work/experiences/<int:experience_id>", methods=["PUT", "PATCH"])
+@assistant_endpoint("work.experiences.update", "lifeos:write", write=True, entity_type="work_experience")
+def update_work_experience(experience_id: int):
+    return work_api.update_work_experience(experience_id)
+
+
+@bp.get("/cv/sections")
+@assistant_endpoint("cv.sections.list", "lifeos:read")
+def list_cv_sections():
+    return cv_api.get_cv_sections()
+
+
+@bp.post("/cv/sections")
+@assistant_endpoint("cv.sections.create", "lifeos:write", write=True, entity_type="cv_section")
+def create_cv_section():
+    return cv_api.create_cv_section()
+
+
+@bp.post("/cv/items")
+@assistant_endpoint("cv.items.create", "lifeos:write", write=True, entity_type="cv_item")
+def create_cv_item():
+    return cv_api.create_cv_item()
+
+
+@bp.route("/cv/items/<int:item_id>", methods=["PUT", "PATCH"])
+@assistant_endpoint("cv.items.update", "lifeos:write", write=True, entity_type="cv_item")
+def update_cv_item(item_id: int):
+    return cv_api.update_cv_item(item_id)
+
+
+@bp.get("/linkedin/drafts")
+@assistant_endpoint("linkedin.drafts.list", "lifeos:read")
+def list_linkedin_drafts():
+    return linkedin_api.get_linkedin_drafts()
+
+
+@bp.post("/linkedin/drafts/<int:draft_id>/send")
+@assistant_endpoint("linkedin.drafts.send", "external:send", write=True, entity_type="linkedin_draft")
+def send_linkedin_draft(draft_id: int):
+    return linkedin_api.send_linkedin_draft(draft_id)
+
+
+@bp.post("/linkedin/drafts/<int:draft_id>/generate")
+@assistant_endpoint("linkedin.drafts.generate", "external:send", write=True, entity_type="linkedin_draft")
+def generate_linkedin_draft(draft_id: int):
+    return linkedin_api.generate_linkedin_draft_route(draft_id)
+
+
+@bp.get("/notebooks/workspace")
+@assistant_endpoint("notebooks.workspace", "lifeos:read")
+def get_notebook_workspace():
+    return notebooks_api.workspace()
+
+
+@bp.get("/analytics/overview")
+@assistant_endpoint("analytics.overview", "lifeos:read")
+def get_analytics_overview():
+    return analytics_api.get_overview()
+
+
+@bp.get("/analytics/page")
+@assistant_endpoint("analytics.page", "lifeos:read")
+def get_analytics_page():
+    return analytics_api.get_analytics_page_payload()
+
+
+@bp.get("/analytics/velocity")
+@assistant_endpoint("analytics.velocity", "lifeos:read")
+def get_analytics_velocity():
+    return analytics_api.get_velocity()
+
+
+@bp.get("/analytics/habit-calendar")
+@assistant_endpoint("analytics.habit_calendar", "lifeos:read")
+def get_analytics_habit_calendar():
+    return analytics_api.habit_calendar()
+
+
+@bp.get("/analytics/mood-productivity")
+@assistant_endpoint("analytics.mood_productivity", "lifeos:read")
+def get_analytics_mood_productivity():
+    return analytics_api.get_mood_productivity()
+
+
+@bp.get("/analytics/today")
+@assistant_endpoint("analytics.today", "lifeos:read")
+def get_analytics_today():
+    return analytics_api.get_today()
+
+
+@bp.get("/analytics/activity")
+@assistant_endpoint("analytics.activity", "lifeos:read")
+def get_analytics_activity():
+    return analytics_api.get_activity()
+
+
+@bp.get("/settings/system")
+@assistant_endpoint("settings.system", "lifeos:read")
+def get_system_summary():
+    return settings_api.system_summary()
+
+
+@bp.get("/cv/profile")
+@assistant_endpoint("cv.profile.read", "lifeos:read")
+def get_cv_profile():
+    return cv_api.get_cv_profile()
+
+
+@bp.put("/cv/profile")
+@assistant_endpoint("cv.profile.update", "lifeos:write", write=True, entity_type="cv_profile")
+def update_cv_profile():
+    return cv_api.update_cv_profile()
+
+
+@bp.get("/cv/preview")
+@assistant_endpoint("cv.preview", "lifeos:read")
+def get_cv_preview():
+    return cv_api.get_cv_preview()
+
+
+@bp.get("/linkedin/config")
+@assistant_endpoint("linkedin.config", "lifeos:read")
+def get_linkedin_config():
+    return linkedin_api.get_linkedin_config()
+
+
+@bp.get("/linkedin/drafts/<int:draft_id>")
+@assistant_endpoint("linkedin.drafts.get", "lifeos:read", entity_type="linkedin_draft")
+def get_linkedin_draft(draft_id: int):
+    return linkedin_api.get_linkedin_draft(draft_id)
+
+
+@bp.post("/linkedin/drafts/<int:draft_id>/generation")
+@assistant_endpoint("linkedin.drafts.finalize_generation", "external:send", write=True, entity_type="linkedin_draft")
+def finalize_linkedin_draft_generation(draft_id: int):
+    return linkedin_api.complete_linkedin_draft_generation(draft_id)
+
+
+@bp.get("/notebooks/folders/<int:folder_id>")
+@assistant_endpoint("notebooks.folder", "lifeos:read")
+def get_notebook_folder(folder_id: int):
+    return notebooks_api.get_folder(folder_id)
+
+
+@bp.post("/notebooks/folders")
+@assistant_endpoint("notebooks.folders.create", "lifeos:write", write=True)
+def create_notebook_folder():
+    return notebooks_api.create_folder()
+
+
+@bp.post("/notebooks/folders/<int:folder_id>/notes")
+@assistant_endpoint("notebooks.folder_notes.create", "lifeos:write", write=True)
+def create_folder_note(folder_id: int):
+    return notebooks_api.create_folder_note(folder_id)
+
+
+@bp.post("/notebooks/notebooks")
+@assistant_endpoint("notebooks.create", "lifeos:write", write=True)
+def create_notebook():
+    return notebooks_api.create_standalone_notebook()
+
+
+@bp.route("/notebooks/notebooks/<int:notebook_id>", methods=["PUT", "PATCH"])
+@assistant_endpoint("notebooks.update", "lifeos:write", write=True)
+def update_notebook(notebook_id: int):
+    return notebooks_api.update_notebook(notebook_id)
+
+
+@bp.post("/notebooks/notebooks/<int:notebook_id>/pages")
+@assistant_endpoint("notebooks.pages.create", "lifeos:write", write=True)
+def create_notebook_page(notebook_id: int):
+    return notebooks_api.create_page(notebook_id)
+
+
+@bp.get("/notebooks/pages/<int:page_id>")
+@assistant_endpoint("notebooks.pages.get", "lifeos:read")
+def get_notebook_page(page_id: int):
+    return notebooks_api.get_page(page_id)
+
+
+@bp.route("/notebooks/pages/<int:page_id>", methods=["PUT", "PATCH"])
+@assistant_endpoint("notebooks.pages.update", "lifeos:write", write=True)
+def update_notebook_page(page_id: int):
+    return notebooks_api.update_page(page_id)
 
 
 @bp.get("/habits")
@@ -529,6 +786,111 @@ def create_finance():
 @assistant_endpoint("finance.update", "sensitive:finance", "lifeos:write", write=True, entity_type="finance_entry")
 def update_finance(entry_id: int):
     return life_api.update_finance_entry(entry_id)
+
+
+@bp.get("/tasks/<int:task_id>/focus-sessions")
+@assistant_endpoint("focus.sessions.list", "focus:read")
+def list_focus_sessions(task_id: int):
+    if not query_db("SELECT id FROM tasks WHERE id = ?", [task_id], one=True):
+        return jsonify({"error": "not_found", "message": "Task not found."}), 404
+    rows = query_db(
+        "SELECT * FROM focus_sessions WHERE task_id = ? ORDER BY started_at DESC, id DESC LIMIT 200",
+        [task_id],
+    )
+    return jsonify({"sessions": [dict(row) for row in rows]})
+
+
+@bp.get("/focus-sessions")
+@assistant_endpoint("focus.sessions.all", "focus:read")
+def list_all_focus_sessions():
+    limit = max(1, min(request.args.get("limit", default=100, type=int), 500))
+    rows = query_db(
+        "SELECT * FROM focus_sessions ORDER BY started_at DESC, id DESC LIMIT ?",
+        [limit],
+    )
+    return jsonify({"sessions": [dict(row) for row in rows]})
+
+
+@bp.post("/focus-sessions")
+@assistant_endpoint("focus.sessions.create", "focus:write", write=True, entity_type="focus_session")
+def create_focus_session():
+    from datetime import datetime
+
+    from utils import get_optional_int, get_optional_string, get_required_string, iso_now, require_object
+
+    payload = require_object(request.get_json(silent=True))
+    session_key = get_required_string(payload, "session_key", max_length=160)
+    timer_id = get_optional_string(payload, "timer_id", max_length=160, default="") or ""
+    session_type = get_optional_string(payload, "session_type", max_length=40, default="pomodoro") or "pomodoro"
+    if session_type not in {"pomodoro", "timer", "reminder", "break", "stopwatch"}:
+        return jsonify({"error": "validation_error", "message": "Invalid session_type."}), 400
+    task_id = get_optional_int(payload, "task_id", minimum=1)
+    planned_seconds = get_optional_int(payload, "planned_seconds", minimum=0, default=0) or 0
+    elapsed_seconds = get_optional_int(payload, "elapsed_seconds", minimum=0, default=0) or 0
+    status = get_optional_string(payload, "status", max_length=20, default="running") or "running"
+    if status not in {"running", "completed", "cancelled"}:
+        return jsonify({"error": "validation_error", "message": "Invalid session status."}), 400
+    started_at = get_optional_string(payload, "started_at", max_length=64, default=iso_now()) or iso_now()
+    try:
+        datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+    except ValueError:
+        return jsonify({"error": "validation_error", "message": "started_at must be ISO-8601."}), 400
+    ended_at = get_optional_string(payload, "ended_at", max_length=64, default="") or None
+    notes = get_optional_string(payload, "notes", max_length=1000, default="") or ""
+    if task_id is not None and not query_db("SELECT id FROM tasks WHERE id = ?", [task_id], one=True):
+        return jsonify({"error": "validation_error", "message": "task_id does not exist."}), 400
+    existing = query_db("SELECT * FROM focus_sessions WHERE session_key = ?", [session_key], one=True)
+    if existing:
+        # Reposting the same stable session key with a terminal state finalizes
+        # an offline-queued start without creating duplicate time entries.
+        if status in {"completed", "cancelled"} or elapsed_seconds > int(existing["elapsed_seconds"]):
+            ended_at = ended_at or (iso_now() if status in {"completed", "cancelled"} else None)
+            execute_db(
+                "UPDATE focus_sessions SET elapsed_seconds = ?, status = ?, ended_at = COALESCE(?, ended_at), notes = ? WHERE id = ?",
+                (elapsed_seconds, status, ended_at, notes, existing["id"]),
+            )
+            existing = query_db("SELECT * FROM focus_sessions WHERE id = ?", [existing["id"]], one=True)
+        return jsonify({"session": dict(existing), "message": "Session already exists."}), 200
+    session_id = execute_db(
+        """
+        INSERT INTO focus_sessions (
+            session_key, task_id, timer_id, session_type, planned_seconds, elapsed_seconds,
+            started_at, ended_at, status, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (session_key, task_id, timer_id, session_type, planned_seconds, elapsed_seconds,
+         started_at, ended_at, status, notes),
+    )
+    row = query_db("SELECT * FROM focus_sessions WHERE id = ?", [session_id], one=True)
+    return jsonify({"session": dict(row), "message": "Focus session recorded."}), 201
+
+
+@bp.patch("/focus-sessions/<int:session_id>")
+@assistant_endpoint("focus.sessions.update", "focus:write", write=True, entity_type="focus_session")
+def update_focus_session(session_id: int):
+    from utils import get_optional_int, get_optional_string, require_object
+
+    current = query_db("SELECT * FROM focus_sessions WHERE id = ?", [session_id], one=True)
+    if not current:
+        return jsonify({"error": "not_found", "message": "Focus session not found."}), 404
+    payload = require_object(request.get_json(silent=True))
+    from utils import iso_now
+
+    elapsed = get_optional_int(payload, "elapsed_seconds", minimum=0, default=int(current["elapsed_seconds"]))
+    status = get_optional_string(payload, "status", max_length=20, default=current["status"]) or current["status"]
+    if status in {"completed", "cancelled"} and "ended_at" not in payload:
+        ended_at = iso_now()
+    else:
+        ended_at = get_optional_string(payload, "ended_at", max_length=64, default=current["ended_at"] or "") or None
+    if status not in {"running", "completed", "cancelled"}:
+        return jsonify({"error": "validation_error", "message": "Invalid session status."}), 400
+    notes = get_optional_string(payload, "notes", max_length=1000, default=current["notes"]) or ""
+    execute_db(
+        "UPDATE focus_sessions SET elapsed_seconds = ?, status = ?, ended_at = ?, notes = ? WHERE id = ?",
+        (elapsed, status, ended_at, notes, session_id),
+    )
+    row = query_db("SELECT * FROM focus_sessions WHERE id = ?", [session_id], one=True)
+    return jsonify({"session": dict(row), "message": "Focus session updated."})
 
 
 @bp.get("/events")

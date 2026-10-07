@@ -41,6 +41,8 @@ DEFAULT_FOOD_PRESETS = (
 MIGRATIONS = (
     ("traits", "display_order", "ALTER TABLE traits ADD COLUMN display_order INTEGER NOT NULL DEFAULT 0"),
     ("tasks", "completed_at", "ALTER TABLE tasks ADD COLUMN completed_at DATETIME"),
+    ("tasks", "updated_at", "ALTER TABLE tasks ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"),
+    ("tasks", "revision", "ALTER TABLE tasks ADD COLUMN revision INTEGER NOT NULL DEFAULT 1"),
     ("tasks", "calendar_event_id", "ALTER TABLE tasks ADD COLUMN calendar_event_id INTEGER"),
     ("tasks", "calendar_sync_enabled", "ALTER TABLE tasks ADD COLUMN calendar_sync_enabled INTEGER NOT NULL DEFAULT 1"),
     ("tasks", "not_completed", "ALTER TABLE tasks ADD COLUMN not_completed INTEGER NOT NULL DEFAULT 0"),
@@ -876,6 +878,8 @@ def _ensure_calendar_relation_indexes(db: sqlite3.Connection) -> None:
 
 
 def _ensure_task_sync_indexes(db: sqlite3.Connection) -> None:
+    if _column_exists(db, "tasks", "updated_at"):
+        db.execute("CREATE INDEX IF NOT EXISTS idx_tasks_updated_at ON tasks(updated_at)")
     if _column_exists(db, "tasks", "calendar_event_id"):
         db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_calendar_event_id ON tasks(calendar_event_id)")
     if _column_exists(db, "tasks", "not_completed") and _column_exists(db, "tasks", "not_completed_at"):

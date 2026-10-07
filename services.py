@@ -179,7 +179,9 @@ def mark_stale_tasks_not_completed() -> None:
         """
         UPDATE tasks
         SET not_completed = 1,
-            not_completed_at = COALESCE(not_completed_at, ?)
+            not_completed_at = COALESCE(not_completed_at, ?),
+            updated_at = CURRENT_TIMESTAMP,
+            revision = revision + 1
         WHERE status != 'completed'
             AND due_date IS NOT NULL
             AND DATETIME(due_date) <= DATETIME(?, '-24 hours')
@@ -212,7 +214,10 @@ def delete_calendar_event_with_sync(event_id: int, *, delete_linked_task: bool =
         if delete_linked_task:
             execute_db("DELETE FROM tasks WHERE id = ?", [linked_task["id"]])
         else:
-            execute_db("UPDATE tasks SET calendar_event_id = NULL WHERE id = ?", [linked_task["id"]])
+            execute_db(
+                "UPDATE tasks SET calendar_event_id = NULL, updated_at = CURRENT_TIMESTAMP, revision = revision + 1 WHERE id = ?",
+                [linked_task["id"]],
+            )
 
     execute_db("DELETE FROM calendar_events WHERE id = ?", [event_id])
     return True
@@ -264,7 +269,10 @@ def sync_calendar_event_for_task(task: dict) -> dict:
         """,
         payload,
     )
-    execute_db("UPDATE tasks SET calendar_event_id = ? WHERE id = ?", [new_event_id, task["id"]])
+    execute_db(
+        "UPDATE tasks SET calendar_event_id = ?, updated_at = CURRENT_TIMESTAMP, revision = revision + 1 WHERE id = ?",
+        [new_event_id, task["id"]],
+    )
     return row_to_dict(query_db("SELECT * FROM calendar_events WHERE id = ?", [new_event_id], one=True))
 
 
@@ -290,7 +298,8 @@ def sync_task_for_calendar_event(event: dict, sync_task: bool) -> dict:
         execute_db(
             """
             UPDATE tasks
-            SET title = ?, description = ?, due_date = ?, estimated_minutes = ?, project_id = ?, goal_id = ?, calendar_event_id = ?, calendar_sync_enabled = 1
+            SET title = ?, description = ?, due_date = ?, estimated_minutes = ?, project_id = ?, goal_id = ?, calendar_event_id = ?, calendar_sync_enabled = 1,
+                updated_at = CURRENT_TIMESTAMP, revision = revision + 1
             WHERE id = ?
             """,
             (
@@ -308,8 +317,8 @@ def sync_task_for_calendar_event(event: dict, sync_task: bool) -> dict:
 
     task_id = execute_db(
         """
-        INSERT INTO tasks (title, description, priority, due_date, estimated_minutes, status, project_id, goal_id, calendar_event_id, calendar_sync_enabled)
-        VALUES (?, ?, 3, ?, ?, 'pending', ?, ?, ?, 1)
+        INSERT INTO tasks (title, description, priority, due_date, estimated_minutes, status, project_id, goal_id, calendar_event_id, calendar_sync_enabled, updated_at, revision)
+        VALUES (?, ?, 3, ?, ?, 'pending', ?, ?, ?, 1, CURRENT_TIMESTAMP, 1)
         """,
         (
             event["title"],

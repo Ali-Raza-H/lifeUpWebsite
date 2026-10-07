@@ -231,8 +231,11 @@ def update_task(task_id: int):
     execute_db(
         """
         UPDATE tasks
-        SET title = ?, description = ?, priority = ?, status = ?, due_date = ?, estimated_minutes = ?, project_id = ?, goal_id = ?, linkedin_post_enabled = ?, calendar_sync_enabled = ?, not_completed = ?, not_completed_at = ?, completed_at = ?
+        SET title = ?, description = ?, priority = ?, status = ?, due_date = ?, estimated_minutes = ?, project_id = ?, goal_id = ?, linkedin_post_enabled = ?, calendar_sync_enabled = ?, not_completed = ?,
+            not_completed_at = ?, completed_at = ?, updated_at = CURRENT_TIMESTAMP,
+            revision = revision + 1
         WHERE id = ?
+
         """,
         (
             title,

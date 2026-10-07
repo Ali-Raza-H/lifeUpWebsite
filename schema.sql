@@ -73,11 +73,32 @@ CREATE TABLE IF NOT EXISTS tasks (
     not_completed_at DATETIME,
     linkedin_post_enabled INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    revision INTEGER NOT NULL DEFAULT 1,
     completed_at DATETIME,
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
     FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE SET NULL,
     FOREIGN KEY (calendar_event_id) REFERENCES calendar_events(id) ON DELETE SET NULL
 );
+
+CREATE TABLE IF NOT EXISTS focus_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_key TEXT NOT NULL UNIQUE,
+    task_id INTEGER,
+    timer_id TEXT NOT NULL DEFAULT '',
+    session_type TEXT NOT NULL DEFAULT 'pomodoro',
+    planned_seconds INTEGER NOT NULL DEFAULT 0,
+    elapsed_seconds INTEGER NOT NULL DEFAULT 0,
+    started_at DATETIME NOT NULL,
+    ended_at DATETIME,
+    status TEXT NOT NULL DEFAULT 'running', -- running, completed, cancelled
+    notes TEXT NOT NULL DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_focus_sessions_task_started ON focus_sessions(task_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_focus_sessions_timer ON focus_sessions(timer_id);
 
 CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -533,6 +554,7 @@ CREATE TABLE IF NOT EXISTS assistant_events (
 CREATE INDEX IF NOT EXISTS idx_habit_logs_habit_date ON habit_logs(habit_id, log_date DESC);
 CREATE INDEX IF NOT EXISTS idx_habit_logs_date_status ON habit_logs(log_date DESC, status);
 CREATE INDEX IF NOT EXISTS idx_tasks_status_due_date ON tasks(status, due_date);
+-- idx_tasks_updated_at is created after database.py applies legacy-column migrations.
 CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_goal_id ON tasks(goal_id);
 CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);

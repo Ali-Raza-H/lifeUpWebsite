@@ -21,6 +21,12 @@ DEFAULT_ASSISTANT_SCOPES = (
 KNOWN_ASSISTANT_SCOPES = {
     "lifeos:read": "Read planning, tasks, projects, goals, habits, calendar, notes, and library data.",
     "lifeos:write": "Create and update non-destructive LifeOS records.",
+    "tasks:read": "Read tasks without access to other LifeOS domains.",
+    "tasks:write": "Create and update tasks without access to other LifeOS domains.",
+    "focus:read": "Read focus-session time entries.",
+    "focus:write": "Create and update focus-session time entries.",
+    "external:send": "Send external messages, including LinkedIn drafts.",
+    "admin:maintenance": "Run destructive LifeOS maintenance and profile operations.",
     "events:read": "Poll or stream assistant notifications; sensitive event content also requires its data scope.",
     "events:ack": "Acknowledge assistant notifications.",
     "sensitive:contacts": "Read and update contact details and follow-ups.",
