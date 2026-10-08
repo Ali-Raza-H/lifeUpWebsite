@@ -4,7 +4,41 @@ from datetime import date, timedelta
 
 from assistant_auth import create_assistant_key
 from app import create_app
-from database import query_db
+from database import MIGRATIONS, _ensure_updated_at_defaults, query_db
+
+
+def test_legacy_updated_at_migrations_work_with_sqlite(tmp_path):
+    database_path = tmp_path / "legacy_updated_at.db"
+    with sqlite3.connect(database_path) as db:
+        db.executescript(
+            """
+            CREATE TABLE tasks (id INTEGER PRIMARY KEY, created_at DATETIME);
+            CREATE TABLE journal_entries (id INTEGER PRIMARY KEY, entry_date DATETIME);
+            INSERT INTO tasks (created_at) VALUES ('2026-01-02 03:04:05');
+            INSERT INTO journal_entries (entry_date) VALUES ('2026-02-03 04:05:06');
+            """
+        )
+
+        for table_name, column_name, statement in MIGRATIONS:
+            if (table_name, column_name) in {
+                ("tasks", "updated_at"),
+                ("journal_entries", "updated_at"),
+            }:
+                db.execute(statement)
+
+        _ensure_updated_at_defaults(db)
+
+        task_updated_at = db.execute("SELECT updated_at FROM tasks WHERE id = 1").fetchone()[0]
+        entry_updated_at = db.execute("SELECT updated_at FROM journal_entries WHERE id = 1").fetchone()[0]
+        assert task_updated_at == "2026-01-02 03:04:05"
+        assert entry_updated_at == "2026-02-03 04:05:06"
+
+        db.execute("INSERT INTO tasks (created_at) VALUES ('2026-03-04 05:06:07')")
+        db.execute("INSERT INTO journal_entries (entry_date) VALUES ('2026-04-05 06:07:08')")
+        inserted_task_updated_at = db.execute("SELECT updated_at FROM tasks WHERE id = 2").fetchone()[0]
+        inserted_entry_updated_at = db.execute("SELECT updated_at FROM journal_entries WHERE id = 2").fetchone()[0]
+        assert inserted_task_updated_at is not None
+        assert inserted_entry_updated_at is not None
 
 
 def test_page_routes_require_login(anon_client):

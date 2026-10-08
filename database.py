@@ -41,7 +41,7 @@ DEFAULT_FOOD_PRESETS = (
 MIGRATIONS = (
     ("traits", "display_order", "ALTER TABLE traits ADD COLUMN display_order INTEGER NOT NULL DEFAULT 0"),
     ("tasks", "completed_at", "ALTER TABLE tasks ADD COLUMN completed_at DATETIME"),
-    ("tasks", "updated_at", "ALTER TABLE tasks ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"),
+    ("tasks", "updated_at", "ALTER TABLE tasks ADD COLUMN updated_at DATETIME"),
     ("tasks", "revision", "ALTER TABLE tasks ADD COLUMN revision INTEGER NOT NULL DEFAULT 1"),
     ("tasks", "calendar_event_id", "ALTER TABLE tasks ADD COLUMN calendar_event_id INTEGER"),
     ("tasks", "calendar_sync_enabled", "ALTER TABLE tasks ADD COLUMN calendar_sync_enabled INTEGER NOT NULL DEFAULT 1"),
@@ -59,7 +59,7 @@ MIGRATIONS = (
     ("journal_entries", "ai_feedback", "ALTER TABLE journal_entries ADD COLUMN ai_feedback TEXT DEFAULT ''"),
     ("journal_entries", "ai_feedback_generated_at", "ALTER TABLE journal_entries ADD COLUMN ai_feedback_generated_at DATETIME"),
     ("journal_entries", "ai_feedback_model", "ALTER TABLE journal_entries ADD COLUMN ai_feedback_model TEXT DEFAULT ''"),
-    ("journal_entries", "updated_at", "ALTER TABLE journal_entries ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"),
+    ("journal_entries", "updated_at", "ALTER TABLE journal_entries ADD COLUMN updated_at DATETIME"),
     ("calendar_events", "project_id", "ALTER TABLE calendar_events ADD COLUMN project_id INTEGER"),
     ("calendar_events", "goal_id", "ALTER TABLE calendar_events ADD COLUMN goal_id INTEGER"),
     ("calendar_events", "recurrence", "ALTER TABLE calendar_events ADD COLUMN recurrence TEXT DEFAULT 'none'"),
@@ -100,6 +100,7 @@ def init_db() -> None:
     schema_path = Path(current_app.root_path) / "schema.sql"
     db.executescript(schema_path.read_text(encoding="utf-8"))
     _run_migrations(db)
+    _ensure_updated_at_defaults(db)
     _ensure_project_milestones_table(db)
     _ensure_notebook_tables(db)
     _ensure_goal_links_table(db)
@@ -128,6 +129,41 @@ def _run_migrations(db: sqlite3.Connection) -> None:
     for table_name, column_name, statement in MIGRATIONS:
         if not _column_exists(db, table_name, column_name):
             db.execute(statement)
+
+
+def _ensure_updated_at_defaults(db: sqlite3.Connection) -> None:
+    """Backfill legacy timestamps and preserve their defaults after ALTER TABLE migrations."""
+    db.execute(
+        """
+        UPDATE tasks
+        SET updated_at = COALESCE(created_at, CURRENT_TIMESTAMP)
+        WHERE updated_at IS NULL
+        """
+    )
+    db.execute(
+        """
+        UPDATE journal_entries
+        SET updated_at = COALESCE(entry_date, CURRENT_TIMESTAMP)
+        WHERE updated_at IS NULL
+        """
+    )
+    db.executescript(
+        """
+        CREATE TRIGGER IF NOT EXISTS tasks_updated_at_default
+        AFTER INSERT ON tasks
+        WHEN NEW.updated_at IS NULL
+        BEGIN
+            UPDATE tasks SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS journal_entries_updated_at_default
+        AFTER INSERT ON journal_entries
+        WHEN NEW.updated_at IS NULL
+        BEGIN
+            UPDATE journal_entries SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END;
+        """
+    )
 
 
 def _column_exists(db: sqlite3.Connection, table_name: str, column_name: str) -> bool:
